@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		1A3339C52EF89079001AA049 /* TimeLineCore in Frameworks */ = {isa = PBXBuildFile; productRef = 1A3339C42EF89079001AA049 /* TimeLineCore */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		1A3339902EF88865001AA049 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -52,6 +56,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				1A3339C52EF89079001AA049 /* TimeLineCore in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -78,6 +83,7 @@
 				1A3339822EF88863001AA049 /* timeLine */,
 				1A3339922EF88865001AA049 /* timeLineTests */,
 				1A33399C2EF88865001AA049 /* timeLineUITests */,
+				1A3339C32EF89079001AA049 /* Frameworks */,
 				1A3339812EF88863001AA049 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -90,6 +96,13 @@
 				1A3339992EF88865001AA049 /* timeLineUITests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		1A3339C32EF89079001AA049 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -112,6 +125,7 @@
 			);
 			name = timeLine;
 			packageProductDependencies = (
+				1A3339C42EF89079001AA049 /* TimeLineCore */,
 			);
 			productName = timeLine;
 			productReference = 1A3339802EF88863001AA049 /* timeLine.app */;
@@ -195,6 +209,9 @@
 			);
 			mainGroup = 1A3339772EF88863001AA049;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				1A3339C22EF88D18001AA049 /* XCLocalSwiftPackageReference "../TimeLineCore" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 1A3339812EF88863001AA049 /* Products */;
 			projectDirPath = "";
@@ -570,6 +587,21 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		1A3339C22EF88D18001AA049 /* XCLocalSwiftPackageReference "../TimeLineCore" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../TimeLineCore;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		1A3339C42EF89079001AA049 /* TimeLineCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 1A3339C22EF88D18001AA049 /* XCLocalSwiftPackageReference "../TimeLineCore" */;
+			productName = TimeLineCore;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 1A3339782EF88863001AA049 /* Project object */;
 }
