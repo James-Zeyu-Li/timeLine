@@ -1,10 +1,11 @@
 import SwiftUI
 import TimeLineCore
 
+
 struct TaskSheet: View {
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject var templateStore: TemplateStore
-    @Binding var templateToEdit: TaskTemplate? // Passed from parent
+    @Binding var templateToEdit: TaskTemplate?
     
     // Node Editing Mode
     var isEditingNode: Bool = false
@@ -37,113 +38,301 @@ struct TaskSheet: View {
     
     var body: some View {
         NavigationView {
-            Form {
-                Section(header: Text("Task Details")) {
-                    TextField("What to do?", text: $title)
-                        .font(.headline)
-                    
-                    Picker("Category", selection: $selectedCategory) {
-                        ForEach(TaskCategory.allCases, id: \.self) { cat in
-                            Label(cat.rawValue.capitalized, systemImage: cat.icon)
-                                .tag(cat)
-                        }
-                    }
-                    
-                    Picker("Style", selection: $selectedStyle) {
-                        Text("Focus (Timer)").tag(BossStyle.focus)
-                        Text("Passive (Checkbox)").tag(BossStyle.passive)
-                    }
-                    .pickerStyle(.segmented)
-                }
+            ZStack {
+                // 深色背景
+                Color.black.ignoresSafeArea()
                 
-                Section(header: Text("Duration")) {
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack {
-                            ForEach(durationPresets, id: \.0) { (label, value) in
-                                Button(action: {
-                                    duration = value
-                                }) {
-                                    Text(label)
-                                        .fontWeight(duration == value ? .bold : .regular)
-                                        .padding(.vertical, 8)
-                                        .padding(.horizontal, 16)
-                                        .background(duration == value ? Color.accentColor : Color.gray.opacity(0.2))
-                                        .foregroundColor(duration == value ? .white : .primary)
-                                        .cornerRadius(8)
-                                }
+                ScrollView {
+                    VStack(spacing: 32) {
+                        // 标题和分类区域
+                        VStack(alignment: .leading, spacing: 20) {
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text("Task Name")
+                                    .font(.system(.headline, design: .rounded))
+                                    .fontWeight(.semibold)
+                                    .foregroundColor(.white)
+                                
+                                TextField("What needs to be done?", text: $title)
+                                    .font(.system(.title3, design: .rounded))
+                                    .padding(16)
+                                    .background(Color(white: 0.1))
+                                    .cornerRadius(12)
+                                    .foregroundColor(.white)
                             }
-                        }
-                    }
-                }
-                
-                if !isEditingNode {
-                    Section(header: Text("Repeat")) {
-                        Picker("Repeat", selection: $repeatType) {
-                            ForEach(RepeatType.allCases) { type in
-                                Text(type.rawValue).tag(type)
-                            }
-                        }
-                        .pickerStyle(.segmented)
-                        
-                        // ... Weekly/Monthly Pickers ...
-                        if repeatType == .weekly {
-                             HStack {
-                                ForEach(1...7, id: \.self) { day in
-                                    let dayName = Calendar.current.shortWeekdaySymbols[day-1].prefix(1)
-                                    Button(action: {
-                                        if selectedWeekdays.contains(day) {
-                                            selectedWeekdays.remove(day)
-                                        } else {
-                                            selectedWeekdays.insert(day)
+                            
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text("Category")
+                                    .font(.system(.headline, design: .rounded))
+                                    .fontWeight(.semibold)
+                                    .foregroundColor(.white)
+                                
+                                LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 3), spacing: 12) {
+                                    ForEach(TaskCategory.allCases, id: \.self) { category in
+                                        Button(action: {
+                                            selectedCategory = category
+                                        }) {
+                                            VStack(spacing: 8) {
+                                                Image(systemName: category.icon)
+                                                    .font(.system(size: 24))
+                                                    .foregroundColor(selectedCategory == category ? .white : category.color)
+                                                
+                                                Text(category.rawValue.capitalized)
+                                                    .font(.system(.caption, design: .rounded))
+                                                    .fontWeight(.medium)
+                                                    .foregroundColor(selectedCategory == category ? .white : .gray)
+                                            }
+                                            .frame(height: 80)
+                                            .frame(maxWidth: .infinity)
+                                            .background(
+                                                selectedCategory == category ?
+                                                    LinearGradient(
+                                                        colors: [category.color, category.color.opacity(0.7)],
+                                                        startPoint: .topLeading,
+                                                        endPoint: .bottomTrailing
+                                                    ) :
+                                                    LinearGradient(colors: [Color(white: 0.1)], startPoint: .top, endPoint: .bottom)
+                                            )
+                                            .cornerRadius(12)
+                                            .overlay(
+                                                RoundedRectangle(cornerRadius: 12)
+                                                    .stroke(
+                                                        selectedCategory == category ? category.color : Color(white: 0.2),
+                                                        lineWidth: selectedCategory == category ? 2 : 1
+                                                    )
+                                            )
                                         }
-                                    }) {
-                                        Text(String(dayName))
-                                            .font(.caption)
-                                            .frame(width: 30, height: 30)
-                                            .background(selectedWeekdays.contains(day) ? Color.blue : Color.gray.opacity(0.2))
-                                            .foregroundColor(selectedWeekdays.contains(day) ? .white : .primary)
-                                            .clipShape(Circle())
                                     }
                                 }
                             }
-                        } else if repeatType == .monthly {
-                                // Monthly Day Picker (1-31 grid)
-                                LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 7), spacing: 8) {
-                                    ForEach(1...31, id: \.self) { day in
+                        }
+                        
+                        // 执行模式选择
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Execution Mode")
+                                .font(.system(.headline, design: .rounded))
+                                .fontWeight(.semibold)
+                                .foregroundColor(.white)
+                            
+                            HStack(spacing: 12) {
+                                Button(action: { selectedStyle = .focus }) {
+                                    VStack(spacing: 8) {
+                                        Image(systemName: "bolt.fill")
+                                            .font(.system(size: 24))
+                                            .foregroundColor(selectedStyle == .focus ? .white : .yellow)
+                                        
+                                        Text("Focus")
+                                            .font(.system(.subheadline, design: .rounded))
+                                            .fontWeight(.semibold)
+                                        
+                                        Text("Timer-based")
+                                            .font(.system(.caption2))
+                                            .foregroundColor(.gray)
+                                    }
+                                    .frame(maxWidth: .infinity)
+                                    .padding(16)
+                                    .background(
+                                        selectedStyle == .focus ?
+                                            LinearGradient(colors: [.yellow.opacity(0.3), .orange.opacity(0.2)], startPoint: .top, endPoint: .bottom) :
+                                            LinearGradient(colors: [Color(white: 0.1)], startPoint: .top, endPoint: .bottom)
+                                    )
+                                    .cornerRadius(12)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 12)
+                                            .stroke(selectedStyle == .focus ? .yellow : Color(white: 0.2), lineWidth: 2)
+                                    )
+                                }
+                                .foregroundColor(selectedStyle == .focus ? .white : .gray)
+                                
+                                Button(action: { selectedStyle = .passive }) {
+                                    VStack(spacing: 8) {
+                                        Image(systemName: "checkmark.circle.fill")
+                                            .font(.system(size: 24))
+                                            .foregroundColor(selectedStyle == .passive ? .white : .cyan)
+                                        
+                                        Text("Passive")
+                                            .font(.system(.subheadline, design: .rounded))
+                                            .fontWeight(.semibold)
+                                        
+                                        Text("Checkbox")
+                                            .font(.system(.caption2))
+                                            .foregroundColor(.gray)
+                                    }
+                                    .frame(maxWidth: .infinity)
+                                    .padding(16)
+                                    .background(
+                                        selectedStyle == .passive ?
+                                            LinearGradient(colors: [.cyan.opacity(0.3), .blue.opacity(0.2)], startPoint: .top, endPoint: .bottom) :
+                                            LinearGradient(colors: [Color(white: 0.1)], startPoint: .top, endPoint: .bottom)
+                                    )
+                                    .cornerRadius(12)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 12)
+                                            .stroke(selectedStyle == .passive ? .cyan : Color(white: 0.2), lineWidth: 2)
+                                    )
+                                }
+                                .foregroundColor(selectedStyle == .passive ? .white : .gray)
+                            }
+                        }
+                        
+                        // 时长选择（仅专注模式）
+                        if selectedStyle == .focus {
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text("Duration")
+                                    .font(.system(.headline, design: .rounded))
+                                    .fontWeight(.semibold)
+                                    .foregroundColor(.white)
+                                
+                                LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 3), spacing: 12) {
+                                    ForEach(durationPresets, id: \.0) { (label, value) in
                                         Button(action: {
-                                            if selectedWeekdays.contains(day) { // reusing selectedWeekdays for days set
-                                                selectedWeekdays.remove(day)
-                                            } else {
-                                                selectedWeekdays.insert(day)
+                                            duration = value
+                                        }) {
+                                            Text(label)
+                                                .font(.system(.subheadline, design: .monospaced))
+                                                .fontWeight(duration == value ? .bold : .medium)
+                                                .foregroundColor(duration == value ? .white : .gray)
+                                                .frame(height: 44)
+                                                .frame(maxWidth: .infinity)
+                                                .background(
+                                                    duration == value ?
+                                                        LinearGradient(colors: [.green, .green.opacity(0.7)], startPoint: .top, endPoint: .bottom) :
+                                                        LinearGradient(colors: [Color(white: 0.1)], startPoint: .top, endPoint: .bottom)
+                                                )
+                                                .cornerRadius(8)
+                                                .overlay(
+                                                    RoundedRectangle(cornerRadius: 8)
+                                                        .stroke(duration == value ? .green : Color(white: 0.2), lineWidth: 1)
+                                                )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        
+                        // 重复设置（非节点编辑模式）
+                        if !isEditingNode {
+                            VStack(alignment: .leading, spacing: 16) {
+                                Text("Repeat Schedule")
+                                    .font(.system(.headline, design: .rounded))
+                                    .fontWeight(.semibold)
+                                    .foregroundColor(.white)
+                                
+                                // 重复类型选择
+                                HStack(spacing: 8) {
+                                    ForEach(RepeatType.allCases) { type in
+                                        Button(action: {
+                                            repeatType = type
+                                            if type == .none {
+                                                selectedWeekdays.removeAll()
                                             }
                                         }) {
-                                            Text("\(day)")
-                                                .font(.caption2)
-                                                .frame(width: 24, height: 24)
-                                                .background(selectedWeekdays.contains(day) ? Color.purple : Color.gray.opacity(0.2))
-                                                .foregroundColor(selectedWeekdays.contains(day) ? .white : .primary)
-                                                .clipShape(Circle())
+                                            Text(type.rawValue)
+                                                .font(.system(.caption, design: .rounded))
+                                                .fontWeight(.semibold)
+                                                .foregroundColor(repeatType == type ? .white : .gray)
+                                                .padding(.horizontal, 12)
+                                                .padding(.vertical, 8)
+                                                .background(
+                                                    repeatType == type ?
+                                                        Color.purple.opacity(0.3) :
+                                                        Color(white: 0.1)
+                                                )
+                                                .cornerRadius(8)
                                         }
                                     }
                                 }
-                                .padding(.vertical, 4)
+                                
+                                // 具体重复设置
+                                if repeatType == .weekly {
+                                    VStack(alignment: .leading, spacing: 8) {
+                                        Text("Select Days")
+                                            .font(.system(.subheadline))
+                                            .foregroundColor(.gray)
+                                        
+                                        HStack(spacing: 8) {
+                                            ForEach(1...7, id: \.self) { day in
+                                                let dayName = Calendar.current.shortWeekdaySymbols[day-1]
+                                                Button(action: {
+                                                    if selectedWeekdays.contains(day) {
+                                                        selectedWeekdays.remove(day)
+                                                    } else {
+                                                        selectedWeekdays.insert(day)
+                                                    }
+                                                }) {
+                                                    Text(String(dayName.prefix(1)))
+                                                        .font(.system(.caption, design: .rounded))
+                                                        .fontWeight(.bold)
+                                                        .foregroundColor(selectedWeekdays.contains(day) ? .white : .gray)
+                                                        .frame(width: 36, height: 36)
+                                                        .background(
+                                                            selectedWeekdays.contains(day) ?
+                                                                Color.blue :
+                                                                Color(white: 0.1)
+                                                        )
+                                                        .clipShape(Circle())
+                                                }
+                                            }
+                                        }
+                                    }
+                                } else if repeatType == .monthly {
+                                    VStack(alignment: .leading, spacing: 8) {
+                                        Text("Select Days of Month")
+                                            .font(.system(.subheadline))
+                                            .foregroundColor(.gray)
+                                        
+                                        LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 7), spacing: 8) {
+                                            ForEach(1...31, id: \.self) { day in
+                                                Button(action: {
+                                                    if selectedWeekdays.contains(day) {
+                                                        selectedWeekdays.remove(day)
+                                                    } else {
+                                                        selectedWeekdays.insert(day)
+                                                    }
+                                                }) {
+                                                    Text("\(day)")
+                                                        .font(.system(.caption2, design: .rounded))
+                                                        .fontWeight(.semibold)
+                                                        .foregroundColor(selectedWeekdays.contains(day) ? .white : .gray)
+                                                        .frame(width: 32, height: 32)
+                                                        .background(
+                                                            selectedWeekdays.contains(day) ?
+                                                                Color.purple :
+                                                                Color(white: 0.1)
+                                                        )
+                                                        .clipShape(Circle())
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
                             }
+                        }
+                        
+                        Spacer(minLength: 100)
                     }
+                    .padding(24)
                 }
             }
             .navigationTitle(isEditingNode ? "Edit Task" : (templateToEdit == nil ? "New Card" : "Edit Card"))
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                    .foregroundColor(.gray)
                 }
-                ToolbarItem(placement: .confirmationAction) {
+                ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Save") {
                         saveTemplate()
                     }
+                    .fontWeight(.semibold)
+                    .foregroundColor(title.isEmpty ? .gray : .cyan)
                     .disabled(title.isEmpty)
                 }
             }
         }
+        .preferredColorScheme(.dark)
         .onAppear {
             if let template = templateToEdit {
                 // Populate fields

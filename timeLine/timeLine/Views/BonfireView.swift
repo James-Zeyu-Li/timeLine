@@ -4,6 +4,7 @@ import TimeLineCore
 struct BonfireView: View {
     @EnvironmentObject var daySession: DaySession
     @EnvironmentObject var engine: BattleEngine
+    @EnvironmentObject var stateManager: AppStateManager
     
     // Simple state to animate flame
     @State private var isAnimating = false
@@ -43,10 +44,10 @@ struct BonfireView: View {
             
             Spacer()
             
-            // Button to Leave
             Button(action: {
                 daySession.advance()
                 engine.endRest()
+                stateManager.requestSave()
             }) {
                 Text("Resume Journey")
                     .font(.headline)

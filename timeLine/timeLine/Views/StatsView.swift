@@ -53,13 +53,11 @@ struct StatsView: View {
                         .foregroundColor(.white)
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button(action: {
+                    Button("Done") {
                         presentationMode.wrappedValue.dismiss()
-                    }) {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 24))
-                            .foregroundColor(Color(white: 0.3))
                     }
+                    .font(.headline)
+                    .foregroundColor(.white)
                 }
             }
         }

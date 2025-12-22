@@ -6,14 +6,16 @@ public struct Boss: Identifiable, Equatable, Codable {
     public var maxHp: TimeInterval
     public var currentHp: TimeInterval
     public var style: BossStyle
+    public var category: TaskCategory
     public var templateId: UUID?
     
-    public init(id: UUID = UUID(), name: String, maxHp: TimeInterval, style: BossStyle = .focus, templateId: UUID? = nil) {
+    public init(id: UUID = UUID(), name: String, maxHp: TimeInterval, style: BossStyle = .focus, category: TaskCategory = .work, templateId: UUID? = nil) {
         self.id = id
         self.name = name
         self.maxHp = maxHp
         self.currentHp = maxHp
         self.style = style
+        self.category = category
         self.templateId = templateId
     }
     
@@ -26,8 +28,8 @@ public struct Boss: Identifiable, Equatable, Codable {
         self.currentHp = try container.decode(TimeInterval.self, forKey: .currentHp)
         
         // Provide default .focus if style is missing (Old Save File)
-        // Provide default .focus if style is missing (Old Save File)
         self.style = try container.decodeIfPresent(BossStyle.self, forKey: .style) ?? .focus
+        self.category = try container.decodeIfPresent(TaskCategory.self, forKey: .category) ?? .work
         self.templateId = try container.decodeIfPresent(UUID.self, forKey: .templateId)
     }
 }

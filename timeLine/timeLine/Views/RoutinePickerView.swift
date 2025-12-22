@@ -4,6 +4,7 @@ import TimeLineCore
 struct RoutinePickerView: View {
     @Environment(\.presentationMode) var presentationMode
     @EnvironmentObject var daySession: DaySession
+    @EnvironmentObject var stateManager: AppStateManager
     
     let routines = RoutineProvider.defaults
     
@@ -13,7 +14,7 @@ struct RoutinePickerView: View {
     var body: some View {
         NavigationView {
             List {
-                Section(header: Text("Available Packs")) {
+                Section(header: Text("Routine Packs")) {
                     ForEach(routines) { routine in
                         Button(action: {
                             selectedRoutine = routine
@@ -29,16 +30,21 @@ struct RoutinePickerView: View {
                                         .foregroundColor(.gray)
                                 }
                                 Spacer()
-                                Image(systemName: "cube.box") // Pack icon
-                                    .foregroundColor(.blue)
+                                Image(systemName: "square.stack.3d.up.fill") // Pack icon
+                                    .foregroundColor(.cyan)
                             }
                             .padding(.vertical, 8)
                         }
                     }
                 }
+                
+                Section(footer: Text("Routine packs add multiple related tasks to your journey at once. Each pack includes automatic rest breaks.")) {
+                    EmptyView()
+                }
             }
             .listStyle(InsetGroupedListStyle())
             .navigationTitle("Routine Packs")
+            .navigationBarTitleDisplayMode(.large)
             .navigationBarItems(trailing: Button("Close") {
                 presentationMode.wrappedValue.dismiss()
             })
@@ -46,6 +52,7 @@ struct RoutinePickerView: View {
             .sheet(item: $selectedRoutine) { routine in
                 RoutineDetailSheet(routine: routine) {
                     daySession.appendRoutine(routine)
+                    stateManager.requestSave()
                     presentationMode.wrappedValue.dismiss()
                 }
             }

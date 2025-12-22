@@ -34,6 +34,9 @@ public class BattleEngine: ObservableObject {
     // Track when we went into background to calculate wasted time
     private var distractionStartTime: Date?
     
+    // Idempotent guard for finalizeSession
+    private var hasFinalized = false
+    
     public init() {}
     
     public func startBattle(boss: Boss, at time: Date = Date()) {
@@ -45,6 +48,7 @@ public class BattleEngine: ObservableObject {
         self.wastedTime = 0
         self.immunityCount = 1 
         self.isImmune = false
+        self.hasFinalized = false
         print("[Engine] Battle Started: \(boss.name) at \(time)")
     }
     
@@ -217,6 +221,9 @@ public class BattleEngine: ObservableObject {
     }
     
     private func finalizeSession() {
+        guard !hasFinalized else { return }
+        hasFinalized = true
+        
         guard let boss = currentBoss else { return }
         // For passive tasks, assume full duration was focused if completed, or 0?
         // Let's award full duration for consistency in stats.

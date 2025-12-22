@@ -3,9 +3,7 @@ import TimeLineCore
 
 struct DeckBar: View {
     @EnvironmentObject var templateStore: TemplateStore
-    @EnvironmentObject var engine: BattleEngine // Access to engine to forceComplete or check state? 
-    // Actually, spawning modifies DaySession nodes. engine just runs the CURRENT boss.
-    // We need DaySession to add nodes.
+    @EnvironmentObject var engine: BattleEngine
     @EnvironmentObject var daySession: DaySession
     
     @State private var showingTaskSheet = false
@@ -13,116 +11,164 @@ struct DeckBar: View {
     
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 12) {
-                // 1. Add Card Button
+            HStack(spacing: 16) {
+                // 1. 改进的添加卡片按钮
                 Button(action: {
                     editingTemplate = nil
                     showingTaskSheet = true
                 }) {
-                    VStack {
-                        Image(systemName: "plus")
-                            .font(.title2)
+                    VStack(spacing: 12) {
+                        ZStack {
+                            Circle()
+                                .fill(
+                                    LinearGradient(
+                                        colors: [Color.cyan.opacity(0.2), Color.blue.opacity(0.1)],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
+                                )
+                                .frame(width: 50, height: 50)
+                            
+                            Image(systemName: "plus")
+                                .font(.system(size: 24, weight: .bold))
+                                .foregroundColor(.cyan)
+                        }
+                        
                         Text("New Card")
-                            .font(.caption)
+                            .font(.system(.caption2, design: .rounded))
+                            .fontWeight(.semibold)
+                            .foregroundColor(.cyan)
                     }
-                    .frame(width: 80, height: 100)
-                    .background(Color.gray.opacity(0.1))
-                    .cornerRadius(12)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12)
-                            .stroke(Color(white: 0.3), style: StrokeStyle(lineWidth: 2, dash: [5]))
+                    .frame(width: 100, height: 120)
+                    .background(
+                        RoundedRectangle(cornerRadius: 16)
+                            .fill(Color(white: 0.08))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 16)
+                                    .stroke(
+                                        LinearGradient(
+                                            colors: [Color.cyan.opacity(0.3), Color.blue.opacity(0.2)],
+                                            startPoint: .topLeading,
+                                            endPoint: .bottomTrailing
+                                        ),
+                                        style: StrokeStyle(lineWidth: 2, dash: [8, 4])
+                                    )
+                            )
                     )
                 }
-                .foregroundColor(.white) // Explicit White
-                .buttonStyle(PlainButtonStyle()) // Remove default blue tint
+                .buttonStyle(PlainButtonStyle())
                 
-                // 2. Templates
+                // 2. 改进的模板卡片
                 ForEach(templateStore.templates) { template in
                     Button(action: {
                         spawnTask(from: template)
                     }) {
-                        VStack(alignment: .leading, spacing: 6) {
+                        VStack(alignment: .leading, spacing: 0) {
+                            // 顶部标签区域
                             HStack {
+                                // 分类图标
                                 Image(systemName: template.category.icon)
-                                    .font(.caption)
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .foregroundColor(template.category.color)
+                                
                                 Spacer()
-                                // Mode Icon
+                                
+                                // 执行模式图标
                                 if template.style == .focus {
                                     Image(systemName: "bolt.fill")
-                                        .font(.caption2)
+                                        .font(.system(size: 12))
                                         .foregroundColor(.yellow)
                                 } else {
-                                    Image(systemName: "alarm") // Scheduled/Passive
-                                        .font(.caption2)
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .font(.system(size: 12))
                                         .foregroundColor(.cyan)
                                 }
                             }
+                            .padding(.horizontal, 12)
+                            .padding(.top, 12)
                             
                             Spacer()
                             
-                            Text(template.title)
-                                .font(.subheadline)
-                                .fontWeight(.bold)
-                                .foregroundColor(.white) // High contrast
-                                .lineLimit(2)
-                                .multilineTextAlignment(.leading)
-                            
-                            Spacer()
-                            
-                            HStack {
-                                Text(formatDuration(template.duration ?? 0))
-                                    .font(.caption2)
+                            // 中间标题区域
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(template.title)
+                                    .font(.system(.subheadline, design: .rounded))
+                                    .fontWeight(.bold)
+                                    .foregroundColor(.white)
+                                    .lineLimit(2)
+                                    .multilineTextAlignment(.leading)
+                                
+                                // 时长显示
+                                Text(TimeFormatter.formatDuration(template.duration ?? 0))
+                                    .font(.system(.caption2, design: .monospaced))
                                     .fontWeight(.medium)
-                                    .foregroundColor(Color(white: 0.8)) // Brighter than secondary
-                                
+                                    .foregroundColor(.gray)
+                            }
+                            .padding(.horizontal, 12)
+                            
+                            Spacer()
+                            
+                            // 底部重复标签
+                            HStack {
                                 Spacer()
-                                
-                                // Repeat Badge
                                 if template.repeatRule != .none {
                                     Text(repeatBadge(for: template.repeatRule))
                                         .font(.system(size: 8, weight: .bold))
-                                        .padding(.horizontal, 4)
-                                        .padding(.vertical, 2)
-                                        .background(Color.blue.opacity(0.3))
+                                        .tracking(0.5)
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 3)
+                                        .background(
+                                            Capsule()
+                                                .fill(Color.blue.opacity(0.2))
+                                        )
                                         .foregroundColor(.blue)
-                                        .cornerRadius(4)
                                 }
                             }
+                            .padding(.horizontal, 12)
+                            .padding(.bottom, 12)
                         }
-                        .padding(10)
-                        .frame(width: 100, height: 120) // Slightly larger for badge
-                        .background(Color(white: 0.15))
-                        .cornerRadius(12)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12)
-                                .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+                        .frame(width: 110, height: 130)
+                        .background(
+                            RoundedRectangle(cornerRadius: 16)
+                                .fill(
+                                    LinearGradient(
+                                        colors: [Color(white: 0.12), Color(white: 0.08)],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
+                                )
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 16)
+                                        .stroke(Color(white: 0.2), lineWidth: 1)
+                                )
                         )
+                        .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
                     }
-                    .buttonStyle(PlainButtonStyle()) // Avoid flash
+                    .buttonStyle(PlainButtonStyle())
                     .contextMenu {
                         Button {
                             spawnTask(from: template)
                         } label: {
-                            Label("Spawn", systemImage: "play.fill")
+                            Label("Spawn Task", systemImage: "play.fill")
                         }
                         
                         Button {
                             editingTemplate = template
                             showingTaskSheet = true
                         } label: {
-                            Label("Edit", systemImage: "pencil")
+                            Label("Edit Card", systemImage: "pencil")
                         }
                         
                         Button(role: .destructive) {
                             templateStore.delete(template)
                         } label: {
-                            Label("Delete", systemImage: "trash")
+                            Label("Delete Card", systemImage: "trash")
                         }
                     }
                 }
             }
-            .padding(.horizontal)
-            .padding(.vertical, 8)
+            .padding(.horizontal, 24)
+            .padding(.vertical, 12)
         }
         .sheet(isPresented: $showingTaskSheet) {
             TaskSheet(templateToEdit: $editingTemplate)
@@ -130,32 +176,18 @@ struct DeckBar: View {
     }
     
     func spawnTask(from template: TaskTemplate) {
-        let boss = TemplateManager.spawn(from: template)
-        // Add to DaySession
-        // We need to append to nodes
-        // BUT DaySession updates mostly from RouteGenerator? 
-        // We can just append.
-        var newNodes = daySession.nodes
-        newNodes.append(TimelineNode(
+        // 🎯 简化spawn逻辑，使用DaySession的标准方法
+        let boss = SpawnManager.spawn(from: template)
+        let newNode = TimelineNode(
             type: .battle(boss),
-            isLocked: false // Unlocked by default if spawned manually?
-        ))
+            isLocked: false // Manual spawn = immediately available
+        )
         
-        // Use replacingWithAnimation or just set
-        withAnimation {
-            daySession.nodes = newNodes
-            // daySession.objectWillChange.send()
+        withAnimation(.easeInOut(duration: 0.3)) {
+            daySession.nodes.append(newNode)
         }
         
-        print("Spawned \(boss.name)")
-    }
-    
-    func formatDuration(_ duration: TimeInterval) -> String {
-        let m = Int(duration / 60)
-        if m >= 60 {
-            return "\(m/60)h" // Compact: 1h instead of 1h 0m
-        }
-        return "\(m)m"
+        print("✅ Spawned: \(boss.name)")
     }
     
     func repeatBadge(for rule: RepeatRule) -> String {

@@ -3,7 +3,6 @@ import TimeLineCore
 
 struct RootView: View {
     @EnvironmentObject var engine: BattleEngine
-    @State private var showStats = false
     
     var body: some View {
         ZStack {
@@ -27,27 +26,17 @@ struct RootView: View {
                     .transition(.opacity)
             }
             
-            // Stats Button (Overlay)
+            // 🎯 新的浮动菜单系统 - 在所有视图中都可用
             VStack {
+                Spacer()
                 HStack {
                     Spacer()
-                    Button(action: { showStats = true }) {
-                        Image(systemName: "chart.bar.fill")
-                            .font(.title2)
-                            .foregroundColor(.white)
-                            .padding()
-                            .background(Color.white.opacity(0.1))
-                            .clipShape(Circle())
-                    }
-                    .padding()
+                    FloatingMenu()
+                        .padding()
                 }
-                Spacer()
             }
         }
         .animation(.easeInOut, value: engine.state)
-        .sheet(isPresented: $showStats) {
-            StatsView()
-        }
     }
 }
 

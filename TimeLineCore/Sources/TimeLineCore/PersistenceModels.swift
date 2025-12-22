@@ -8,13 +8,15 @@ public struct AppState: Codable {
     public var engineState: BattleSnapshot?
     public var history: [DailyFunctionality] // Stats History
     public var templates: [TaskTemplate]
+    public var spawnedKeys: Set<String> // Ledger for de-duplication
     
-    public init(lastSeenAt: Date, daySession: DaySession, engineState: BattleSnapshot?, history: [DailyFunctionality], templates: [TaskTemplate] = []) {
+    public init(lastSeenAt: Date, daySession: DaySession, engineState: BattleSnapshot?, history: [DailyFunctionality], templates: [TaskTemplate] = [], spawnedKeys: Set<String> = []) {
         self.lastSeenAt = lastSeenAt
         self.daySession = daySession
         self.engineState = engineState
         self.history = history
         self.templates = templates
+        self.spawnedKeys = spawnedKeys
     }
     
     // Manual decoding to handle missing "templates" field in old saves
@@ -26,6 +28,7 @@ public struct AppState: Codable {
         self.engineState = try container.decodeIfPresent(BattleSnapshot.self, forKey: .engineState)
         self.history = try container.decode(Array<DailyFunctionality>.self, forKey: .history)
         self.templates = try container.decodeIfPresent([TaskTemplate].self, forKey: .templates) ?? []
+        self.spawnedKeys = try container.decodeIfPresent(Set<String>.self, forKey: .spawnedKeys) ?? []
     }
 }
 
