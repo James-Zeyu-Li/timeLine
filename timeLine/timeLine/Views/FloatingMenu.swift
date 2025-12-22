@@ -5,12 +5,24 @@ struct FloatingMenu: View {
     @State private var showStats = false
     @State private var showSettings = false
     @State private var showHelp = false
+    @State private var showResetConfirmation = false
+    
+    @EnvironmentObject var stateManager: AppStateManager
     
     var body: some View {
         VStack(spacing: 12) {
             // 展开的菜单项（从下往上显示）
             if isExpanded {
                 VStack(spacing: 12) {
+                    // Reset 按钮 - 放在最上面，红色警告色
+                    MenuButton(
+                        icon: "arrow.counterclockwise.circle.fill",
+                        label: "Reset",
+                        color: .red
+                    ) {
+                        showResetConfirmation = true
+                    }
+                    
                     // Help按钮
                     MenuButton(
                         icon: "questionmark.circle.fill",
@@ -78,6 +90,41 @@ struct FloatingMenu: View {
         }
         .sheet(isPresented: $showHelp) {
             HelpView()
+        }
+        .alert("Reset All Data?", isPresented: $showResetConfirmation) {
+            Button("Cancel", role: .cancel) { }
+            Button("Reset", role: .destructive) {
+                // 触觉反馈
+                UINotificationFeedbackGenerator().notificationOccurred(.warning)
+                
+                // 执行重置
+                stateManager.resetAllData()
+                
+                // 自动收起菜单
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                    isExpanded = false
+                }
+                
+                // 提示用户重启应用
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                       let window = windowScene.windows.first {
+                        // 显示重置成功提示
+                        let alert = UIAlertController(
+                            title: "重置成功",
+                            message: "请关闭并重新打开应用以完成重置。",
+                            preferredStyle: .alert
+                        )
+                        alert.addAction(UIAlertAction(title: "好的", style: .default) { _ in
+                            // 退出应用
+                            exit(0)
+                        })
+                        window.rootViewController?.present(alert, animated: true)
+                    }
+                }
+            }
+        } message: {
+            Text("这将删除所有任务、历史和模板。\n此操作无法撤销！")
         }
     }
 }

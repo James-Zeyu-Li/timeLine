@@ -4,8 +4,8 @@ import TimeLineCore
 
 struct BattleView: View {
     @EnvironmentObject var engine: BattleEngine
-    @EnvironmentObject var daySession: DaySession
-    @EnvironmentObject var stateManager: AppStateManager
+    // Note: daySession.advance() is now handled by TimelineEventCoordinator
+    // which listens to engine.$state changes
     
     // Timer to drive the UI updates (since engine needs explicit ticks)
     let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
@@ -286,19 +286,12 @@ struct BattleView: View {
         .background(Color.black.ignoresSafeArea())
         .onReceive(timer) { input in
             engine.tick(at: input)
-            checkVictory()
+            // Note: Victory/retreat handling moved to TimelineEventCoordinator
         }
     }
     
     var progress: CGFloat {
         guard let boss = engine.currentBoss else { return 0 }
         return CGFloat(boss.currentHp / boss.maxHp)
-    }
-    
-    func checkVictory() {
-        if engine.state == .victory {
-            daySession.advance()
-            stateManager.requestSave()
-        }
     }
 }

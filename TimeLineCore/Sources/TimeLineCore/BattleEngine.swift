@@ -2,6 +2,14 @@ import Foundation
 import Combine
 
 
+// MARK: - Session Result Event
+/// Emitted when a battle session ends. Contains all data needed for UI/Stats.
+/// This is the "atomic" event that carries session context.
+public enum SessionResult: Equatable {
+    case victory(bossName: String, focusedSeconds: TimeInterval, wastedSeconds: TimeInterval)
+    case retreat(bossName: String, focusedSeconds: TimeInterval, wastedSeconds: TimeInterval)
+}
+
 public class BattleEngine: ObservableObject {
     @Published public var state: BattleState = .idle
     @Published public var currentBoss: Boss?
@@ -21,6 +29,13 @@ public class BattleEngine: ObservableObject {
     // Long-term history
     @Published public var history: [DailyFunctionality] = []
     
+    // MARK: - Session Complete Publisher
+    /// Emits when a session ends (victory or retreat). Use this for event-driven architecture.
+    private let sessionCompleteSubject = PassthroughSubject<SessionResult, Never>()
+    public var onSessionComplete: AnyPublisher<SessionResult, Never> {
+        sessionCompleteSubject.eraseToAnyPublisher()
+    }
+    
     public var totalFocusedToday: TimeInterval {
         var total = totalFocusedHistoryToday
         // Only add active session progress if we are currently fighting
@@ -29,6 +44,23 @@ public class BattleEngine: ObservableObject {
             total += currentFocused
         }
         return total
+    }
+    
+    /// Returns the remaining time for the current task/rest session.
+    /// Used for accurate time estimation in Timeline UI.
+    public var remainingTime: TimeInterval? {
+        guard let start = startTime else { return nil }
+        
+        if state == .fighting, let boss = currentBoss {
+            let elapsed = Date().timeIntervalSince(start) + elapsedBeforeCurrentSession
+            return max(0, boss.maxHp - elapsed)
+        } else if state == .resting {
+            // For bonfire, we need to track duration differently
+            // For now, return nil as resting doesn't have a fixed duration in current model
+            return nil
+        }
+        
+        return nil
     }
     
     // Track when we went into background to calculate wasted time
@@ -74,13 +106,20 @@ public class BattleEngine: ObservableObject {
         print("[Engine] Retreat")
     }
     
-    public func startRest() {
+    /// Starts a rest period (Bonfire).
+    /// Unlike battles, rest periods don't track wasted time - they're mandatory breaks.
+    public func startRest(duration: TimeInterval = 900) {
         self.state = .resting
-        print("[Engine] Resting at Bonfire")
+        self.startTime = Date()
+        self.elapsedBeforeCurrentSession = 0
+        print("[Engine] Resting at Bonfire for \(Int(duration / 60))m")
     }
     
+    /// Ends the current rest period and returns to idle state.
+    /// Called when user completes their break.
     public func endRest() {
         self.state = .idle
+        self.startTime = nil
         print("[Engine] Finished Resting")
     }
     
@@ -225,8 +264,8 @@ public class BattleEngine: ObservableObject {
         hasFinalized = true
         
         guard let boss = currentBoss else { return }
-        // For passive tasks, assume full duration was focused if completed, or 0?
-        // Let's award full duration for consistency in stats.
+        
+        // Calculate focused time for this session
         let focusedThisSession: TimeInterval
         if boss.style == .passive {
              focusedThisSession = state == .victory ? boss.maxHp : 0
@@ -234,13 +273,31 @@ public class BattleEngine: ObservableObject {
              focusedThisSession = max(0, boss.maxHp - boss.currentHp)
         }
         
+        // Emit session complete event BEFORE clearing boss
+        let result: SessionResult
+        if state == .victory {
+            result = .victory(
+                bossName: boss.name,
+                focusedSeconds: focusedThisSession,
+                wastedSeconds: wastedTime
+            )
+        } else {
+            result = .retreat(
+                bossName: boss.name,
+                focusedSeconds: focusedThisSession,
+                wastedSeconds: wastedTime
+            )
+        }
+        sessionCompleteSubject.send(result)
+        print("[Engine] Emitting SessionResult: \(result)")
+        
         totalFocusedHistoryToday += focusedThisSession
         
         // Update long-term history
         let sessionStats = DailyFunctionality(
             date: Date(),
             totalFocusedTime: focusedThisSession,
-            totalWastedTime: wastedTime, // Wasted time might be relevant even for Passive if we tracked it? For now 0 is fine if we skip logic.
+            totalWastedTime: wastedTime,
             sessionsCount: 1
         )
         self.history = StatsAggregator.updateHistory(history: self.history, session: sessionStats)

@@ -2,9 +2,7 @@ import SwiftUI
 import TimeLineCore
 
 struct BonfireView: View {
-    @EnvironmentObject var daySession: DaySession
-    @EnvironmentObject var engine: BattleEngine
-    @EnvironmentObject var stateManager: AppStateManager
+    @EnvironmentObject var coordinator: TimelineEventCoordinator
     
     // Simple state to animate flame
     @State private var isAnimating = false
@@ -45,9 +43,7 @@ struct BonfireView: View {
             Spacer()
             
             Button(action: {
-                daySession.advance()
-                engine.endRest()
-                stateManager.requestSave()
+                coordinator.completeBonfire()
             }) {
                 Text("Resume Journey")
                     .font(.headline)

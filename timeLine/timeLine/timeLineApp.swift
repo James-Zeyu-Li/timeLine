@@ -10,9 +10,13 @@ struct TimeLineApp: App {
     @StateObject private var daySession: DaySession
     @StateObject private var templateStore = TemplateStore()
     @StateObject private var stateManager: AppStateManager
+    @StateObject private var coordinator: TimelineEventCoordinator
     
     @State private var showNewDayAlert = false
     @State private var yesterdayFocusTime: TimeInterval = 0
+    
+    // First-launch detection
+    @AppStorage("hasSeenOnboarding") private var hasSeenOnboarding = false
     
     init() {
         // Try to load persistence
@@ -46,25 +50,42 @@ struct TimeLineApp: App {
             templateStore: templateStore
         )
         _stateManager = StateObject(wrappedValue: manager)
+        
+        // Create event coordinator (unifies event emission)
+        let coord = TimelineEventCoordinator(
+            engine: engine,
+            daySession: initialDaySession,
+            stateManager: manager
+        )
+        _coordinator = StateObject(wrappedValue: coord)
     }
     
     var body: some Scene {
         WindowGroup {
-            RootView()
-                .environmentObject(engine)
-                .environmentObject(daySession)
-                .environmentObject(templateStore)
-                .environmentObject(stateManager)
-                .onAppear {
-                    restoreState()
-                }
-                .alert(isPresented: $showNewDayAlert) {
-                    Alert(
-                        title: Text("Glorious New Day!"),
-                        message: Text("Yesterday you focused for \(Int(yesterdayFocusTime / 60)) minutes.\nThe timeline has been reset."),
-                        dismissButton: .default(Text("Let's Go"))
-                    )
-                }
+            if hasSeenOnboarding {
+                RootView()
+                    .environmentObject(engine)
+                    .environmentObject(daySession)
+                    .environmentObject(templateStore)
+                    .environmentObject(stateManager)
+                    .environmentObject(coordinator)
+                    .onAppear {
+                        restoreState()
+                    }
+                    .alert(isPresented: $showNewDayAlert) {
+                        Alert(
+                            title: Text("Glorious New Day!"),
+                            message: Text("Yesterday you focused for \(Int(yesterdayFocusTime / 60)) minutes.\nThe timeline has been reset."),
+                            dismissButton: .default(Text("Let's Go"))
+                        )
+                    }
+            } else {
+                OnboardingView(onComplete: {
+                    print("Debug: Onboarding Completed")
+                    hasSeenOnboarding = true
+                })
+                .onAppear { print("Debug: Showing Onboarding View. hasSeen=\(hasSeenOnboarding)") }
+            }
         }
         .onChange(of: scenePhase) { oldValue, newPhase in
             switch newPhase {

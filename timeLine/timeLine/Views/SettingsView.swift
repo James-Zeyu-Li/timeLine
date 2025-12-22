@@ -2,10 +2,14 @@ import SwiftUI
 
 struct SettingsView: View {
     @Environment(\.dismiss) var dismiss
+    @EnvironmentObject var stateManager: AppStateManager
+    
     @AppStorage("strictMode") private var strictMode = true
     @AppStorage("autoSave") private var autoSave = true
     @AppStorage("soundEnabled") private var soundEnabled = false
     @AppStorage("hapticsEnabled") private var hapticsEnabled = true
+    
+    @State private var showResetConfirmation = false
     
     var body: some View {
         NavigationView {
@@ -111,7 +115,7 @@ struct SettingsView: View {
                     .padding(.vertical, 4)
                     
                     Button(action: {
-                        // Reset all data action
+                        showResetConfirmation = true
                     }) {
                         HStack {
                             Image(systemName: "trash.fill")
@@ -137,6 +141,15 @@ struct SettingsView: View {
                     .fontWeight(.semibold)
                     .foregroundColor(.cyan)
                 }
+            }
+            .alert("Reset All Data?", isPresented: $showResetConfirmation) {
+                Button("Cancel", role: .cancel) { }
+                Button("Reset", role: .destructive) {
+                    stateManager.resetAllData()
+                    dismiss()
+                }
+            } message: {
+                Text("This will delete all tasks, history, and templates. This action cannot be undone.")
             }
         }
         .preferredColorScheme(.dark)

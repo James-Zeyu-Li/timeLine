@@ -1,73 +1,101 @@
 import SwiftUI
 import TimeLineCore
+import Combine
+import UIKit
 
+
+
+// MARK: - Main View
 struct TimelineView: View {
+    // Cached formatter to avoid recreating DateFormatter repeatedly
+    private struct Formatters {
+        static let time: DateFormatter = {
+            let f = DateFormatter()
+            f.setLocalizedDateFormatFromTemplate("Hm")
+            return f
+        }()
+    }
+    
     @EnvironmentObject var daySession: DaySession
     @EnvironmentObject var engine: BattleEngine
     @EnvironmentObject var templateStore: TemplateStore
     @EnvironmentObject var stateManager: AppStateManager
+    @EnvironmentObject var coordinator: TimelineEventCoordinator
     
     @State private var showRoutinePicker = false
     @State private var showingEditSheet = false
     @State private var templateToEdit: TaskTemplate?
     @State private var editingNodeId: UUID?
-    @State private var isEditMode = false // 🎯 新增编辑模式状态
+    
+    @State private var draggingNodeId: UUID?
+    @State private var dragOffset: CGSize = .zero
+    @State private var dragStartIndex: Int?
+    @State private var rowHeights: [UUID: CGFloat] = [:]
+    
+    @State private var banner: BannerData?
+    @State private var pulseNextNodeId: UUID?
+    @State private var pulseClearTask: DispatchWorkItem?
+    
+    @State private var showFinished: Bool = false
+    
+    // Drag Optimization & Interaction Locking
+    @State private var cachedRowHeights: [UUID: CGFloat]?
+    @State private var isInteractionLocked: Bool = false
+    
+    private var finishedNodes: [TimelineNode] { daySession.nodes.filter { $0.isCompleted } }
+    private var upcomingNodes: [TimelineNode] { daySession.nodes.filter { !$0.isCompleted } }
     
     var body: some View {
-        ScrollView {
+        ScrollView(.vertical) {
             LazyVStack(spacing: 0) {
-                // 🎯 Priority 1: 明确的视觉断层（32pt breathing room）
-                Color.clear.frame(height: 32)
+                // Pull-down probe for revealing Finished section
+                PullDownProbeView(showFinished: $showFinished, hasFinishedNodes: !finishedNodes.isEmpty)
+                    .frame(height: 1)
                 
-                // Journey Section Label - 作为Playfield的入口标识
+                // Finished Section
+                if !finishedNodes.isEmpty {
+                    FinishedSectionView(
+                        finishedNodes: finishedNodes,
+                        showFinished: $showFinished
+                    )
+                }
+                
+                // Section Header - Simple title only
                 HStack {
                     Text("YOUR JOURNEY")
                         .font(.system(size: 11, weight: .bold))
-                        .tracking(2)
-                        .foregroundColor(.cyan.opacity(0.8))
+                        .foregroundColor(.gray)
+                        .tracking(1.2)
                     Spacer()
-                    
-                    // 🎯 编辑模式切换按钮
-                    Button(action: {
-                        withAnimation(.spring(response: 0.3)) {
-                            isEditMode.toggle()
-                        }
-                        
-                        // 触觉反馈
-                        let impactFeedback = UIImpactFeedbackGenerator(style: .light)
-                        impactFeedback.impactOccurred()
-                    }) {
-                        HStack(spacing: 4) {
-                            Image(systemName: isEditMode ? "checkmark" : "slider.horizontal.3")
-                                .font(.system(size: 12, weight: .bold))
-                            Text(isEditMode ? "Done" : "Edit")
-                                .font(.system(size: 11, weight: .bold))
-                                .tracking(1)
-                        }
-                        .foregroundColor(isEditMode ? .green : .gray)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 4)
-                        .background(
-                            Capsule()
-                                .fill(isEditMode ? Color.green.opacity(0.1) : Color(white: 0.1))
-                        )
-                    }
                 }
-                .padding(.horizontal, 40)
-                .padding(.bottom, 16)
+                .padding(.horizontal, TimelineLayout.horizontalInset)
+                .padding(.top, 16)
+                .padding(.bottom, 12)
                 
-                // Timeline Nodes with reorder support - 🎯 优化间距和交互
-                ForEach(daySession.nodes) { node in
-                    SwipeableTimelineNode(node: node)
-                        .onTapGesture {
-                            handleTap(on: node)
-                        }
-                        .padding(.bottom, 8) // 🎯 节点间增加间距
-                }
-                .onMove(perform: moveNodes)
-                .onDelete(perform: deleteNodes)
+                // Current time + upcoming label
+                TimelineUpcomingLabel()
+                    .padding(.horizontal, TimelineLayout.horizontalInset)
+                    .padding(.bottom, 8)
                 
-                // Deck Bar Section - 🎯 明确的行动区域，包含Journey功能
+                // Upcoming Nodes List
+                UpcomingNodeListView(
+                    upcomingNodes: upcomingNodes,
+                    draggingNodeId: draggingNodeId,
+                    dragOffset: dragOffset,
+                    pulseNextNodeId: pulseNextNodeId,
+                    isInteractionLocked: isInteractionLocked,
+                    rowHeights: $rowHeights,
+                    handleDragChanged: handleDragChanged,
+                    handleDragEnded: handleDragEnded,
+                    handleTap: handleTap,
+                    startEditing: startEditing,
+                    estimatedStartTime: estimatedStartTime
+                )
+
+                
+
+                
+                // Deck Bar Section
                 VStack(alignment: .leading, spacing: 16) {
                     HStack {
                         Text("ADD TO JOURNEY")
@@ -75,13 +103,9 @@ struct TimelineView: View {
                             .tracking(2)
                             .foregroundColor(.cyan.opacity(0.8))
                         Spacer()
-                        Text("Tap cards to add tasks")
-                            .font(.system(size: 9, weight: .medium))
-                            .foregroundColor(.gray.opacity(0.6))
                     }
-                    .padding(.horizontal, 40)
+                    .padding(.horizontal, TimelineLayout.horizontalInset)
                     
-                    // 🎯 添加Routine Packs按钮
                     HStack {
                         Button(action: { showRoutinePicker = true }) {
                             HStack(spacing: 8) {
@@ -102,8 +126,7 @@ struct TimelineView: View {
                             .background(Color.cyan.opacity(0.1))
                             .cornerRadius(12)
                         }
-                        .padding(.horizontal, 40)
-                        
+                        .padding(.horizontal, TimelineLayout.horizontalInset)
                         Spacer()
                     }
                     
@@ -115,15 +138,12 @@ struct TimelineView: View {
                 }
                 .padding(.vertical, 24)
                 
-                // Bottom spacing
                 Color.clear.frame(height: 60)
             }
         }
+        .coordinateSpace(name: "scroll")
         .safeAreaInset(edge: .top) {
-            HeaderView(
-                focusedMinutes: Int(engine.totalFocusedToday / 60),
-                progress: daySession.completionProgress
-            )
+            HeaderView(focusedMinutes: Int(engine.totalFocusedToday / 60), progress: daySession.completionProgress)
         }
         .background(Color.black.edgesIgnoringSafeArea(.all))
         .sheet(isPresented: $showRoutinePicker) {
@@ -141,39 +161,216 @@ struct TimelineView: View {
                 templateToEdit = nil
             }
         }
+        .onReceive(coordinator.uiEvents) { event in
+            handleUIEvent(event)
+        }
+        .overlay(alignment: .top) {
+            if let banner = banner {
+                InfoBanner(data: banner)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                    .padding(.top, 8)
+                    .onAppear {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.8) {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.9)) {
+                                if self.banner?.id == banner.id { self.banner = nil }
+                            }
+                        }
+                    }
+            }
+        }
+        // Removed overlay and blur - they were causing visual issues
+    }
+    
+    // Estimate each upcoming node's start time based on current time and cumulative durations ahead of it.
+    private func estimatedStartTime(for node: TimelineNode) -> (absolute: String, relative: String?)? {
+        // Build a list of upcoming nodes in current order
+        let nodes = upcomingNodes
+        guard let idx = nodes.firstIndex(where: { $0.id == node.id }) else { return nil }
+
+        var secondsAhead: TimeInterval = 0
+
+        // If there is an active current node, account for remaining time instead of full duration
+        if let current = daySession.currentNode, let currentIndex = nodes.firstIndex(where: { $0.id == current.id }) {
+            if currentIndex < idx {
+                switch current.type {
+                case .battle(let boss):
+                    // Estimate remaining time based on engine state if possible; fallback to full duration
+                    let remaining: TimeInterval
+                    switch engine.state {
+                    case .fighting:
+                        remaining = boss.maxHp
+                    case .paused, .idle:
+                        remaining = boss.maxHp
+                    case .resting:
+                        remaining = boss.maxHp
+                    default:
+                        remaining = boss.maxHp
+                    }
+                    secondsAhead += remaining
+                case .bonfire(let dur):
+                    let remaining: TimeInterval
+                    switch engine.state {
+                    case .resting:
+                        remaining = dur
+                    case .paused, .idle, .fighting:
+                        remaining = dur
+                    default:
+                        remaining = dur
+                    }
+                    secondsAhead += remaining
+                case .treasure:
+                    break
+                }
+            }
+        }
+
+        // Sum durations of nodes before this one (in upcoming list), skipping current if already handled
+        for i in 0..<idx {
+            let n = nodes[i]
+            if let current = daySession.currentNode, n.id == current.id {
+                // already accounted for remaining time above
+                continue
+            }
+            switch n.type {
+            case .battle(let boss): secondsAhead += boss.maxHp
+            case .bonfire(let dur): secondsAhead += dur
+            case .treasure: break
+            }
+        }
+
+        let startDate = Date().addingTimeInterval(secondsAhead)
+        let absolute = Formatters.time.string(from: startDate)
+
+        let remaining = Int(secondsAhead)
+        let minutes = remaining / 60
+        let seconds = remaining % 60
+        let relative: String?
+        if minutes > 0 {
+            relative = "in \(minutes)m"
+        } else if seconds > 0 {
+            relative = "in \(seconds)s"
+        } else {
+            relative = nil
+        }
+        return (absolute, relative)
+    }
+    
+    // MARK: - Drag Gesture (triggered from handle)
+    // MARK: - Drag Gesture (triggered from handle)
+    private func dragGestureStart(for node: TimelineNode) {
+        // Freeze row heights at start of drag
+        cachedRowHeights = rowHeights
+        
+        withAnimation(.spring(response: 0.2)) {
+            draggingNodeId = node.id
+            dragStartIndex = daySession.nodes.firstIndex(where: { $0.id == node.id })
+        }
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+    }
+    
+    private func handleDragChanged(_ value: DragGesture.Value, for node: TimelineNode) {
+        // Ensure we mark the drag source once
+        if draggingNodeId != node.id {
+            dragGestureStart(for: node)
+        }
+        guard let startIndex = dragStartIndex else { return }
+
+        // Use frozen heights if available, otherwise current
+        let heights = cachedRowHeights ?? rowHeights
+        
+        // Use average row height if specific height missing
+        let avgHeight: CGFloat = heights.values.isEmpty ? TimelineLayout.defaultRowHeight : (heights.values.reduce(0, +) / CGFloat(heights.values.count))
+        let rowHeightRaw = heights[node.id] ?? avgHeight
+        let rowHeight = max(1, rowHeightRaw)
+
+        // Compute target from the original startIndex (prevents oscillation)
+        let offsetRows = Int((value.translation.height / rowHeight).rounded(.toNearestOrAwayFromZero))
+        let clampedTarget = max(0, min(daySession.nodes.count - 1, startIndex + offsetRows))
+        let currentIndex = daySession.nodes.firstIndex(where: { $0.id == node.id }) ?? startIndex
+
+        // Adjust the visual offset so the cell stays under the finger
+        let stepsMoved = clampedTarget - startIndex
+        let adjustedY = value.translation.height - CGFloat(stepsMoved) * rowHeight
+        dragOffset = CGSize(width: value.translation.width, height: adjustedY)
+
+        if clampedTarget != currentIndex {
+            withAnimation(.spring(response: 0.25, dampingFraction: 0.9)) {
+                daySession.moveNode(from: IndexSet(integer: currentIndex), to: clampedTarget > currentIndex ? clampedTarget + 1 : clampedTarget)
+            }
+        }
+    }
+
+    private func handleDragEnded(_ value: DragGesture.Value, for node: TimelineNode) {
+        // Clear frozen heights
+        cachedRowHeights = nil
+        
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.9)) {
+            draggingNodeId = nil
+            dragOffset = .zero
+            dragStartIndex = nil
+        }
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        
+        // Force update: Ensure currentNode is still valid after reordering
+        if let currentNode = daySession.currentNode {
+            // Verify current node still exists and update its index
+            if let newIndex = daySession.nodes.firstIndex(where: { $0.id == currentNode.id }) {
+                daySession.currentIndex = newIndex
+            }
+        }
+        
+        // Save after drag completes
+        stateManager.requestSave()
+        
+        // Lock interaction briefly to prevent accidental taps
+        isInteractionLocked = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            self.isInteractionLocked = false
+        }
+
     }
     
     private func handleTap(on node: TimelineNode) {
-        guard node.id == daySession.currentNode?.id, !node.isLocked, !node.isCompleted else { return }
-        
-        if case .battle(let boss) = node.type {
-            engine.startBattle(boss: boss)
-        } else if case .bonfire = node.type {
-            engine.startRest()
+        // Block taps if interaction is locked (e.g., right after drag)
+        guard !isInteractionLocked else { return }
+        guard !node.isLocked, !node.isCompleted else { 
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            return 
         }
-    }
-    
-    private func moveNodes(from source: IndexSet, to destination: Int) {
-        daySession.moveNode(from: source, to: destination)
-        stateManager.requestSave()
         
-        // 触觉反馈
-        let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
-        impactFeedback.impactOccurred()
-    }
-    
-    private func deleteNodes(at offsets: IndexSet) {
-        for index in offsets {
-            let node = daySession.nodes[index]
-            if !node.isCompleted && !node.isLocked {
-                daySession.deleteNode(id: node.id)
+        switch node.type {
+        case .battle(let boss):
+            if node.id != daySession.currentNode?.id {
+                // Switching to a new task
+                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                daySession.setCurrentNode(id: node.id)
+                engine.startBattle(boss: boss)
+                stateManager.requestSave()
+            } else {
+                // Tapping the already active task
+                if engine.state != .fighting {
+                    engine.startBattle(boss: boss)
+                } else {
+                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                }
             }
+        case .bonfire(let duration):
+            if node.id != daySession.currentNode?.id {
+                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                daySession.setCurrentNode(id: node.id)
+                engine.startRest(duration: duration)
+                stateManager.requestSave()
+            } else {
+                engine.startRest(duration: duration)
+            }
+        case .treasure:
+            break
         }
-        stateManager.requestSave()
     }
     
     private func startEditing(node: TimelineNode) {
-        if case .battle(let boss) = node.type {
+        switch node.type {
+        case .battle(let boss):
             let temp = TaskTemplate(
                 id: boss.id,
                 title: boss.name,
@@ -185,324 +382,95 @@ struct TimelineView: View {
             self.templateToEdit = temp
             self.editingNodeId = node.id
             self.showingEditSheet = true
-        }
-    }
-}
-
-// MARK: - Header View (Read-Only Status Bar)
-struct HeaderView: View {
-    let focusedMinutes: Int
-    let progress: Double
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack(alignment: .center) {
-                VStack(alignment: .leading, spacing: 8) {
-                    // 🎯 移除Journey按钮，这个功能应该在DeckBar区域
-                    HStack(spacing: 8) {
-                        Text("Day")
-                            .font(.system(.title, design: .rounded))
-                            .fontWeight(.medium)
-                            .foregroundColor(.gray)
-                        Text("1")
-                            .font(.system(.largeTitle, design: .rounded))
-                            .bold()
-                            .foregroundColor(.white)
-                    }
-                }
-                
-                Spacer()
-                
-                // Stats Chips (Read-Only) - 🎯 恢复MIN标签说明
-                VStack(alignment: .center, spacing: 2) {
-                    Text("\(focusedMinutes)")
-                        .font(.system(.title2, design: .monospaced))
-                        .bold()
-                        .foregroundColor(.green)
-                    Text("MIN")
-                        .font(.system(size: 8, weight: .bold))
-                        .tracking(1)
-                        .foregroundColor(.green.opacity(0.7))
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(Color.green.opacity(0.1))
-                .cornerRadius(8)
-            }
             
-            // Progress Bar
-            VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    Text("TODAY'S PROGRESS")
-                        .font(.system(size: 10, weight: .bold))
-                        .tracking(1)
-                        .foregroundColor(.gray)
-                    Spacer()
-                    Text("\(Int(progress * 100))%")
-                        .font(.system(size: 10, weight: .bold))
-                        .tracking(1)
-                        .foregroundColor(.white)
-                }
-                
-                GeometryReader { geo in
-                    ZStack(alignment: .leading) {
-                        RoundedRectangle(cornerRadius: 3)
-                            .fill(Color(white: 0.1))
-                            .frame(height: 6)
-                        
-                        RoundedRectangle(cornerRadius: 3)
-                            .fill(LinearGradient(
-                                colors: [.green, .cyan],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            ))
-                            .frame(width: geo.size.width * CGFloat(progress), height: 6)
-                            .animation(.easeInOut(duration: 0.3), value: progress)
-                    }
-                }
-                .frame(height: 6)
-            }
-        }
-        .padding(.horizontal, 24)
-        .padding(.vertical, 16)
-        .background(
-            LinearGradient(
-                colors: [Color.black, Color.black.opacity(0.98)],
-                startPoint: .top,
-                endPoint: .bottom
+        case .bonfire(let duration):
+            let temp = TaskTemplate(
+                id: node.id,
+                title: "Rest",
+                style: .passive,
+                duration: duration,
+                repeatRule: .none,
+                category: .rest
             )
-        )
-        .overlay(alignment: .bottom) {
-            // 🎯 Priority 1: 更明确的分隔线
-            Rectangle()
-                .fill(
-                    LinearGradient(
-                        colors: [.clear, .cyan.opacity(0.15), .clear],
-                        startPoint: .leading,
-                        endPoint: .trailing
-                    )
-                )
-                .frame(height: 2)
+            self.templateToEdit = temp
+            self.editingNodeId = node.id
+            self.showingEditSheet = true
+            
+        case .treasure:
+            // Treasure nodes are system-generated and cannot be edited
+            UINotificationFeedbackGenerator().notificationOccurred(.warning)
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.9)) {
+                banner = BannerData(kind: .distraction(wastedMinutes: 0), upNextTitle: "系统节点无法编辑")
+            }
         }
+    }
+    
+    // MARK: - UI Event Handling
+    private func resolveUpNext(after node: TimelineNode?) -> (node: TimelineNode?, title: String?) {
+        let nodes = daySession.nodes
+        guard !nodes.isEmpty else { return (nil, nil) }
+        let startIndex: Int
+        if let node = node, let idx = nodes.firstIndex(where: { $0.id == node.id }) {
+            startIndex = idx + 1
+        } else if let current = daySession.currentNode, let idx = nodes.firstIndex(where: { $0.id == current.id }) {
+            startIndex = idx + 1
+        } else {
+            startIndex = 0
+        }
+        for i in startIndex..<nodes.count {
+            let n = nodes[i]
+            switch n.type {
+            case .treasure:
+                continue
+            case .bonfire(let duration):
+                let minutes = max(1, Int(duration / 60))
+                return (n, "Rest (\(minutes)m)")
+            case .battle(let boss):
+                let minutes = max(1, Int(boss.maxHp / 60))
+                return (n, "\(boss.name) (\(minutes)m)")
+            }
+        }
+        return (nil, nil)
+    }
+
+    private func handleUIEvent(_ event: TimelineUIEvent) {
+        let resolved = resolveUpNext(after: daySession.currentNode)
+        switch event {
+        case .victory(_, _):
+            // Only pulse next to keep flow lightweight
+            pulseNext(nodeId: resolved.node?.id)
+        case .retreat(_, let wastedMinutes):
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.9)) {
+                banner = BannerData(kind: .distraction(wastedMinutes: wastedMinutes), upNextTitle: resolved.title)
+                pulseNextNodeId = resolved.node?.id
+            }
+            schedulePulseClear()
+        case .bonfireComplete:
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.9)) {
+                banner = BannerData(kind: .restComplete, upNextTitle: resolved.title)
+                pulseNextNodeId = resolved.node?.id
+            }
+            schedulePulseClear()
+        }
+    }
+
+    private func pulseNext(nodeId: UUID?) {
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.9)) {
+            self.pulseNextNodeId = nodeId
+        }
+        schedulePulseClear()
+    }
+
+    private func schedulePulseClear() {
+        pulseClearTask?.cancel()
+        let task = DispatchWorkItem { [self] in
+            withAnimation(.easeInOut(duration: 0.3)) {
+                pulseNextNodeId = nil
+            }
+        }
+        pulseClearTask = task
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.8, execute: task)
     }
 }
 
-// Stat Chip Component
-struct StatChip: View {
-    let value: String
-    let label: String
-    let color: Color
-    
-    var body: some View {
-        VStack(alignment: .center, spacing: 2) {
-            Text(value)
-                .font(.system(.title2, design: .monospaced))
-                .bold()
-                .foregroundColor(color)
-            Text(label)
-                .font(.system(size: 8, weight: .bold))
-                .tracking(1)
-                .foregroundColor(color.opacity(0.7))
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(color.opacity(0.1))
-        .cornerRadius(8)
-    }
-}
 
-// MARK: - Timeline Node View
-struct TimelineNodeView: View {
-    let node: TimelineNode
-    @EnvironmentObject var daySession: DaySession
-    
-    var isActive: Bool {
-        return node.id == daySession.currentNode?.id
-    }
-    
-    var body: some View {
-        HStack(spacing: 20) {
-            // Node Icon
-            ZStack {
-                if isActive {
-                    Circle()
-                        .fill(
-                            RadialGradient(
-                                colors: [nodeColor.opacity(0.4), nodeColor.opacity(0)],
-                                center: .center,
-                                startRadius: 0,
-                                endRadius: 40
-                            )
-                        )
-                        .frame(width: 80, height: 80)
-                }
-                
-                Circle()
-                    .fill(Color.black)
-                    .frame(width: 58, height: 58)
-                
-                Circle()
-                    .fill(nodeBackgroundColor)
-                    .frame(width: 50, height: 50)
-                    .overlay(
-                        Circle()
-                            .stroke(borderColor, lineWidth: isActive ? 3 : 2)
-                    )
-                    .shadow(color: isActive ? nodeColor.opacity(0.5) : .clear, radius: 8)
-                
-                Image(systemName: iconName)
-                    .font(.system(size: 20, weight: isActive ? .bold : .regular))
-                    .foregroundColor(iconColor)
-                    .scaleEffect(isActive ? 1.1 : 1.0)
-                    .animation(.spring(response: 0.3), value: isActive)
-            }
-            
-            // Text Content - 🎯 Priority 3: 信息密度优化
-            VStack(alignment: .leading, spacing: 6) {
-                Text(title)
-                    .font(.system(.headline, design: .rounded))
-                    .fontWeight(isActive ? .bold : .semibold)
-                    .foregroundColor(textColor)
-                    .strikethrough(node.isCompleted)
-                
-                // 🎯 只有活跃节点显示完整信息
-                if isActive || node.isCompleted {
-                    HStack(spacing: 8) {
-                        if case .battle(let boss) = node.type {
-                            if boss.style == .passive {
-                                TagBadge(icon: "checkmark.circle.fill", text: "Passive Task", color: .cyan)
-                            } else {
-                                TagBadge(icon: "clock.fill", text: "\(Int(boss.maxHp / 60)) min", color: .orange)
-                            }
-                            
-                            // Category badge
-                            HStack(spacing: 4) {
-                                Image(systemName: boss.category.icon)
-                                    .font(.system(size: 9))
-                                Text(boss.category.rawValue.uppercased())
-                                    .font(.system(size: 9, weight: .bold))
-                                    .tracking(0.5)
-                            }
-                            .foregroundColor(.gray)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(Color(white: 0.15))
-                            .cornerRadius(4)
-                        }
-                    }
-                } else if node.isLocked {
-                    // 🎯 锁定节点只显示轮廓提示
-                    Text("Locked")
-                        .font(.system(.caption2, design: .rounded))
-                        .foregroundColor(.gray.opacity(0.6))
-                }
-            }
-            
-            Spacer()
-            
-            // Status Indicator
-            if node.isCompleted {
-                ZStack {
-                    Circle()
-                        .fill(Color.green.opacity(0.2))
-                        .frame(width: 32, height: 32)
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 24))
-                        .foregroundColor(.green)
-                }
-            } else if node.isLocked {
-                ZStack {
-                    Circle()
-                        .fill(Color(white: 0.1))
-                        .frame(width: 32, height: 32)
-                    Image(systemName: "lock.fill")
-                        .font(.system(size: 14))
-                        .foregroundColor(.gray)
-                }
-            }
-        }
-        .padding(.horizontal, 40)
-        .padding(.vertical, 16)
-        .background(
-            isActive ?
-                LinearGradient(
-                    colors: [nodeColor.opacity(0.05), Color.clear],
-                    startPoint: .leading,
-                    endPoint: .trailing
-                ) :
-                LinearGradient(colors: [.clear], startPoint: .leading, endPoint: .trailing)
-        )
-        .opacity(node.isLocked ? 0.3 : 1.0) // 🎯 更强的视觉弱化
-    }
-    
-    var nodeColor: Color {
-        switch node.type {
-        case .battle(let boss):
-            return boss.style == .passive ? .blue : .red
-        case .bonfire: return .orange
-        case .treasure: return .yellow
-        }
-    }
-    
-    var nodeBackgroundColor: Color {
-        if node.isCompleted { return Color(white: 0.1) }
-        return Color.black
-    }
-    
-    var borderColor: Color {
-        if isActive { return .white }
-        if node.isCompleted { return Color(white: 0.3) }
-        return nodeColor.opacity(0.5)
-    }
-    
-    var iconColor: Color {
-        if node.isCompleted { return Color(white: 0.3) }
-        if isActive { return .white }
-        return nodeColor
-    }
-    
-    var textColor: Color {
-        if node.isCompleted { return .gray }
-        if isActive { return .white }
-        return Color(white: 0.8)
-    }
-    
-    var iconName: String {
-        switch node.type {
-        case .battle(let boss):
-            return boss.style == .passive ? "figure.walk" : "bolt.fill"
-        case .bonfire: return "flame"
-        case .treasure: return "star"
-        }
-    }
-    
-    var title: String {
-        switch node.type {
-        case .battle(let boss): return boss.name
-        case .bonfire: return "Rest"
-        case .treasure: return "Reward"
-        }
-    }
-}
-
-// Tag Badge Component
-struct TagBadge: View {
-    let icon: String
-    let text: String
-    let color: Color
-    
-    var body: some View {
-        HStack(spacing: 4) {
-            Image(systemName: icon)
-                .font(.system(size: 10))
-                .foregroundColor(color)
-            Text(text)
-                .font(.system(.caption2, design: .rounded))
-                .foregroundColor(color)
-        }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 3)
-        .background(color.opacity(0.15))
-        .cornerRadius(6)
-    }
-}

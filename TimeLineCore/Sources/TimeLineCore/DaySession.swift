@@ -58,19 +58,58 @@ public class DaySession: ObservableObject, Codable {
     }
     
     /// Move node from one position to another (for drag-to-reorder).
-    /// Only allows moving nodes that are NOT the current active node.
+    /// Allows moving any node, including the current selected node.
+    /// Automatically tracks the new position of currentIndex after reordering.
     public func moveNode(from source: IndexSet, to destination: Int) {
-        // Safety: Don't allow moving the current active node
-        guard !source.contains(currentIndex) else { return }
+        guard let movedIndex = source.first else { return }
         
+        // Save the original currentIndex before moving
+        let oldCurrentIndex = currentIndex
+        
+        // Perform the move
         nodes.move(fromOffsets: source, toOffset: destination)
         
-        // Recalculate currentIndex if it was affected
-        if let first = source.first {
-            if first < currentIndex && destination > currentIndex {
+        // Update currentIndex to track its new position
+        if movedIndex == oldCurrentIndex {
+            // The current node itself was moved
+            // Calculate its new position based on the destination
+            currentIndex = destination > movedIndex ? destination - 1 : destination
+        } else {
+            // A different node was moved, adjust currentIndex relatively
+            if movedIndex < oldCurrentIndex && destination > oldCurrentIndex {
+                // Moved from before to after currentIndex
                 currentIndex -= 1
-            } else if first > currentIndex && destination <= currentIndex {
+            } else if movedIndex > oldCurrentIndex && destination <= oldCurrentIndex {
+                // Moved from after to before currentIndex
                 currentIndex += 1
+            }
+        }
+        
+        // Critical: Re-evaluate lock states after reordering
+        updateLockStates()
+    }
+    
+    /// Updates lock states based on current rules.
+    /// First position (Next Task), current task, and completed nodes are unlocked.
+    private func updateLockStates() {
+        for (index, _) in nodes.enumerated() {
+            // Unlock: First position (always accessible as Next Task) 
+            //         OR current task 
+            //         OR completed tasks
+            if index == 0 || index == currentIndex || nodes[index].isCompleted {
+                nodes[index].isLocked = false
+            } else {
+                nodes[index].isLocked = true
+            }
+        }
+    }
+    
+    /// Sets the current node by ID, unlocking it if necessary.
+    public func setCurrentNode(id: UUID) {
+        if let index = nodes.firstIndex(where: { $0.id == id }) {
+            currentIndex = index
+            if nodes.indices.contains(index) {
+                nodes[index].isLocked = false
             }
         }
     }
@@ -131,16 +170,26 @@ public class DaySession: ObservableObject, Codable {
         
         var node = nodes[index]
         
-        // We only support updating Battle nodes for now
-        if case .battle(var boss) = node.type {
+        switch node.type {
+        case .battle(var boss):
             boss.name = payload.title
             boss.maxHp = payload.duration ?? 1800 // Fallback if nil, though focus tasks should have duration
-            boss.currentHp = boss.maxHp // Reset HP on edit? Or scale? V1: Reset.
+            boss.currentHp = boss.maxHp // Reset HP on edit
             boss.style = payload.style
             boss.category = payload.category
             
             node.type = .battle(boss)
             nodes[index] = node
+            
+        case .bonfire(_):
+            // Update bonfire duration
+            let newDuration = payload.duration ?? 900 // Default 15 minutes
+            node.type = .bonfire(newDuration)
+            nodes[index] = node
+            
+        case .treasure:
+            // Treasure nodes cannot be edited
+            break
         }
     }
     
