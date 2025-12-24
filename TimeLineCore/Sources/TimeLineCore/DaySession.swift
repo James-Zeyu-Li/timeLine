@@ -103,6 +103,17 @@ public class DaySession: ObservableObject, Codable {
             }
         }
     }
+
+    /// Resets the current index to the first upcoming (not completed) node.
+    /// Useful when reordering while no active session is running.
+    public func resetCurrentToFirstUpcoming() {
+        if let nextIndex = nodes.firstIndex(where: { !$0.isCompleted }) {
+            currentIndex = nextIndex
+        } else {
+            currentIndex = nodes.count
+        }
+        updateLockStates()
+    }
     
     /// Sets the current node by ID, unlocking it if necessary.
     public func setCurrentNode(id: UUID) {

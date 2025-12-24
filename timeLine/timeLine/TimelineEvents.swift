@@ -8,6 +8,7 @@ public enum TimelineUIEvent: Equatable {
     case victory(taskName: String, focusedMinutes: Int)
     case retreat(taskName: String, wastedMinutes: Int)
     case bonfireComplete
+    case bonfireSuggested(reason: String, bonfireId: UUID?)
 }
 
 // Note: TimelineEventsAdapter has been replaced by TimelineEventCoordinator

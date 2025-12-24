@@ -8,6 +8,8 @@ struct SettingsView: View {
     @AppStorage("autoSave") private var autoSave = true
     @AppStorage("soundEnabled") private var soundEnabled = false
     @AppStorage("hapticsEnabled") private var hapticsEnabled = true
+    @AppStorage("use24HourClock") private var use24HourClock = true
+    @AppStorage("useMapPrototype") private var useMapPrototype = false
     
     @State private var showResetConfirmation = false
     
@@ -54,6 +56,25 @@ struct SettingsView: View {
                         Toggle("", isOn: $autoSave)
                     }
                     .padding(.vertical, 4)
+                    
+                    HStack {
+                        Image(systemName: "clock.fill")
+                            .foregroundColor(.cyan)
+                            .frame(width: 24)
+                        
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("24-Hour Time")
+                                .font(.headline)
+                            Text("Use 24-hour time format")
+                                .font(.caption)
+                                .foregroundColor(.gray)
+                        }
+                        
+                        Spacer()
+                        
+                        Toggle("", isOn: $use24HourClock)
+                    }
+                    .padding(.vertical, 4)
                 }
                 
                 Section(header: Text("Feedback")) {
@@ -92,6 +113,27 @@ struct SettingsView: View {
                         Spacer()
                         
                         Toggle("", isOn: $hapticsEnabled)
+                    }
+                    .padding(.vertical, 4)
+                }
+                
+                Section(header: Text("Experimental")) {
+                    HStack {
+                        Image(systemName: "map.fill")
+                            .foregroundColor(.cyan)
+                            .frame(width: 24)
+                        
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Map Prototype")
+                                .font(.headline)
+                            Text("Use the new roguelike map layout")
+                                .font(.caption)
+                                .foregroundColor(.gray)
+                        }
+                        
+                        Spacer()
+                        
+                        Toggle("", isOn: $useMapPrototype)
                     }
                     .padding(.vertical, 4)
                 }

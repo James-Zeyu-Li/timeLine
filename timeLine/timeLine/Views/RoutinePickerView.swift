@@ -3,8 +3,9 @@ import TimeLineCore
 
 struct RoutinePickerView: View {
     @Environment(\.presentationMode) var presentationMode
-    @EnvironmentObject var daySession: DaySession
-    @EnvironmentObject var stateManager: AppStateManager
+    @EnvironmentObject var deckStore: DeckStore
+    @EnvironmentObject var cardStore: CardTemplateStore
+    @EnvironmentObject var appMode: AppModeManager
     
     let routines = RoutineProvider.defaults
     
@@ -12,9 +13,9 @@ struct RoutinePickerView: View {
     @State private var selectedRoutine: RoutineTemplate? = nil
     
     var body: some View {
-        NavigationView {
+        NavigationStack {
             List {
-                Section(header: Text("Routine Packs")) {
+                Section(header: Text("Routine Decks")) {
                     ForEach(routines) { routine in
                         Button(action: {
                             selectedRoutine = routine
@@ -30,7 +31,7 @@ struct RoutinePickerView: View {
                                         .foregroundColor(.gray)
                                 }
                                 Spacer()
-                                Image(systemName: "square.stack.3d.up.fill") // Pack icon
+                                Image(systemName: "square.stack.3d.up.fill") // Deck icon
                                     .foregroundColor(.cyan)
                             }
                             .padding(.vertical, 8)
@@ -38,21 +39,25 @@ struct RoutinePickerView: View {
                     }
                 }
                 
-                Section(footer: Text("Routine packs add multiple related tasks to your journey at once. Each pack includes automatic rest breaks.")) {
+                Section(footer: Text("Routine decks add multiple related tasks to your journey at once. Each deck includes automatic rest breaks.")) {
                     EmptyView()
                 }
             }
             .listStyle(InsetGroupedListStyle())
-            .navigationTitle("Routine Packs")
+            .navigationTitle("Routine Decks")
             .navigationBarTitleDisplayMode(.large)
-            .navigationBarItems(trailing: Button("Close") {
-                presentationMode.wrappedValue.dismiss()
-            })
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Close") {
+                        presentationMode.wrappedValue.dismiss()
+                    }
+                }
+            }
             // Detail Sheet (The "Preview")
             .sheet(item: $selectedRoutine) { routine in
                 RoutineDetailSheet(routine: routine) {
-                    daySession.appendRoutine(routine)
-                    stateManager.requestSave()
+                    deckStore.addDeck(from: routine, using: cardStore)
+                    appMode.enter(.deckOverlay(.decks))
                     presentationMode.wrappedValue.dismiss()
                 }
             }
@@ -132,7 +137,7 @@ struct RoutineDetailSheet: View {
             Button(action: onAdd) {
                 HStack {
                     Image(systemName: "plus.circle.fill")
-                    Text("Add Pack to Journey")
+                    Text("Add Deck to Decks")
                 }
                 .font(.headline)
                 .foregroundColor(.white)

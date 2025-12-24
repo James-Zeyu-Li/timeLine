@@ -1,4 +1,5 @@
 import SwiftUI
+import Combine
 import TimeLineCore
 
 // MARK: - Swipeable Timeline Node
@@ -210,8 +211,8 @@ private extension SwipeableTimelineNode {
     
     var editSheet: some View {
         TaskSheet(templateToEdit: $templateToEdit, isEditingNode: true) { updatedTemplate in
-            daySession.updateNode(id: node.id, payload: updatedTemplate)
-            stateManager.requestSave()
+            let timelineStore = TimelineStore(daySession: daySession, stateManager: stateManager)
+            timelineStore.updateNode(id: node.id, payload: updatedTemplate)
             templateToEdit = nil
         }
     }
@@ -353,16 +354,16 @@ private extension SwipeableTimelineNode {
     }
     
     func duplicateNode() {
-        daySession.duplicateNode(id: node.id)
-        stateManager.requestSave()
+        let timelineStore = TimelineStore(daySession: daySession, stateManager: stateManager)
+        timelineStore.duplicateNode(id: node.id)
         hideEditActions()
     }
     
     func deleteNode() {
         guard !node.isCompleted && !node.isLocked else { return }
         
-        daySession.deleteNode(id: node.id)
-        stateManager.requestSave()
+        let timelineStore = TimelineStore(daySession: daySession, stateManager: stateManager)
+        timelineStore.deleteNode(id: node.id)
         hideEditActions()
     }
 }

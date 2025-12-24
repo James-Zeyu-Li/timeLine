@@ -18,8 +18,8 @@ struct TimelineNodeView: View {
         HStack(spacing: isHero ? 24 : 20) {
             if isEditMode {
                 Button(role: .destructive) {
-                    daySession.deleteNode(id: node.id)
-                    stateManager.requestSave()
+                    let timelineStore = TimelineStore(daySession: daySession, stateManager: stateManager)
+                    timelineStore.deleteNode(id: node.id)
                 } label: {
                     Image(systemName: "minus.circle.fill")
                         .foregroundColor(.red)
@@ -82,6 +82,12 @@ struct TimelineNodeView: View {
                     .foregroundStyle(.gray)
                     .font(.title3)
                     .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
+                    .gesture(
+                        DragGesture(minimumDistance: 0, coordinateSpace: .named("scroll"))
+                            .onChanged { value in onDragChanged?(value) }
+                            .onEnded { value in onDragEnded?(value) }
+                    )
             } else {
                 if node.isCompleted {
                     Image(systemName: "checkmark.circle.fill").foregroundColor(.green)
@@ -94,15 +100,7 @@ struct TimelineNodeView: View {
         .padding(.vertical, 16)
         .background(isActive ? Color.white.opacity(0.05) : Color.clear)
         .opacity(isLocked ? 0.3 : 1.0)
-        // Make entire row draggable in Edit Mode
-        .contentShape(Rectangle()) // Ensure hit test works on clear background
-        .gesture(
-            isEditMode ? 
-            DragGesture(minimumDistance: 0, coordinateSpace: .named("scroll"))
-                .onChanged { value in onDragChanged?(value) }
-                .onEnded { value in onDragEnded?(value) }
-            : nil
-        )
+        .contentShape(Rectangle())
     }
     
     var nodeColor: Color {

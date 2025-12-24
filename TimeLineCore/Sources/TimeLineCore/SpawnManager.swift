@@ -18,7 +18,8 @@ public struct SpawnManager {
             maxHp: duration,
             style: style,
             category: template.category,
-            templateId: template.id
+            templateId: template.id,
+            recommendedStart: template.fixedTime
         )
     }
     

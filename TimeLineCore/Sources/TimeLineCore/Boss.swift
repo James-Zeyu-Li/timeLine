@@ -8,8 +8,9 @@ public struct Boss: Identifiable, Equatable, Codable {
     public var style: BossStyle
     public var category: TaskCategory
     public var templateId: UUID?
+    public var recommendedStart: DateComponents?
     
-    public init(id: UUID = UUID(), name: String, maxHp: TimeInterval, style: BossStyle = .focus, category: TaskCategory = .work, templateId: UUID? = nil) {
+    public init(id: UUID = UUID(), name: String, maxHp: TimeInterval, style: BossStyle = .focus, category: TaskCategory = .work, templateId: UUID? = nil, recommendedStart: DateComponents? = nil) {
         self.id = id
         self.name = name
         self.maxHp = maxHp
@@ -17,6 +18,7 @@ public struct Boss: Identifiable, Equatable, Codable {
         self.style = style
         self.category = category
         self.templateId = templateId
+        self.recommendedStart = recommendedStart
     }
     
     // Custom Decoding for Backward Compatibility
@@ -31,5 +33,6 @@ public struct Boss: Identifiable, Equatable, Codable {
         self.style = try container.decodeIfPresent(BossStyle.self, forKey: .style) ?? .focus
         self.category = try container.decodeIfPresent(TaskCategory.self, forKey: .category) ?? .work
         self.templateId = try container.decodeIfPresent(UUID.self, forKey: .templateId)
+        self.recommendedStart = try container.decodeIfPresent(DateComponents.self, forKey: .recommendedStart)
     }
 }

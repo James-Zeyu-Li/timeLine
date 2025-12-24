@@ -1,4 +1,5 @@
 import SwiftUI
+import Combine
 
 struct HelpView: View {
     @Environment(\.dismiss) var dismiss
@@ -52,10 +53,10 @@ struct HelpView: View {
                         """
                     )
                     
-                    // Routine Packs
+                    // Routine Decks
                     HelpSection(
                         icon: "square.stack.3d.up.fill",
-                        title: "Routine Packs",
+                        title: "Routine Decks",
                         content: """
                         Add multiple related tasks at once:
                         • **Morning Flow**: Planning → Email → Deep Work

@@ -2,6 +2,17 @@ import Foundation
 
 /// 🎯 统一的时间格式化工具，避免重复代码
 struct TimeFormatter {
+    private static let clock24Formatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm"
+        return formatter
+    }()
+    
+    private static let clock12Formatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "h:mm a"
+        return formatter
+    }()
     
     /// 格式化时长为简洁显示 (如: "30m", "1h", "90m")
     static func formatDuration(_ duration: TimeInterval) -> String {
@@ -39,5 +50,12 @@ struct TimeFormatter {
                 return "\(hours)h \(remainingMinutes)m"
             }
         }
+    }
+    
+    static func formatClock(_ date: Date, use24Hour: Bool) -> String {
+        if use24Hour {
+            return clock24Formatter.string(from: date)
+        }
+        return clock12Formatter.string(from: date)
     }
 }

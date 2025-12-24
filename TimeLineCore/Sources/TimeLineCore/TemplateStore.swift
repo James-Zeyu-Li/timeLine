@@ -14,6 +14,12 @@ public class TemplateStore: ObservableObject {
             category: .work
         ),
         TaskTemplate(
+            title: "Quick Focus (25m)",
+            style: .focus,
+            duration: 1500,  // 25 min
+            category: .work
+        ),
+        TaskTemplate(
             title: "Deep Work Session",
             style: .focus,
             duration: 3600,  // 1 hour

@@ -5,6 +5,7 @@ import TimeLineCore
 enum BannerKind: Equatable {
     case distraction(wastedMinutes: Int)
     case restComplete
+    case bonfireSuggested(reason: String)
 }
 
 struct BannerData: Identifiable, Equatable {
@@ -38,6 +39,15 @@ struct InfoBanner: View {
                         Text("Up next: \(title)")
                             .font(.caption2).foregroundColor(.gray)
                     }
+                }
+            case .bonfireSuggested(let reason):
+                Image(systemName: "flame.fill")
+                    .foregroundColor(.orange)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("前面有个篝火，要不要歇一会？")
+                        .font(.caption).bold().foregroundColor(.white)
+                    Text(reason)
+                        .font(.caption2).foregroundColor(.gray)
                 }
             }
             Spacer()

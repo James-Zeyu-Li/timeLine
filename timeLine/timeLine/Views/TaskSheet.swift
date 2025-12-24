@@ -32,7 +32,8 @@ struct TaskSheet: View {
     
     // Presets
     let durationPresets: [(String, TimeInterval)] = [
-        ("15m", 900), ("30m", 1800), ("45m", 2700),
+        ("15m", 900), ("25m", 1500), ("30m", 1800),
+        ("45m", 2700),
         ("1h", 3600), ("90m", 5400), ("2h", 7200)
     ]
     

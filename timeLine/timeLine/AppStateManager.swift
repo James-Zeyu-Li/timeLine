@@ -13,6 +13,7 @@ final class AppStateManager: ObservableObject {
     
     // MARK: - Ledger
     @Published var spawnedKeys: Set<String> = []
+    @Published var inbox: [TaskTemplate] = []
     
     // MARK: - Debounced Save
     private let saveSubject = PassthroughSubject<Void, Never>()
@@ -64,6 +65,7 @@ final class AppStateManager: ObservableObject {
             engineState: snapshot,
             history: engine.history,
             templates: templateStore.templates,
+            inbox: inbox,
             spawnedKeys: spawnedKeys
         )
         PersistenceManager.shared.save(state: state)
@@ -84,6 +86,7 @@ final class AppStateManager: ObservableObject {
         
         // Restore templates
         templateStore.load(from: state.templates)
+        inbox = state.inbox
         self.spawnedKeys = state.spawnedKeys
         
         return true
@@ -108,6 +111,7 @@ final class AppStateManager: ObservableObject {
         daySession.nodes.removeAll()
         daySession.currentIndex = 0
         spawnedKeys.removeAll()
+        inbox.removeAll()
         
         // Reset engine
         engine.state = .idle

@@ -2,6 +2,17 @@ import Foundation
 
 public struct QuickEntryParser {
     
+    public enum QuickEntryPlacement: String, Codable {
+        case today
+        case inbox
+    }
+    
+    public struct QuickEntryResult {
+        public let template: TaskTemplate
+        public let placement: QuickEntryPlacement
+        public let suggestedTime: DateComponents?
+    }
+    
     // MARK: - Regex Patterns
     // Catch tags like @focus, @passive, @work, @study
     private static let tagPattern = #"@(\w+)"#
@@ -10,15 +21,35 @@ public struct QuickEntryParser {
     // Groups: 1=Value, 2=Unit
     private static let durationPattern = #"(\d+(\.\d+)?)\s*(m|min|h|hr)"#
     
-    public static func parse(input: String) -> TaskTemplate? {
+    public static func parseDetailed(input: String, defaultTonightHour: Int = 20) -> QuickEntryResult? {
         let trimmedInput = input.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmedInput.isEmpty { return nil }
         
         var workingText = trimmedInput
+        var placement: QuickEntryPlacement = .today
+        var suggestedTime: DateComponents? = nil
+        var repeatRule: RepeatRule = .none
         
         // 1. Extract Tags
         var style: BossStyle = .focus
         var category: TaskCategory = .work
+
+        // 0. Extract simple time keywords
+        if workingText.contains("每天") {
+            repeatRule = .daily
+            workingText = workingText.replacingOccurrences(of: "每天", with: "")
+        }
+        if workingText.contains("明天") {
+            placement = .inbox
+            workingText = workingText.replacingOccurrences(of: "明天", with: "")
+        }
+        if workingText.contains("今晚") {
+            var components = DateComponents()
+            components.hour = defaultTonightHour
+            components.minute = 0
+            suggestedTime = components
+            workingText = workingText.replacingOccurrences(of: "今晚", with: "")
+        }
         
         // Process tags
         let tagRegex = try! NSRegularExpression(pattern: tagPattern, options: .caseInsensitive)
@@ -84,14 +115,24 @@ public struct QuickEntryParser {
         // But TaskTemplate.duration is optional.
         // Let's stick to spec: "default 25m" if not specified.
         
-        return TaskTemplate(
+        let template = TaskTemplate(
             id: UUID(),
             title: title,
             style: style,
             duration: duration, 
-            fixedTime: nil,
-            repeatRule: .none, // Quick Entry is strictly one-off
+            fixedTime: suggestedTime,
+            repeatRule: repeatRule,
             category: category
         )
+        
+        return QuickEntryResult(
+            template: template,
+            placement: placement,
+            suggestedTime: suggestedTime
+        )
+    }
+    
+    public static func parse(input: String) -> TaskTemplate? {
+        return parseDetailed(input: input)?.template
     }
 }

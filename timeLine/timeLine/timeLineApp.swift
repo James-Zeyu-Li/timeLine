@@ -9,6 +9,8 @@ struct TimeLineApp: App {
     @StateObject private var engine = BattleEngine()
     @StateObject private var daySession: DaySession
     @StateObject private var templateStore = TemplateStore()
+    @StateObject private var cardStore = CardTemplateStore()
+    @StateObject private var deckStore = DeckStore()
     @StateObject private var stateManager: AppStateManager
     @StateObject private var coordinator: TimelineEventCoordinator
     
@@ -67,6 +69,8 @@ struct TimeLineApp: App {
                     .environmentObject(engine)
                     .environmentObject(daySession)
                     .environmentObject(templateStore)
+                    .environmentObject(cardStore)
+                    .environmentObject(deckStore)
                     .environmentObject(stateManager)
                     .environmentObject(coordinator)
                     .onAppear {
@@ -113,6 +117,7 @@ struct TimeLineApp: App {
             // Restore Templates
             templateStore.load(from: state.templates)
             stateManager.spawnedKeys = state.spawnedKeys
+            stateManager.inbox = state.inbox
             
             // Reconcile or Reset Day
             if !Calendar.current.isDateInToday(state.lastSeenAt) {
