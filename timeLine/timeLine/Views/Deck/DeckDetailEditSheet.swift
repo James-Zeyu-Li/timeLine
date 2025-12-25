@@ -9,17 +9,24 @@ struct DeckDetailEditSheet: View {
     @EnvironmentObject var appMode: AppModeManager
     @Environment(\.editMode) private var editMode
     
-    @State private var title: String = ""
-    @State private var cardTemplateIds: [UUID] = []
-    @State private var didLoad = false
+    @State private var draft: DeckTemplate?
+    @State private var deckMissing = false
     
     var body: some View {
         NavigationStack {
             Group {
-                if let deck = deckStore.get(id: deckId) {
+                if deckMissing {
+                    VStack(spacing: 12) {
+                        Image(systemName: "exclamationmark.triangle")
+                            .font(.system(size: 28, weight: .bold))
+                        Text("Deck not found")
+                            .font(.system(.headline, design: .rounded))
+                    }
+                    .foregroundColor(.secondary)
+                } else if draft != nil {
                     Form {
                         Section("Title") {
-                            TextField("Deck title", text: $title)
+                            TextField("Deck title", text: titleBinding)
                                 .textInputAutocapitalization(.sentences)
                         }
                         
@@ -28,7 +35,8 @@ struct DeckDetailEditSheet: View {
                                 Text("No cards yet")
                                     .foregroundColor(.secondary)
                             } else {
-                                ForEach(cardTemplateIds, id: \.self) { templateId in
+                                ForEach(Array(cardTemplateIds.enumerated()), id: \.offset) { item in
+                                    let templateId = item.element
                                     if let template = cardStore.get(id: templateId) {
                                         HStack {
                                             Text(template.title)
@@ -42,10 +50,14 @@ struct DeckDetailEditSheet: View {
                                     }
                                 }
                                 .onDelete { indexSet in
-                                    cardTemplateIds.remove(atOffsets: indexSet)
+                                    var updated = cardTemplateIds
+                                    updated.remove(atOffsets: indexSet)
+                                    updateCardTemplateIds(updated)
                                 }
                                 .onMove { source, destination in
-                                    cardTemplateIds.move(fromOffsets: source, toOffset: destination)
+                                    var updated = cardTemplateIds
+                                    updated.move(fromOffsets: source, toOffset: destination)
+                                    updateCardTemplateIds(updated)
                                 }
                             }
                         }
@@ -53,7 +65,9 @@ struct DeckDetailEditSheet: View {
                         Section("Add Card") {
                             ForEach(cardStore.orderedTemplates()) { template in
                                 Button {
-                                    cardTemplateIds.append(template.id)
+                                    var updated = cardTemplateIds
+                                    updated.append(template.id)
+                                    updateCardTemplateIds(updated)
                                 } label: {
                                     HStack {
                                         Text(template.title)
@@ -66,13 +80,7 @@ struct DeckDetailEditSheet: View {
                         }
                     }
                 } else {
-                    VStack(spacing: 12) {
-                        Image(systemName: "exclamationmark.triangle")
-                            .font(.system(size: 28, weight: .bold))
-                        Text("Deck not found")
-                            .font(.system(.headline, design: .rounded))
-                    }
-                    .foregroundColor(.secondary)
+                    ProgressView()
                 }
             }
             .navigationTitle("Edit Deck")
@@ -91,28 +99,52 @@ struct DeckDetailEditSheet: View {
                         saveChanges()
                         appMode.exitDeckEdit()
                     }
-                    .disabled(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .disabled(isSaveDisabled)
                 }
             }
         }
         .onAppear {
-            if !didLoad {
-                loadDeck()
-                didLoad = true
-            }
+            loadDeckIfNeeded()
         }
     }
     
-    private func loadDeck() {
-        guard let deck = deckStore.get(id: deckId) else { return }
-        title = deck.title
-        cardTemplateIds = deck.cardTemplateIds
+    private var titleBinding: Binding<String> {
+        Binding(
+            get: { draft?.title ?? "" },
+            set: { newValue in
+                guard var current = draft else { return }
+                current.title = newValue
+                draft = current
+            }
+        )
+    }
+    
+    private var cardTemplateIds: [UUID] {
+        draft?.cardTemplateIds ?? []
+    }
+    
+    private var isSaveDisabled: Bool {
+        let trimmed = draft?.title.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return trimmed.isEmpty
+    }
+    
+    private func loadDeckIfNeeded() {
+        guard draft == nil, !deckMissing else { return }
+        guard let deck = deckStore.get(id: deckId) else {
+            deckMissing = true
+            return
+        }
+        draft = deck
+    }
+    
+    private func updateCardTemplateIds(_ updated: [UUID]) {
+        guard var current = draft else { return }
+        current.cardTemplateIds = updated
+        draft = current
     }
     
     private func saveChanges() {
-        guard var deck = deckStore.get(id: deckId) else { return }
-        deck.title = title
-        deck.cardTemplateIds = cardTemplateIds
-        deckStore.update(deck)
+        guard let draft else { return }
+        deckStore.update(draft)
     }
 }

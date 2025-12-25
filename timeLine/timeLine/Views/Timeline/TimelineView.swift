@@ -17,12 +17,11 @@ struct TimelineView: View {
     
     @AppStorage("use24HourClock") private var use24HourClock = true
     
-    @State private var showRoutinePicker = false
     @State private var showStats = false
     @State private var showingEditSheet = false
     @State private var templateToEdit: TaskTemplate?
     @State private var editingNodeId: UUID?
-    @State private var bottomSheetInset: CGFloat = 132
+    private let bottomSheetInset: CGFloat = 96
     
     @State private var draggingNodeId: UUID?
     @State private var dragOffset: CGSize = .zero
@@ -96,7 +95,6 @@ struct TimelineView: View {
             }
             .coordinateSpace(name: "scroll")
             
-            MapBottomSheet(showRoutinePicker: $showRoutinePicker, isLocked: appMode.isOverlayActive)
         }
         .safeAreaInset(edge: .top) {
             HeaderView(
@@ -106,9 +104,6 @@ struct TimelineView: View {
             )
         }
         .background(Color.black.edgesIgnoringSafeArea(.all))
-        .sheet(isPresented: $showRoutinePicker) {
-            RoutinePickerView()
-        }
         .sheet(isPresented: $showStats) {
             StatsView()
         }
@@ -121,9 +116,6 @@ struct TimelineView: View {
                 editingNodeId = nil
                 templateToEdit = nil
             }
-        }
-        .onPreferenceChange(MapBottomSheetHeightKey.self) { value in
-            bottomSheetInset = value
         }
         .onReceive(coordinator.uiEvents) { event in
             viewModel.handleUIEvent(event)

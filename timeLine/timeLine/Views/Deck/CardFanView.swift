@@ -11,12 +11,24 @@ struct CardFanView: View {
     @EnvironmentObject var dragCoordinator: DragDropCoordinator
     
     @State private var raisedCardId: UUID?
+    @State private var showQuickBuilder = false
+    @State private var showDragHint = false
+    @State private var dragHintTask: DispatchWorkItem?
     
     var body: some View {
         let cards = cardStore.orderedTemplates()
         let count = cards.count
         
         VStack(spacing: 12) {
+            addCardButton
+            
+            if showDragHint {
+                Text("Drag onto a node to place")
+                    .font(.system(.caption, design: .rounded))
+                    .foregroundColor(.white.opacity(0.7))
+                    .transition(.opacity)
+            }
+            
             if let preview = previewCard {
                 CardPreviewPanel(template: preview)
                     .transition(.opacity.combined(with: .move(edge: .top)))
@@ -45,6 +57,58 @@ struct CardFanView: View {
             }
             .frame(height: 200)
         }
+        .sheet(isPresented: $showQuickBuilder) {
+            QuickBuilderSheet(onCreated: {
+                showDragHintMessage()
+            })
+        }
+    }
+    
+    // MARK: - Quick Builder Entry
+    
+    private var addCardButton: some View {
+        HStack {
+            Spacer()
+            Button {
+                showQuickBuilder = true
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "plus")
+                        .font(.system(size: 12, weight: .bold))
+                    Text("Add Card")
+                        .font(.system(.caption, design: .rounded))
+                        .fontWeight(.semibold)
+                }
+                .foregroundColor(.cyan)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(
+                    Capsule()
+                        .fill(Color.cyan.opacity(0.15))
+                        .overlay(
+                            Capsule()
+                                .stroke(Color.cyan.opacity(0.3), lineWidth: 1)
+                        )
+                )
+            }
+            .buttonStyle(.plain)
+            Spacer()
+        }
+        .padding(.horizontal, 24)
+    }
+    
+    private func showDragHintMessage() {
+        dragHintTask?.cancel()
+        let task = DispatchWorkItem {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                showDragHint = false
+            }
+        }
+        dragHintTask = task
+        withAnimation(.easeInOut(duration: 0.2)) {
+            showDragHint = true
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2, execute: task)
     }
     
     // MARK: - Fan Layout

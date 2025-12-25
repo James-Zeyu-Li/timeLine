@@ -6,7 +6,6 @@ import Combine
 enum DeckTab: String, CaseIterable {
     case cards
     case decks
-    case create
 }
 
 // MARK: - App Mode

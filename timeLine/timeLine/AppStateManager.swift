@@ -4,7 +4,7 @@ import TimeLineCore
 
 /// Centralized manager for app-level state and persistence.
 /// Save is debounced to avoid excessive writes.
-final class AppStateManager: ObservableObject {
+final class AppStateManager: ObservableObject, StateSaver {
     
     // MARK: - Dependencies
     let engine: BattleEngine
@@ -19,18 +19,22 @@ final class AppStateManager: ObservableObject {
     private let saveSubject = PassthroughSubject<Void, Never>()
     private var saveCancellable: AnyCancellable?
     
-    init(engine: BattleEngine, daySession: DaySession, templateStore: TemplateStore) {
+    init(engine: BattleEngine, daySession: DaySession, templateStore: TemplateStore, enablePersistence: Bool = true) {
         self.engine = engine
         self.daySession = daySession
         self.templateStore = templateStore
         
         // Debounce saves by 500ms
-        saveCancellable = saveSubject
-            .debounce(for: .milliseconds(500), scheduler: RunLoop.main)
-            .sink { [weak self] in
-                self?.performSave()
-            }
-        print("[AppStateManager] Initialized. Debounce: 500ms")
+        if enablePersistence {
+            saveCancellable = saveSubject
+                .debounce(for: .milliseconds(500), scheduler: DispatchQueue.main)
+                .sink { [weak self] in
+                    self?.performSave()
+                }
+            print("[AppStateManager] Initialized. Debounce: 500ms")
+        } else {
+            print("[AppStateManager] Initialized (Persistence Disabled)")
+        }
     }
     
     /// Request a save. Will be debounced.

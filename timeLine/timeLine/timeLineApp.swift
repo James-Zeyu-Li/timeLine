@@ -2,6 +2,16 @@ import SwiftUI
 import TimeLineCore
 
 @main
+struct AppEntryPoint {
+    static func main() {
+        if NSClassFromString("XCTestCase") != nil {
+            TestApp.main()
+        } else {
+            TimeLineApp.main()
+        }
+    }
+}
+
 struct TimeLineApp: App {
     @Environment(\.scenePhase) var scenePhase
     
@@ -11,6 +21,7 @@ struct TimeLineApp: App {
     @StateObject private var templateStore = TemplateStore()
     @StateObject private var cardStore = CardTemplateStore()
     @StateObject private var deckStore = DeckStore()
+    @StateObject private var appMode = AppModeManager()
     @StateObject private var stateManager: AppStateManager
     @StateObject private var coordinator: TimelineEventCoordinator
     
@@ -71,6 +82,7 @@ struct TimeLineApp: App {
                     .environmentObject(templateStore)
                     .environmentObject(cardStore)
                     .environmentObject(deckStore)
+                    .environmentObject(appMode)
                     .environmentObject(stateManager)
                     .environmentObject(coordinator)
                     .onAppear {
@@ -158,6 +170,9 @@ struct TimeLineApp: App {
                 engine.currentBoss = nil
                 engine.state = .idle
                 engine.wastedTime = 0
+                
+                // 3. Trigger Alert
+                showNewDayAlert = true
                 
                 // 3. Trigger Alert
                 showNewDayAlert = true

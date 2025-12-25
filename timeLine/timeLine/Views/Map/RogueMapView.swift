@@ -9,21 +9,18 @@ struct RogueMapView: View {
     @EnvironmentObject var coordinator: TimelineEventCoordinator
     @EnvironmentObject var appMode: AppModeManager
     @EnvironmentObject var dragCoordinator: DragDropCoordinator
-    @EnvironmentObject var deckStore: DeckStore
-    @EnvironmentObject var cardStore: CardTemplateStore
     
     // View Model
     @StateObject private var viewModel = TimelineViewModel()
     
     @AppStorage("use24HourClock") private var use24HourClock = true
     
-    @State private var showRoutinePicker = false
     @State private var showStats = false
     @State private var nodeAnchors: [UUID: CGFloat] = [:]
     @State private var viewportHeight: CGFloat = 0
-    @State private var bottomSheetInset: CGFloat = 132
     
     private let bottomFocusPadding: CGFloat = 140
+    private let bottomSheetInset: CGFloat = 96
     
     private var upcomingNodes: [TimelineNode] { daySession.nodes.filter { !$0.isCompleted } }
     
@@ -32,22 +29,9 @@ struct RogueMapView: View {
             ZStack {
                 // Background: Map content
                 mapContent(proxy: proxy)
-                
-                // Foreground: Bottom sheet overlay (locked when overlay active)
-                MapBottomSheet(showRoutinePicker: $showRoutinePicker, isLocked: appMode.isOverlayActive)
-            }
-            .onPreferenceChange(MapBottomSheetHeightKey.self) { value in
-                bottomSheetInset = value
             }
             .sheet(isPresented: $showStats) {
                 StatsView()
-            }
-            .sheet(isPresented: $showRoutinePicker) {
-                RoutinePickerView()
-                    // Explicitly pass environment objects to sheet to avoid hierarchy issues
-                    .environmentObject(deckStore)
-                    .environmentObject(cardStore)
-                    .environmentObject(appMode)
             }
         }
     }
@@ -510,6 +494,12 @@ private struct MapNodeRow: View {
                     )
                     .shadow(color: isHovering ? PixelTheme.accent.opacity(0.6) : .clear, radius: 8, x: 0, y: 0)
                     .allowsHitTesting(false)
+                    .overlay(alignment: .bottom) {
+                        if isHovering {
+                            InsertAfterHint()
+                                .padding(.bottom, 8)
+                        }
+                    }
             }
         }
     }
@@ -568,6 +558,29 @@ private struct MapNodeAnchorKey: PreferenceKey {
     
     static func reduce(value: inout [UUID: CGFloat], nextValue: () -> [UUID: CGFloat]) {
         value.merge(nextValue()) { _, new in new }
+    }
+}
+
+private struct InsertAfterHint: View {
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "arrow.up")
+                .font(.system(size: 10, weight: .bold))
+            Text("Drop to insert after")
+                .font(.system(size: 10, weight: .bold))
+        }
+        .foregroundColor(.white)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 5)
+        .background(
+            Capsule()
+                .fill(Color.black.opacity(0.7))
+                .overlay(
+                    Capsule()
+                        .stroke(Color.white.opacity(0.15), lineWidth: 1)
+                )
+        )
+        .allowsHitTesting(false)
     }
 }
 

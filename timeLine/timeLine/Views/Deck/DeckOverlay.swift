@@ -40,8 +40,6 @@ struct DeckOverlay: View {
                     CardFanView(tab: tab)
                 case .decks:
                     DecksTabView()
-                case .create:
-                    CreateTabView()
                 }
             }
             .padding(.bottom, 40)
@@ -95,8 +93,6 @@ struct DeckOverlay: View {
             return "Cards"
         case .decks:
             return "Decks"
-        case .create:
-            return "Create"
         }
     }
 }
@@ -111,14 +107,22 @@ private struct DecksTabView: View {
     
     @State private var previewDeckId: UUID?
     @State private var deckEditCooldownUntil: Date?
+    @State private var showDeckBuilder = false
+    @State private var deckTitle = ""
+    @State private var selectedCardIds: Set<UUID> = []
+    @State private var showRoutinePicker = false
     
     var body: some View {
         VStack(spacing: 12) {
+            routineDecksSection
+            
             HStack {
                 Spacer()
                 Button {
                     guard !appMode.isDragging else { return }
-                    appMode.enter(.deckOverlay(.create))
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
+                        showDeckBuilder.toggle()
+                    }
                 } label: {
                     HStack(spacing: 6) {
                         Image(systemName: "plus")
@@ -169,6 +173,14 @@ private struct DecksTabView: View {
                 .padding(.horizontal, 24)
             }
             .frame(height: 160)
+            
+            if showDeckBuilder {
+                deckBuilder
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
+        .sheet(isPresented: $showRoutinePicker) {
+            RoutinePickerView()
         }
     }
     
@@ -209,6 +221,138 @@ private struct DecksTabView: View {
     
     private func setDeckEditCooldown() {
         deckEditCooldownUntil = Date().addingTimeInterval(1.2)
+    }
+
+    private var routineDecksSection: some View {
+        let routines = Array(RoutineProvider.defaults.prefix(3))
+        let accents: [(String, Color)] = [
+            ("sun.horizon.fill", .orange),
+            ("brain.head.profile", .purple),
+            ("moon.stars.fill", .indigo)
+        ]
+        
+        return VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("ROUTINE DECKS")
+                    .font(.system(size: 11, weight: .bold))
+                    .tracking(1.5)
+                    .foregroundColor(.cyan.opacity(0.8))
+                
+                Spacer()
+                
+                Button {
+                    showRoutinePicker = true
+                } label: {
+                    HStack(spacing: 4) {
+                        Text("See All")
+                            .font(.system(.caption, design: .rounded))
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 10, weight: .bold))
+                    }
+                    .foregroundColor(.cyan)
+                }
+                .buttonStyle(.plain)
+            }
+            
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 12) {
+                    ForEach(Array(routines.enumerated()), id: \.element.id) { index, routine in
+                        let accent = accents[index % accents.count]
+                        RoutineDeckCard(
+                            title: routine.name,
+                            icon: accent.0,
+                            color: accent.1,
+                            taskCount: routine.presets.count,
+                            isEnabled: !appMode.isDragging
+                        ) {
+                            deckStore.addDeck(from: routine, using: cardStore)
+                            appMode.enter(.deckOverlay(.decks))
+                        }
+                    }
+                }
+                .padding(.horizontal, 24)
+            }
+        }
+    }
+
+    private var deckBuilder: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("CREATE DECK")
+                .font(.system(size: 11, weight: .bold))
+                .tracking(1.5)
+                .foregroundColor(.cyan.opacity(0.8))
+            
+            TextField("Deck title", text: $deckTitle)
+                .font(.system(.body, design: .rounded))
+                .foregroundColor(.white)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 12)
+                .background(
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color.white.opacity(0.06))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12)
+                                .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                        )
+                )
+            
+            VStack(alignment: .leading, spacing: 8) {
+                ForEach(cardStore.orderedTemplates()) { card in
+                    Button {
+                        toggleSelection(card.id)
+                    } label: {
+                        HStack {
+                            Image(systemName: selectedCardIds.contains(card.id) ? "checkmark.circle.fill" : "circle")
+                                .foregroundColor(selectedCardIds.contains(card.id) ? .cyan : .gray)
+                            Text(card.title)
+                                .font(.system(.subheadline, design: .rounded))
+                                .foregroundColor(.white)
+                            Spacer()
+                            Text("\(Int(card.defaultDuration / 60)) min")
+                                .font(.system(.caption, design: .rounded))
+                                .foregroundColor(.gray)
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(
+                            RoundedRectangle(cornerRadius: 10)
+                                .fill(Color.white.opacity(0.04))
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            
+            Button("Save Deck") {
+                saveDeck()
+            }
+            .buttonStyle(.plain)
+            .foregroundColor(.cyan)
+            .disabled(deckTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || selectedCardIds.isEmpty)
+        }
+        .padding(.horizontal, 24)
+    }
+    
+    private func toggleSelection(_ id: UUID) {
+        if selectedCardIds.contains(id) {
+            selectedCardIds.remove(id)
+        } else {
+            selectedCardIds.insert(id)
+        }
+    }
+    
+    private func saveDeck() {
+        let trimmed = deckTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        let selectedCards = cardStore.order.filter { selectedCardIds.contains($0) }
+        guard !selectedCards.isEmpty else { return }
+        let deck = DeckTemplate(title: trimmed, cardTemplateIds: selectedCards)
+        deckStore.add(deck)
+        deckTitle = ""
+        selectedCardIds.removeAll()
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
+            showDeckBuilder = false
+        }
     }
 }
 
@@ -297,145 +441,50 @@ private struct DeckPreviewPanel: View {
     }
 }
 
-// MARK: - Create Tab
-
-private struct CreateTabView: View {
-    @EnvironmentObject var cardStore: CardTemplateStore
-    @EnvironmentObject var deckStore: DeckStore
-    
-    @State private var cardTitle = ""
-    @State private var cardMinutes = 25.0
-    @State private var deckTitle = ""
-    @State private var selectedCardIds: Set<UUID> = []
+private struct RoutineDeckCard: View {
+    let title: String
+    let icon: String
+    let color: Color
+    let taskCount: Int
+    let isEnabled: Bool
+    let onTap: () -> Void
     
     var body: some View {
-        ScrollView(.vertical, showsIndicators: false) {
-            VStack(alignment: .leading, spacing: 20) {
-                Text("CREATE CARD")
-                    .font(.system(size: 11, weight: .bold))
-                    .tracking(1.5)
-                    .foregroundColor(.cyan.opacity(0.8))
-                
-                VStack(alignment: .leading, spacing: 12) {
-                    TextField("Card title", text: $cardTitle)
-                        .font(.system(.body, design: .rounded))
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 12)
-                        .background(
-                            RoundedRectangle(cornerRadius: 12)
-                                .fill(Color.white.opacity(0.06))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 12)
-                                        .stroke(Color.white.opacity(0.1), lineWidth: 1)
-                                )
-                        )
+        Button(action: onTap) {
+            VStack(alignment: .leading, spacing: 10) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(color.opacity(0.2))
+                        .frame(width: 36, height: 36)
                     
-                    Stepper(value: $cardMinutes, in: 5...240, step: 5) {
-                        Text("\(Int(cardMinutes)) min")
-                            .font(.system(.subheadline, design: .rounded))
-                            .foregroundColor(.white)
-                    }
-                    
-                    Button("Add Card") {
-                        addCard()
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundColor(.cyan)
+                    Image(systemName: icon)
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundColor(color)
                 }
                 
-                Text("CREATE DECK")
-                    .font(.system(size: 11, weight: .bold))
-                    .tracking(1.5)
-                    .foregroundColor(.cyan.opacity(0.8))
-                    .padding(.top, 6)
+                Text(title)
+                    .font(.system(.caption, design: .rounded))
+                    .fontWeight(.semibold)
+                    .foregroundColor(.white)
+                    .lineLimit(1)
                 
-                VStack(alignment: .leading, spacing: 12) {
-                    TextField("Deck title", text: $deckTitle)
-                        .font(.system(.body, design: .rounded))
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 12)
-                        .background(
-                            RoundedRectangle(cornerRadius: 12)
-                                .fill(Color.white.opacity(0.06))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 12)
-                                        .stroke(Color.white.opacity(0.1), lineWidth: 1)
-                                )
-                        )
-                    
-                    VStack(alignment: .leading, spacing: 8) {
-                        ForEach(cardStore.orderedTemplates()) { card in
-                            Button {
-                                toggleSelection(card.id)
-                            } label: {
-                                HStack {
-                                    Image(systemName: selectedCardIds.contains(card.id) ? "checkmark.circle.fill" : "circle")
-                                        .foregroundColor(selectedCardIds.contains(card.id) ? .cyan : .gray)
-                                    Text(card.title)
-                                        .font(.system(.subheadline, design: .rounded))
-                                        .foregroundColor(.white)
-                                    Spacer()
-                                    Text("\(Int(card.defaultDuration / 60)) min")
-                                        .font(.system(.caption, design: .rounded))
-                                        .foregroundColor(.gray)
-                                }
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 8)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 10)
-                                        .fill(Color.white.opacity(0.04))
-                                )
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                    
-                    Button("Save Deck") {
-                        saveDeck()
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundColor(.cyan)
-                }
+                Text("\(taskCount) tasks")
+                    .font(.system(.caption2, design: .rounded))
+                    .foregroundColor(.gray)
             }
-            .padding(.horizontal, 24)
+            .padding(12)
+            .frame(width: 110)
+            .background(
+                RoundedRectangle(cornerRadius: 14)
+                    .fill(Color.white.opacity(0.05))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14)
+                            .stroke(color.opacity(0.2), lineWidth: 1)
+                    )
+            )
         }
-        .frame(height: 220)
-    }
-    
-    private func toggleSelection(_ id: UUID) {
-        if selectedCardIds.contains(id) {
-            selectedCardIds.remove(id)
-        } else {
-            selectedCardIds.insert(id)
-        }
-    }
-    
-    private func addCard() {
-        let trimmed = cardTitle.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
-        let template = CardTemplate(
-            title: trimmed,
-            icon: "bolt.fill",
-            defaultDuration: cardMinutes * 60,
-            tags: [],
-            energyColor: .focus,
-            category: .work,
-            style: .focus
-        )
-        cardStore.add(template)
-        cardTitle = ""
-    }
-    
-    private func saveDeck() {
-        let trimmed = deckTitle.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
-        let selectedCards = cardStore.order.filter { selectedCardIds.contains($0) }
-        guard !selectedCards.isEmpty else { return }
-        let deck = DeckTemplate(title: trimmed, cardTemplateIds: selectedCards)
-        deckStore.add(deck)
-        deckTitle = ""
-        selectedCardIds.removeAll()
+        .buttonStyle(.plain)
+        .disabled(!isEnabled)
+        .opacity(isEnabled ? 1 : 0.5)
     }
 }

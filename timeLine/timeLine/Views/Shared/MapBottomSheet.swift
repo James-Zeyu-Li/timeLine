@@ -61,13 +61,15 @@ struct MapBottomSheet: View {
     @EnvironmentObject var cardStore: CardTemplateStore
     @EnvironmentObject var deckStore: DeckStore
     
+    @State private var showSettings = false
+    
     init(showRoutinePicker: Binding<Bool>, isLocked: Bool = false) {
         self._showRoutinePicker = showRoutinePicker
         self.isLocked = isLocked
     }
     
     // Layout constants
-    private let collapsedHeight: CGFloat = 100
+    private let collapsedHeight: CGFloat = 72
     private let grabberHeight: CGFloat = 24
     private let snapThreshold: CGFloat = 60
     
@@ -134,6 +136,14 @@ struct MapBottomSheet: View {
                 }
             }
             .preference(key: MapBottomSheetHeightKey.self, value: collapsedInset)
+            .overlay(alignment: .bottomTrailing) {
+                if !viewModel.isExpanded && !isLocked {
+                    floatingControls(safeBottom: safeBottom)
+                }
+            }
+            .sheet(isPresented: $showSettings) {
+                SettingsView()
+            }
         }
     }
     
@@ -181,86 +191,7 @@ struct MapBottomSheet: View {
     
     // MARK: - Collapsed Content
     private var collapsedContent: some View {
-        HStack(spacing: 12) {
-            // Next actionable mini card
-            Button {
-                if !isLocked {
-                    viewModel.expand()
-                    syncAppModeWithSheet()
-                }
-            } label: {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Ready when you are")
-                        .font(.system(.subheadline, design: .rounded))
-                        .fontWeight(.semibold)
-                        .foregroundColor(.white)
-                    
-                    Text("Your next boss is waiting")
-                        .font(.system(.caption, design: .rounded))
-                        .foregroundColor(.gray)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
-                .background(
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(Color.white.opacity(0.08))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12)
-                                .stroke(Color.white.opacity(0.1), lineWidth: 1)
-                        )
-                )
-            }
-            .buttonStyle(PlainButtonStyle())
-            
-            // Add button - NOW OPENS DECK OVERLAY
-            Button {
-                if !isLocked {
-                    appMode.enter(.deckOverlay(.cards))
-                }
-            } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: "plus")
-                        .font(.system(size: 14, weight: .bold))
-                    Text("Add")
-                        .font(.system(.subheadline, design: .rounded))
-                        .fontWeight(.semibold)
-                }
-                .foregroundColor(.cyan)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
-                .background(
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(Color.cyan.opacity(0.15))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12)
-                                .stroke(Color.cyan.opacity(0.3), lineWidth: 1)
-                        )
-                )
-            }
-            .buttonStyle(PlainButtonStyle())
-            .disabled(isLocked)
-            
-            // Menu button
-            Button {
-                if !isLocked {
-                    viewModel.toggle()
-                    syncAppModeWithSheet()
-                }
-            } label: {
-                Image(systemName: "line.3.horizontal")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(.gray)
-                    .frame(width: 40, height: 40)
-                    .background(
-                        RoundedRectangle(cornerRadius: 10)
-                            .fill(Color.white.opacity(0.06))
-                    )
-            }
-            .buttonStyle(PlainButtonStyle())
-        }
-        .padding(.horizontal, 16)
-        .padding(.bottom, 16)
+        Color.clear
     }
     
     // MARK: - Expanded Content
@@ -409,6 +340,73 @@ struct MapBottomSheet: View {
                 .stroke(Color.white.opacity(0.1), lineWidth: 1)
         )
     }
+    
+    private func floatingControls(safeBottom: CGFloat) -> some View {
+        VStack(alignment: .trailing, spacing: 10) {
+            FloatingMessage(text: "Ready when you are")
+            
+            HStack(spacing: 10) {
+                Button {
+                    appMode.enter(.deckOverlay(.cards))
+                } label: {
+                    Image(systemName: "plus")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundColor(.white)
+                        .frame(width: 44, height: 44)
+                        .background(
+                            Circle()
+                                .fill(Color.cyan.opacity(0.85))
+                                .overlay(
+                                    Circle()
+                                        .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                                )
+                        )
+                }
+                .buttonStyle(.plain)
+                
+                Button {
+                    showSettings = true
+                } label: {
+                    Image(systemName: "gearshape.fill")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundColor(.white)
+                        .frame(width: 44, height: 44)
+                        .background(
+                            Circle()
+                                .fill(Color.white.opacity(0.12))
+                                .overlay(
+                                    Circle()
+                                        .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                                )
+                        )
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.trailing, 16)
+        .padding(.bottom, collapsedHeight + safeBottom + 12)
+    }
+}
+
+private struct FloatingMessage: View {
+    let text: String
+    
+    var body: some View {
+        Text(text)
+            .font(.system(.caption, design: .rounded))
+            .fontWeight(.semibold)
+            .foregroundColor(.white)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(
+                Capsule()
+                    .fill(Color.black.opacity(0.6))
+                    .overlay(
+                        Capsule()
+                            .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                    )
+            )
+    }
 }
 private struct RoutinePackCard: View {
     let title: String
@@ -460,7 +458,7 @@ private struct RoutinePackCard: View {
 
 // MARK: - Collapsed Height Provider (for map inset)
 struct MapBottomSheetHeightKey: PreferenceKey {
-    static var defaultValue: CGFloat = 116 // collapsedHeight + padding
+    static var defaultValue: CGFloat = 88 // collapsedHeight + padding
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
         value = nextValue()
     }

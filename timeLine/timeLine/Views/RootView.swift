@@ -7,10 +7,9 @@ struct RootView: View {
     @EnvironmentObject var stateManager: AppStateManager
     @EnvironmentObject var cardStore: CardTemplateStore
     @EnvironmentObject var deckStore: DeckStore
+    @EnvironmentObject var appMode: AppModeManager
     
-    @StateObject private var appMode = AppModeManager()
     @StateObject private var dragCoordinator = DragDropCoordinator()
-    @StateObject private var petVisibility = PetVisibilityController()
     
     @AppStorage("useMapPrototype") private var useMapPrototype = true  // default to map
     
@@ -18,6 +17,7 @@ struct RootView: View {
     @State private var lastDeckBatch: DeckBatchResult?
     @State private var showDeckToast = false
     @State private var deckPlacementCooldownUntil: Date?
+    @State private var showSettings = false
     
     var body: some View {
         ZStack {
@@ -30,6 +30,9 @@ struct RootView: View {
             // 2. Deck overlay (visible during drag too, dimmed)
             deckLayer
             
+            // 3. Empty timeline drop target (when no nodes exist)
+            emptyDropLayer
+            
             // 3. Dragging card on top
             draggingLayer
             
@@ -38,7 +41,6 @@ struct RootView: View {
         }
         .environmentObject(appMode)
         .environmentObject(dragCoordinator)
-        .environmentObject(petVisibility)
         .animation(.easeInOut, value: engine.state)
         .animation(.spring(response: 0.35), value: appMode.mode)
         .onPreferenceChange(NodeFrameKey.self) { frames in
@@ -78,6 +80,24 @@ struct RootView: View {
                 .padding(.bottom, 24)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
+        }
+        .overlay(alignment: .bottomTrailing) {
+            if showsFloatingControls {
+                GeometryReader { proxy in
+                    FloatingControlsView(
+                        message: "Ready when you are",
+                        onAdd: { appMode.enter(.deckOverlay(.cards)) },
+                        onSettings: { showSettings = true }
+                    )
+                    .padding(.trailing, 16)
+                    .padding(.bottom, proxy.safeAreaInsets.bottom + 16)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+                }
+                .ignoresSafeArea()
+            }
+        }
+        .sheet(isPresented: $showSettings) {
+            SettingsView()
         }
         .task {
             cardStore.seedDefaultsIfNeeded()
@@ -137,6 +157,16 @@ struct RootView: View {
             }
         default:
             EmptyView()
+        }
+    }
+    
+    @ViewBuilder
+    private var emptyDropLayer: some View {
+        if appMode.isDragging && daySession.nodes.isEmpty {
+            EmptyDropZoneView(
+                title: emptyDropTitle,
+                subtitle: emptyDropSubtitle
+            )
         }
     }
     
@@ -212,12 +242,53 @@ struct RootView: View {
             }
             
         case .cancel:
-            UIImpactFeedbackGenerator(style: .light).impactOccurred()
-            success = false
+            success = handleEmptyDropFallback()
         }
         
         dragCoordinator.reset()
         appMode.exitDrag(success: success)
+    }
+    
+    private func handleEmptyDropFallback() -> Bool {
+        guard daySession.nodes.isEmpty,
+              let payload = dragCoordinator.activePayload else {
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            return false
+        }
+        
+        let timelineStore = TimelineStore(daySession: daySession, stateManager: stateManager)
+        switch payload.type {
+        case .cardTemplate(let cardId):
+            if timelineStore.placeCardOccurrenceAtStart(
+                cardTemplateId: cardId,
+                using: cardStore,
+                engine: engine
+            ) != nil {
+                UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
+                return true
+            }
+        case .deck(let deckId):
+            guard !isDeckPlacementLocked else {
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                return false
+            }
+            if let result = timelineStore.placeDeckBatchAtStart(
+                deckId: deckId,
+                using: deckStore,
+                cardStore: cardStore,
+                engine: engine
+            ) {
+                lastDeckBatch = result
+                showDeckToast = true
+                scheduleToastDismiss()
+                setDeckPlacementCooldown()
+                UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
+                return true
+            }
+        }
+        
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        return false
     }
     
     private var isDeckPlacementLocked: Bool {
@@ -245,6 +316,121 @@ struct RootView: View {
         lastDeckBatch = nil
         showDeckToast = false
     }
+    
+    private var emptyDropTitle: String {
+        if appMode.draggingDeckId != nil {
+            return "Drop to insert deck"
+        }
+        return "Drop to place first card"
+    }
+    
+    private var emptyDropSubtitle: String? {
+        guard let summary = dragCoordinator.activeDeckSummary else { return nil }
+        let minutes = Int(summary.duration / 60)
+        return "Insert \(summary.count) cards · \(minutes) min"
+    }
+    
+    private var showsFloatingControls: Bool {
+        if appMode.isOverlayActive { return false }
+        switch engine.state {
+        case .idle, .victory, .retreat:
+            return true
+        case .fighting, .paused, .resting:
+            return false
+        }
+    }
+}
+
+private struct EmptyDropZoneView: View {
+    let title: String
+    let subtitle: String?
+    
+    var body: some View {
+        VStack(spacing: 6) {
+            Text(title)
+                .font(.system(.subheadline, design: .rounded))
+                .fontWeight(.semibold)
+                .foregroundColor(.white)
+            if let subtitle {
+                Text(subtitle)
+                    .font(.system(.caption, design: .rounded))
+                    .foregroundColor(.white.opacity(0.7))
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [6, 6]))
+                .foregroundColor(Color.white.opacity(0.35))
+                .background(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .fill(Color.black.opacity(0.35))
+                )
+        )
+        .padding(.horizontal, 40)
+        .transition(.opacity)
+        .allowsHitTesting(false)
+    }
+}
+
+private struct FloatingControlsView: View {
+    let message: String
+    let onAdd: () -> Void
+    let onSettings: () -> Void
+    
+    var body: some View {
+        VStack(alignment: .trailing, spacing: 10) {
+            Text(message)
+                .font(.system(.caption, design: .rounded))
+                .fontWeight(.semibold)
+                .foregroundColor(.white)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(
+                    Capsule()
+                        .fill(Color.black.opacity(0.6))
+                        .overlay(
+                            Capsule()
+                                .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                        )
+                )
+            
+            HStack(spacing: 10) {
+                Button(action: onAdd) {
+                    Image(systemName: "plus")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundColor(.white)
+                        .frame(width: 44, height: 44)
+                        .background(
+                            Circle()
+                                .fill(Color.cyan.opacity(0.85))
+                                .overlay(
+                                    Circle()
+                                        .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                                )
+                        )
+                }
+                .buttonStyle(.plain)
+                
+                Button(action: onSettings) {
+                    Image(systemName: "gearshape.fill")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundColor(.white)
+                        .frame(width: 44, height: 44)
+                        .background(
+                            Circle()
+                                .fill(Color.white.opacity(0.12))
+                                .overlay(
+                                    Circle()
+                                        .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                                )
+                        )
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
 }
 
 // MARK: - Node Frame Preference Key
@@ -265,27 +451,13 @@ struct CardDetailEditSheet: View {
     @EnvironmentObject var cardStore: CardTemplateStore
     @EnvironmentObject var appMode: AppModeManager
 
-    @State private var title: String = ""
-    @State private var durationMinutes: Double = 25
-    @State private var didLoad = false
+    @State private var draft: CardTemplate?
+    @State private var cardMissing = false
     
     var body: some View {
         NavigationStack {
             Group {
-                if cardStore.get(id: cardTemplateId) != nil {
-                    Form {
-                        Section("Title") {
-                            TextField("Card title", text: $title)
-                                .textInputAutocapitalization(.sentences)
-                        }
-                        
-                        Section("Duration") {
-                            Stepper(value: $durationMinutes, in: 5...240, step: 5) {
-                                Text("\(Int(durationMinutes)) min")
-                            }
-                        }
-                    }
-                } else {
+                if cardMissing {
                     VStack(spacing: 12) {
                         Image(systemName: "exclamationmark.triangle")
                             .font(.system(size: 28, weight: .bold))
@@ -293,6 +465,21 @@ struct CardDetailEditSheet: View {
                             .font(.system(.headline, design: .rounded))
                     }
                     .foregroundColor(.secondary)
+                } else if draft != nil {
+                    Form {
+                        Section("Title") {
+                            TextField("Card title", text: titleBinding)
+                                .textInputAutocapitalization(.sentences)
+                        }
+                        
+                        Section("Duration") {
+                            Stepper(value: durationMinutesBinding, in: 5...240, step: 5) {
+                                Text("\(Int(durationMinutesBinding.wrappedValue)) min")
+                            }
+                        }
+                    }
+                } else {
+                    ProgressView()
                 }
             }
             .navigationTitle("Edit Card")
@@ -308,28 +495,54 @@ struct CardDetailEditSheet: View {
                         saveChanges()
                         appMode.exitCardEdit()
                     }
-                    .disabled(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .disabled(isSaveDisabled)
                 }
             }
         }
         .onAppear {
-            if !didLoad {
-                loadCard()
-                didLoad = true
-            }
+            loadCardIfNeeded()
         }
     }
     
-    private func loadCard() {
-        guard let card = cardStore.get(id: cardTemplateId) else { return }
-        title = card.title
-        durationMinutes = min(240, max(5, card.defaultDuration / 60))
+    private var titleBinding: Binding<String> {
+        Binding(
+            get: { draft?.title ?? "" },
+            set: { newValue in
+                guard var current = draft else { return }
+                current.title = newValue
+                draft = current
+            }
+        )
+    }
+    
+    private var durationMinutesBinding: Binding<Double> {
+        Binding(
+            get: { (draft?.defaultDuration ?? 1500) / 60 },
+            set: { newValue in
+                guard var current = draft else { return }
+                let clamped = min(240, max(5, newValue))
+                current.defaultDuration = clamped * 60
+                draft = current
+            }
+        )
+    }
+    
+    private var isSaveDisabled: Bool {
+        let trimmed = draft?.title.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return trimmed.isEmpty
+    }
+    
+    private func loadCardIfNeeded() {
+        guard draft == nil, !cardMissing else { return }
+        guard let card = cardStore.get(id: cardTemplateId) else {
+            cardMissing = true
+            return
+        }
+        draft = card
     }
     
     private func saveChanges() {
-        guard var card = cardStore.get(id: cardTemplateId) else { return }
-        card.title = title
-        card.defaultDuration = durationMinutes * 60
-        cardStore.update(card)
+        guard let draft else { return }
+        cardStore.update(draft)
     }
 }

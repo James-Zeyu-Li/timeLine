@@ -15,12 +15,12 @@ final class TimelineStore: ObservableObject {
     // MARK: - Dependencies
     
     private let daySession: DaySession
-    private let stateManager: AppStateManager
+    private let stateManager: StateSaver
     private static var batchHistory: [UUID: [UUID]] = [:]
     
     // MARK: - Init
     
-    init(daySession: DaySession, stateManager: AppStateManager) {
+    init(daySession: DaySession, stateManager: StateSaver) {
         self.daySession = daySession
         self.stateManager = stateManager
     }
@@ -34,15 +34,7 @@ final class TimelineStore: ObservableObject {
     ) -> UUID? {
         guard let card = cardStore.get(id: cardTemplateId) else { return nil }
         guard let anchorIndex = daySession.nodes.firstIndex(where: { $0.id == anchorNodeId }) else { return nil }
-        let boss = Boss(
-            id: UUID(),
-            name: card.title,
-            maxHp: card.defaultDuration,
-            style: card.style,
-            category: card.category,
-            templateId: card.id
-        )
-        let node = TimelineNode(type: .battle(boss), isLocked: true)
+        let node = makeNode(from: card)
         daySession.nodes.insert(node, at: anchorIndex + 1)
         stateManager.requestSave()
         return node.id
@@ -56,25 +48,36 @@ final class TimelineStore: ObservableObject {
     ) -> DeckBatchResult? {
         guard let deck = deckStore.get(id: deckId) else { return nil }
         guard let anchorIndex = daySession.nodes.firstIndex(where: { $0.id == anchorNodeId }) else { return nil }
-        guard !deck.cardTemplateIds.isEmpty else { return nil }
-        
-        var nodes: [TimelineNode] = []
-        nodes.reserveCapacity(deck.cardTemplateIds.count)
-        for templateId in deck.cardTemplateIds {
-            guard let card = cardStore.get(id: templateId) else { return nil }
-            let boss = Boss(
-                id: UUID(),
-                name: card.title,
-                maxHp: card.defaultDuration,
-                style: card.style,
-                category: card.category,
-                templateId: card.id
-            )
-            nodes.append(TimelineNode(type: .battle(boss), isLocked: true))
-        }
-        guard !nodes.isEmpty else { return nil }
+        guard let nodes = makeNodes(for: deck, using: cardStore), !nodes.isEmpty else { return nil }
         daySession.nodes.insert(contentsOf: nodes, at: anchorIndex + 1)
         stateManager.requestSave()
+        
+        let batchId = UUID()
+        let insertedIds = nodes.map(\.id)
+        Self.batchHistory[batchId] = insertedIds
+        return DeckBatchResult(batchId: batchId, insertedNodeIds: insertedIds)
+    }
+    
+    func placeCardOccurrenceAtStart(
+        cardTemplateId: UUID,
+        using cardStore: CardTemplateStore,
+        engine: BattleEngine
+    ) -> UUID? {
+        guard let card = cardStore.get(id: cardTemplateId) else { return nil }
+        let node = makeNode(from: card)
+        appendNodes([node], engine: engine)
+        return node.id
+    }
+    
+    func placeDeckBatchAtStart(
+        deckId: UUID,
+        using deckStore: DeckStore,
+        cardStore: CardTemplateStore,
+        engine: BattleEngine
+    ) -> DeckBatchResult? {
+        guard let deck = deckStore.get(id: deckId) else { return nil }
+        guard let nodes = makeNodes(for: deck, using: cardStore), !nodes.isEmpty else { return nil }
+        appendNodes(nodes, engine: engine)
         
         let batchId = UUID()
         let insertedIds = nodes.map(\.id)
@@ -152,6 +155,27 @@ final class TimelineStore: ObservableObject {
         stateManager.requestSave()
     }
     
-
+    private func makeNode(from card: CardTemplate) -> TimelineNode {
+        let boss = Boss(
+            id: UUID(),
+            name: card.title,
+            maxHp: card.defaultDuration,
+            style: card.style,
+            category: card.category,
+            templateId: card.id
+        )
+        return TimelineNode(type: .battle(boss), isLocked: true)
+    }
+    
+    private func makeNodes(for deck: DeckTemplate, using cardStore: CardTemplateStore) -> [TimelineNode]? {
+        guard !deck.cardTemplateIds.isEmpty else { return nil }
+        var nodes: [TimelineNode] = []
+        nodes.reserveCapacity(deck.cardTemplateIds.count)
+        for templateId in deck.cardTemplateIds {
+            guard let card = cardStore.get(id: templateId) else { return nil }
+            nodes.append(makeNode(from: card))
+        }
+        return nodes
+    }
 
 }

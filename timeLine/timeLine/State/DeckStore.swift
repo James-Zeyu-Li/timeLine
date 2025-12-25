@@ -21,6 +21,8 @@ final class DeckStore: ObservableObject {
     @Published private(set) var decks: [UUID: DeckTemplate] = [:]
     @Published private(set) var order: [UUID] = []
     
+    private var routineDeckMap: [UUID: UUID] = [:]
+    
     func add(_ deck: DeckTemplate) {
         decks[deck.id] = deck
         if !order.contains(deck.id) {
@@ -35,6 +37,9 @@ final class DeckStore: ObservableObject {
     func remove(id: UUID) {
         decks.removeValue(forKey: id)
         order.removeAll { $0 == id }
+        if let routineKey = routineDeckMap.first(where: { $0.value == id })?.key {
+            routineDeckMap.removeValue(forKey: routineKey)
+        }
     }
     
     func get(id: UUID) -> DeckTemplate? {
@@ -59,6 +64,9 @@ final class DeckStore: ObservableObject {
     }
     
     func addDeck(from routine: RoutineTemplate, using cardStore: CardTemplateStore) {
+        if let existingId = routineDeckMap[routine.id], decks[existingId] != nil {
+            return
+        }
         let templates = routine.presets.map { preset in
             CardTemplate(
                 title: preset.title,
@@ -76,6 +84,7 @@ final class DeckStore: ObservableObject {
             cardTemplateIds: templates.map(\.id)
         )
         add(deck)
+        routineDeckMap[routine.id] = deck.id
     }
     
     func totalDuration(for deck: DeckTemplate, using cardStore: CardTemplateStore) -> TimeInterval {

@@ -3,18 +3,16 @@ import TimeLineCore
 
 struct QuickBuilderSheet: View {
     @Environment(\.dismiss) var dismiss
-    @EnvironmentObject var templateStore: TemplateStore
-    @EnvironmentObject var daySession: DaySession
-    @EnvironmentObject var stateManager: AppStateManager
-    @EnvironmentObject var engine: BattleEngine
+    @EnvironmentObject var cardStore: CardTemplateStore
+    @EnvironmentObject var appMode: AppModeManager
     
-    @State private var selectedTitle: String = "Study"
-    @State private var selectedCategory: TaskCategory = .study
-    @State private var selectedDuration: QuickDuration = .m30
-    @State private var selectedPlacement: QuickPlacement = .today
-    @State private var saveAsCard: Bool = true
-    @State private var showingCustomSheet: Bool = false
-    @State private var editingTemplate: TaskTemplate? = nil
+    let onCreated: (() -> Void)?
+    
+    init(onCreated: (() -> Void)? = nil) {
+        self.onCreated = onCreated
+    }
+    
+    @State private var draft = QuickBuilderDraft.default
     
     private let topics: [(String, TaskCategory)] = [
         ("Study", .study),
@@ -27,19 +25,56 @@ struct QuickBuilderSheet: View {
         ("Break", .rest)
     ]
     
+    private struct QuickBuilderDraft: Equatable {
+        var title: String
+        var category: TaskCategory
+        var duration: QuickDuration
+        
+        static let `default` = QuickBuilderDraft(
+            title: "Study",
+            category: .study,
+            duration: .m30
+        )
+    }
+    
     var body: some View {
-        NavigationView {
+        NavigationStack {
             ZStack {
                 Color.black.ignoresSafeArea()
                 
                 ScrollView {
                     VStack(alignment: .leading, spacing: 24) {
-                        sectionTitle("Pick a task")
+                        sectionTitle("Task Title")
+                        
+                        TextField("What's next?", text: $draft.title)
+                            .font(.system(.body, design: .rounded))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 12)
+                            .background(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .fill(Color.white.opacity(0.06))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 12)
+                                            .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                                    )
+                            )
+                            .submitLabel(.done)
+                            .onSubmit {
+                                handlePrimaryAction()
+                            }
+                        
+                        sectionTitle("Quick Picks")
                         flowChips(items: topics, tintFromCategory: true) { item in
-                            selectedTitle = item.0
-                            selectedCategory = item.1
+                            draft.title = item.0
+                            draft.category = item.1
                         } isSelected: { item in
-                            selectedTitle == item.0
+                            draft.title == item.0
+                        }
+                        
+                        if !recentTemplates.isEmpty {
+                            sectionTitle("Recent Cards")
+                            recentChips
                         }
                         
                         sectionTitle("Duration")
@@ -47,37 +82,17 @@ struct QuickBuilderSheet: View {
                             items: QuickDuration.allCases,
                             tint: .green
                         ) { option in
-                            selectedDuration = option
+                            draft.duration = option
                         } isSelected: { option in
-                            selectedDuration == option
+                            draft.duration == option
                         } label: { option in
                             option.label
                         }
-                        
-                        sectionTitle("When")
-                        chipRow(
-                            items: QuickPlacement.allCases,
-                            tint: .cyan
-                        ) { option in
-                            selectedPlacement = option
-                        } isSelected: { option in
-                            selectedPlacement == option
-                        } label: { option in
-                            option.label
-                        }
-                        
-                        Toggle(isOn: $saveAsCard) {
-                            Text("Save as Card")
-                                .font(.system(.subheadline, design: .rounded))
-                                .foregroundColor(.white)
-                        }
-                        .toggleStyle(SwitchToggleStyle(tint: .cyan))
-                        .padding(.top, 4)
                         
                         Button(action: handlePrimaryAction) {
                             HStack {
                                 Spacer()
-                                Text(primaryActionTitle)
+                                Text("Create Card")
                                     .font(.system(.headline, design: .rounded))
                                     .fontWeight(.semibold)
                                 Spacer()
@@ -86,7 +101,8 @@ struct QuickBuilderSheet: View {
                             .background(Color.cyan.opacity(0.2))
                             .cornerRadius(14)
                         }
-                        .buttonStyle(PlainButtonStyle())
+                        .buttonStyle(.plain)
+                        .disabled(draft.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     }
                     .padding(24)
                 }
@@ -103,92 +119,39 @@ struct QuickBuilderSheet: View {
             }
         }
         .preferredColorScheme(.dark)
-        .sheet(isPresented: $showingCustomSheet) {
-            TaskSheet(templateToEdit: $editingTemplate)
-        }
-    }
-    
-    private var primaryActionTitle: String {
-        switch selectedPlacement {
-        case .today:
-            return "Add to Today"
-        case .tomorrow:
-            return "Send to Inbox"
-        case .everyday:
-            return "Add + Save"
-        case .customize:
-            return "Open Custom"
-        }
     }
     
     private func handlePrimaryAction() {
-        if selectedPlacement == .customize {
-            editingTemplate = nil
-            showingCustomSheet = true
-            return
-        }
+        let trimmed = draft.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
         
-        let style: BossStyle = selectedCategory == .rest ? .passive : .focus
-        let template = TaskTemplate(
-            title: selectedTitle,
-            style: style,
-            duration: selectedDuration.duration,
-            fixedTime: nil,
-            repeatRule: selectedPlacement == .everyday ? .daily : .none,
-            category: selectedCategory
+        let style: BossStyle = draft.category == .rest ? .passive : .focus
+        let template = CardTemplate(
+            title: trimmed,
+            icon: draft.category.icon,
+            defaultDuration: draft.duration.duration,
+            tags: [draft.category.rawValue],
+            energyColor: energyToken(for: draft.category),
+            category: draft.category,
+            style: style
         )
-        
-        if saveAsCard || selectedPlacement == .everyday {
-            templateStore.add(template)
-        }
-        
-        switch selectedPlacement {
-        case .today, .everyday:
-            if selectedDuration.isMultiBlock {
-                addMultiBlockTasks(title: selectedTitle, style: style)
-            } else {
-                spawnTask(from: template)
-            }
-        case .tomorrow:
-            stateManager.inbox.append(template)
-        case .customize:
-            break
-        }
-        
-        stateManager.requestSave()
+        cardStore.add(template)
+        onCreated?()
+        appMode.enter(.deckOverlay(.cards))
         dismiss()
     }
     
-    private func addMultiBlockTasks(title: String, style: BossStyle) {
-        let bosses = (1...selectedDuration.blockCount).map { index in
-            Boss(
-                name: "\(title) - \(index)",
-                maxHp: selectedDuration.blockDuration,
-                style: style,
-                category: selectedCategory
-            )
+    private func energyToken(for category: TaskCategory) -> EnergyColorToken {
+        switch category {
+        case .work, .study:
+            return .focus
+        case .gym:
+            return .gym
+        case .rest:
+            return .rest
+        case .other:
+            return .creative
         }
-        
-        let route = RouteGenerator.generateRoute(from: bosses)
-        withAnimation(.easeInOut(duration: 0.25)) {
-            appendNodes(route)
-        }
-    }
-    
-    private func spawnTask(from template: TaskTemplate) {
-        let boss = SpawnManager.spawn(from: template)
-        let newNode = TimelineNode(
-            type: .battle(boss),
-            isLocked: true
-        )
-        withAnimation(.easeInOut(duration: 0.25)) {
-            appendNodes([newNode])
-        }
-    }
-    
-    private func appendNodes(_ newNodes: [TimelineNode]) {
-        let timelineStore = TimelineStore(daySession: daySession, stateManager: stateManager)
-        timelineStore.appendNodes(newNodes, engine: engine)
     }
     
     private func sectionTitle(_ text: String) -> some View {
@@ -237,6 +200,36 @@ struct QuickBuilderSheet: View {
             }
         }
     }
+    
+    private var recentTemplates: [CardTemplate] {
+        Array(cardStore.orderedTemplates().prefix(6))
+    }
+    
+    private var recentChips: some View {
+        LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 3), spacing: 12) {
+            ForEach(recentTemplates) { template in
+                let isSelected = draft.title == template.title && draft.category == template.category
+                ChipButton(
+                    title: template.title,
+                    isSelected: isSelected,
+                    tint: template.category.color
+                ) {
+                    draft.title = template.title
+                    draft.category = template.category
+                    draft.duration = durationOption(for: template.defaultDuration)
+                }
+            }
+        }
+    }
+    
+    private func durationOption(for seconds: TimeInterval) -> QuickDuration {
+        let target = max(0, seconds)
+        let options = QuickDuration.allCases
+        let closest = options.min { lhs, rhs in
+            abs(lhs.duration - target) < abs(rhs.duration - target)
+        }
+        return closest ?? .m30
+    }
 }
 
 private struct ChipButton: View {
@@ -266,7 +259,7 @@ private struct ChipButton: View {
                 )
                 .cornerRadius(10)
         }
-        .buttonStyle(PlainButtonStyle())
+        .buttonStyle(.plain)
     }
 }
 
@@ -293,36 +286,6 @@ private enum QuickDuration: String, CaseIterable, Identifiable {
         case .m30: return 1800
         case .h1: return 3600
         case .h3Breaks: return 10800
-        }
-    }
-    
-    var isMultiBlock: Bool {
-        self == .h3Breaks
-    }
-    
-    var blockCount: Int {
-        isMultiBlock ? 3 : 1
-    }
-    
-    var blockDuration: TimeInterval {
-        isMultiBlock ? 3600 : duration
-    }
-}
-
-private enum QuickPlacement: String, CaseIterable, Identifiable {
-    case today
-    case tomorrow
-    case everyday
-    case customize
-    
-    var id: String { rawValue }
-    
-    var label: String {
-        switch self {
-        case .today: return "Today"
-        case .tomorrow: return "Tomorrow"
-        case .everyday: return "Everyday"
-        case .customize: return "Customize"
         }
     }
 }

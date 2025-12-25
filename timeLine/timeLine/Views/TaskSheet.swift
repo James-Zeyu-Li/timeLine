@@ -11,15 +11,8 @@ struct TaskSheet: View {
     var isEditingNode: Bool = false
     var onSaveNode: ((TaskTemplate) -> Void)? = nil
     
-    // Form State
-    @State private var title: String = ""
-    @State private var selectedCategory: TaskCategory = .work
-    @State private var selectedStyle: BossStyle = .focus
-    @State private var duration: TimeInterval = 1800 // 30m
-    
-    // Repeat State
-    @State private var repeatType: RepeatType = .none
-    @State private var selectedWeekdays: Set<Int> = []
+    @State private var draft = TaskDraft.default
+    @State private var didLoad = false
     
     enum RepeatType: String, CaseIterable, Identifiable {
         case none = "None"
@@ -28,6 +21,47 @@ struct TaskSheet: View {
         case monthly = "Monthly"
         
         var id: String { rawValue }
+    }
+    
+    private struct TaskDraft: Equatable {
+        var title: String
+        var selectedCategory: TaskCategory
+        var selectedStyle: BossStyle
+        var duration: TimeInterval
+        var repeatType: RepeatType
+        var selectedWeekdays: Set<Int>
+        
+        static let `default` = TaskDraft(
+            title: "",
+            selectedCategory: .work,
+            selectedStyle: .focus,
+            duration: 1800,
+            repeatType: .none,
+            selectedWeekdays: []
+        )
+        
+        static func fromTemplate(_ template: TaskTemplate) -> TaskDraft {
+            var draft = TaskDraft.default
+            draft.title = template.title
+            draft.selectedCategory = template.category
+            draft.selectedStyle = template.style
+            draft.duration = template.duration ?? 1800
+            switch template.repeatRule {
+            case .none:
+                draft.repeatType = .none
+                draft.selectedWeekdays = []
+            case .daily:
+                draft.repeatType = .daily
+                draft.selectedWeekdays = []
+            case .weekly(let days):
+                draft.repeatType = .weekly
+                draft.selectedWeekdays = days
+            case .monthly(let days):
+                draft.repeatType = .monthly
+                draft.selectedWeekdays = days
+            }
+            return draft
+        }
     }
     
     // Presets
@@ -53,7 +87,7 @@ struct TaskSheet: View {
                                     .fontWeight(.semibold)
                                     .foregroundColor(.white)
                                 
-                                TextField("What needs to be done?", text: $title)
+                                TextField("What needs to be done?", text: $draft.title)
                                     .font(.system(.title3, design: .rounded))
                                     .padding(16)
                                     .background(Color(white: 0.1))
@@ -70,22 +104,22 @@ struct TaskSheet: View {
                                 LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 3), spacing: 12) {
                                     ForEach(TaskCategory.allCases, id: \.self) { category in
                                         Button(action: {
-                                            selectedCategory = category
+                                            draft.selectedCategory = category
                                         }) {
                                             VStack(spacing: 8) {
                                                 Image(systemName: category.icon)
                                                     .font(.system(size: 24))
-                                                    .foregroundColor(selectedCategory == category ? .white : category.color)
+                                                    .foregroundColor(draft.selectedCategory == category ? .white : category.color)
                                                 
                                                 Text(category.rawValue.capitalized)
                                                     .font(.system(.caption, design: .rounded))
                                                     .fontWeight(.medium)
-                                                    .foregroundColor(selectedCategory == category ? .white : .gray)
+                                                    .foregroundColor(draft.selectedCategory == category ? .white : .gray)
                                             }
                                             .frame(height: 80)
                                             .frame(maxWidth: .infinity)
                                             .background(
-                                                selectedCategory == category ?
+                                                draft.selectedCategory == category ?
                                                     LinearGradient(
                                                         colors: [category.color, category.color.opacity(0.7)],
                                                         startPoint: .topLeading,
@@ -97,8 +131,8 @@ struct TaskSheet: View {
                                             .overlay(
                                                 RoundedRectangle(cornerRadius: 12)
                                                     .stroke(
-                                                        selectedCategory == category ? category.color : Color(white: 0.2),
-                                                        lineWidth: selectedCategory == category ? 2 : 1
+                                                        draft.selectedCategory == category ? category.color : Color(white: 0.2),
+                                                        lineWidth: draft.selectedCategory == category ? 2 : 1
                                                     )
                                             )
                                         }
@@ -115,11 +149,11 @@ struct TaskSheet: View {
                                 .foregroundColor(.white)
                             
                             HStack(spacing: 12) {
-                                Button(action: { selectedStyle = .focus }) {
+                                Button(action: { draft.selectedStyle = .focus }) {
                                     VStack(spacing: 8) {
                                         Image(systemName: "bolt.fill")
                                             .font(.system(size: 24))
-                                            .foregroundColor(selectedStyle == .focus ? .white : .yellow)
+                                            .foregroundColor(draft.selectedStyle == .focus ? .white : .yellow)
                                         
                                         Text("Focus")
                                             .font(.system(.subheadline, design: .rounded))
@@ -132,23 +166,23 @@ struct TaskSheet: View {
                                     .frame(maxWidth: .infinity)
                                     .padding(16)
                                     .background(
-                                        selectedStyle == .focus ?
+                                        draft.selectedStyle == .focus ?
                                             LinearGradient(colors: [.yellow.opacity(0.3), .orange.opacity(0.2)], startPoint: .top, endPoint: .bottom) :
                                             LinearGradient(colors: [Color(white: 0.1)], startPoint: .top, endPoint: .bottom)
                                     )
                                     .cornerRadius(12)
                                     .overlay(
                                         RoundedRectangle(cornerRadius: 12)
-                                            .stroke(selectedStyle == .focus ? .yellow : Color(white: 0.2), lineWidth: 2)
+                                            .stroke(draft.selectedStyle == .focus ? .yellow : Color(white: 0.2), lineWidth: 2)
                                     )
                                 }
-                                .foregroundColor(selectedStyle == .focus ? .white : .gray)
+                                .foregroundColor(draft.selectedStyle == .focus ? .white : .gray)
                                 
-                                Button(action: { selectedStyle = .passive }) {
+                                Button(action: { draft.selectedStyle = .passive }) {
                                     VStack(spacing: 8) {
                                         Image(systemName: "checkmark.circle.fill")
                                             .font(.system(size: 24))
-                                            .foregroundColor(selectedStyle == .passive ? .white : .cyan)
+                                            .foregroundColor(draft.selectedStyle == .passive ? .white : .cyan)
                                         
                                         Text("Passive")
                                             .font(.system(.subheadline, design: .rounded))
@@ -161,22 +195,22 @@ struct TaskSheet: View {
                                     .frame(maxWidth: .infinity)
                                     .padding(16)
                                     .background(
-                                        selectedStyle == .passive ?
+                                        draft.selectedStyle == .passive ?
                                             LinearGradient(colors: [.cyan.opacity(0.3), .blue.opacity(0.2)], startPoint: .top, endPoint: .bottom) :
                                             LinearGradient(colors: [Color(white: 0.1)], startPoint: .top, endPoint: .bottom)
                                     )
                                     .cornerRadius(12)
                                     .overlay(
                                         RoundedRectangle(cornerRadius: 12)
-                                            .stroke(selectedStyle == .passive ? .cyan : Color(white: 0.2), lineWidth: 2)
+                                            .stroke(draft.selectedStyle == .passive ? .cyan : Color(white: 0.2), lineWidth: 2)
                                     )
                                 }
-                                .foregroundColor(selectedStyle == .passive ? .white : .gray)
+                                .foregroundColor(draft.selectedStyle == .passive ? .white : .gray)
                             }
                         }
                         
                         // 时长选择（仅专注模式）
-                        if selectedStyle == .focus {
+                        if draft.selectedStyle == .focus {
                             VStack(alignment: .leading, spacing: 12) {
                                 Text("Duration")
                                     .font(.system(.headline, design: .rounded))
@@ -186,23 +220,23 @@ struct TaskSheet: View {
                                 LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 3), spacing: 12) {
                                     ForEach(durationPresets, id: \.0) { (label, value) in
                                         Button(action: {
-                                            duration = value
+                                            draft.duration = value
                                         }) {
                                             Text(label)
                                                 .font(.system(.subheadline, design: .monospaced))
-                                                .fontWeight(duration == value ? .bold : .medium)
-                                                .foregroundColor(duration == value ? .white : .gray)
+                                                .fontWeight(draft.duration == value ? .bold : .medium)
+                                                .foregroundColor(draft.duration == value ? .white : .gray)
                                                 .frame(height: 44)
                                                 .frame(maxWidth: .infinity)
                                                 .background(
-                                                    duration == value ?
+                                                    draft.duration == value ?
                                                         LinearGradient(colors: [.green, .green.opacity(0.7)], startPoint: .top, endPoint: .bottom) :
                                                         LinearGradient(colors: [Color(white: 0.1)], startPoint: .top, endPoint: .bottom)
                                                 )
                                                 .cornerRadius(8)
                                                 .overlay(
                                                     RoundedRectangle(cornerRadius: 8)
-                                                        .stroke(duration == value ? .green : Color(white: 0.2), lineWidth: 1)
+                                                        .stroke(draft.duration == value ? .green : Color(white: 0.2), lineWidth: 1)
                                                 )
                                         }
                                     }
@@ -222,19 +256,19 @@ struct TaskSheet: View {
                                 HStack(spacing: 8) {
                                     ForEach(RepeatType.allCases) { type in
                                         Button(action: {
-                                            repeatType = type
+                                            draft.repeatType = type
                                             if type == .none {
-                                                selectedWeekdays.removeAll()
+                                                draft.selectedWeekdays.removeAll()
                                             }
                                         }) {
                                             Text(type.rawValue)
                                                 .font(.system(.caption, design: .rounded))
                                                 .fontWeight(.semibold)
-                                                .foregroundColor(repeatType == type ? .white : .gray)
+                                                .foregroundColor(draft.repeatType == type ? .white : .gray)
                                                 .padding(.horizontal, 12)
                                                 .padding(.vertical, 8)
                                                 .background(
-                                                    repeatType == type ?
+                                                    draft.repeatType == type ?
                                                         Color.purple.opacity(0.3) :
                                                         Color(white: 0.1)
                                                 )
@@ -244,7 +278,7 @@ struct TaskSheet: View {
                                 }
                                 
                                 // 具体重复设置
-                                if repeatType == .weekly {
+                                if draft.repeatType == .weekly {
                                     VStack(alignment: .leading, spacing: 8) {
                                         Text("Select Days")
                                             .font(.system(.subheadline))
@@ -254,19 +288,19 @@ struct TaskSheet: View {
                                             ForEach(1...7, id: \.self) { day in
                                                 let dayName = Calendar.current.shortWeekdaySymbols[day-1]
                                                 Button(action: {
-                                                    if selectedWeekdays.contains(day) {
-                                                        selectedWeekdays.remove(day)
+                                                    if draft.selectedWeekdays.contains(day) {
+                                                        draft.selectedWeekdays.remove(day)
                                                     } else {
-                                                        selectedWeekdays.insert(day)
+                                                        draft.selectedWeekdays.insert(day)
                                                     }
                                                 }) {
                                                     Text(String(dayName.prefix(1)))
                                                         .font(.system(.caption, design: .rounded))
                                                         .fontWeight(.bold)
-                                                        .foregroundColor(selectedWeekdays.contains(day) ? .white : .gray)
+                                                        .foregroundColor(draft.selectedWeekdays.contains(day) ? .white : .gray)
                                                         .frame(width: 36, height: 36)
                                                         .background(
-                                                            selectedWeekdays.contains(day) ?
+                                                            draft.selectedWeekdays.contains(day) ?
                                                                 Color.blue :
                                                                 Color(white: 0.1)
                                                         )
@@ -275,7 +309,7 @@ struct TaskSheet: View {
                                             }
                                         }
                                     }
-                                } else if repeatType == .monthly {
+                                } else if draft.repeatType == .monthly {
                                     VStack(alignment: .leading, spacing: 8) {
                                         Text("Select Days of Month")
                                             .font(.system(.subheadline))
@@ -284,19 +318,19 @@ struct TaskSheet: View {
                                         LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 7), spacing: 8) {
                                             ForEach(1...31, id: \.self) { day in
                                                 Button(action: {
-                                                    if selectedWeekdays.contains(day) {
-                                                        selectedWeekdays.remove(day)
+                                                    if draft.selectedWeekdays.contains(day) {
+                                                        draft.selectedWeekdays.remove(day)
                                                     } else {
-                                                        selectedWeekdays.insert(day)
+                                                        draft.selectedWeekdays.insert(day)
                                                     }
                                                 }) {
                                                     Text("\(day)")
                                                         .font(.system(.caption2, design: .rounded))
                                                         .fontWeight(.semibold)
-                                                        .foregroundColor(selectedWeekdays.contains(day) ? .white : .gray)
+                                                        .foregroundColor(draft.selectedWeekdays.contains(day) ? .white : .gray)
                                                         .frame(width: 32, height: 32)
                                                         .background(
-                                                            selectedWeekdays.contains(day) ?
+                                                            draft.selectedWeekdays.contains(day) ?
                                                                 Color.purple :
                                                                 Color(white: 0.1)
                                                         )
@@ -328,52 +362,40 @@ struct TaskSheet: View {
                         saveTemplate()
                     }
                     .fontWeight(.semibold)
-                    .foregroundColor(title.isEmpty ? .gray : .cyan)
-                    .disabled(title.isEmpty)
+                    .foregroundColor(draft.title.isEmpty ? .gray : .cyan)
+                    .disabled(draft.title.isEmpty)
                 }
             }
         }
         .preferredColorScheme(.dark)
         .onAppear {
-            if let template = templateToEdit {
-                // Populate fields
-                title = template.title
-                selectedCategory = template.category
-                selectedStyle = template.style
-                duration = template.duration ?? 1800
-                
-                switch template.repeatRule {
-                case .none: repeatType = .none
-                case .daily: repeatType = .daily
-                case .weekly(let days): 
-                    repeatType = .weekly
-                    selectedWeekdays = days
-                case .monthly(let days):
-                     repeatType = .monthly
-                     selectedWeekdays = days
+            if !didLoad {
+                if let template = templateToEdit {
+                    draft = TaskDraft.fromTemplate(template)
                 }
+                didLoad = true
             }
         }
     }
     
     func saveTemplate() {
         var rule: RepeatRule = .none
-        switch repeatType {
+        switch draft.repeatType {
         case .none: rule = .none
         case .daily: rule = .daily
-        case .weekly: rule = .weekly(days: selectedWeekdays)
-        case .monthly: rule = .monthly(days: selectedWeekdays)
+        case .weekly: rule = .weekly(days: draft.selectedWeekdays)
+        case .monthly: rule = .monthly(days: draft.selectedWeekdays)
         }
         
         let id = templateToEdit?.id ?? UUID()
         let template = TaskTemplate(
             id: id,
-            title: title,
-            style: selectedStyle,
-            duration: duration,
+            title: draft.title,
+            style: draft.selectedStyle,
+            duration: draft.duration,
             fixedTime: nil, // V0 assumes duration based
             repeatRule: rule,
-            category: selectedCategory
+            category: draft.selectedCategory
         )
         
         if isEditingNode, let onSave = onSaveNode {
