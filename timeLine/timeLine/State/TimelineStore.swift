@@ -16,7 +16,7 @@ final class TimelineStore: ObservableObject {
     
     private let daySession: DaySession
     private let stateManager: StateSaver
-    private static var batchHistory: [UUID: [UUID]] = [:]
+    private var batchHistory: [UUID: [UUID]] = [:]
     
     // MARK: - Init
     
@@ -54,7 +54,7 @@ final class TimelineStore: ObservableObject {
         
         let batchId = UUID()
         let insertedIds = nodes.map(\.id)
-        Self.batchHistory[batchId] = insertedIds
+        batchHistory[batchId] = insertedIds
         return DeckBatchResult(batchId: batchId, insertedNodeIds: insertedIds)
     }
     
@@ -81,12 +81,12 @@ final class TimelineStore: ObservableObject {
         
         let batchId = UUID()
         let insertedIds = nodes.map(\.id)
-        Self.batchHistory[batchId] = insertedIds
+        batchHistory[batchId] = insertedIds
         return DeckBatchResult(batchId: batchId, insertedNodeIds: insertedIds)
     }
     
     func undoLastBatch(batchId: UUID) {
-        guard let insertedNodeIds = Self.batchHistory.removeValue(forKey: batchId) else { return }
+        guard let insertedNodeIds = batchHistory.removeValue(forKey: batchId) else { return }
         for id in insertedNodeIds.reversed() {
             daySession.deleteNode(id: id)
         }
