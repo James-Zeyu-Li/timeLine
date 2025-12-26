@@ -93,14 +93,13 @@ final class TimelineStore: ObservableObject {
         stateManager.requestSave()
     }
     
-    func appendTaskTemplate(_ template: TaskTemplate, engine: BattleEngine) {
-        let boss = SpawnManager.spawn(from: template)
-        let shouldLock = !daySession.nodes.isEmpty
-        let newNode = TimelineNode(type: .battle(boss), isLocked: shouldLock)
-        appendNodes([newNode], engine: engine)
+    func placeTaskTemplateOccurrenceAtEnd(_ template: TaskTemplate, engine: BattleEngine) -> UUID {
+        let node = makeNode(from: template)
+        appendNodes([node], engine: engine)
+        return node.id
     }
     
-    func appendNodes(_ newNodes: [TimelineNode], engine: BattleEngine) {
+    private func appendNodes(_ newNodes: [TimelineNode], engine: BattleEngine) {
         guard !newNodes.isEmpty else { return }
         
         let shouldActivateFirst = daySession.nodes.isEmpty || daySession.isFinished
@@ -164,6 +163,11 @@ final class TimelineStore: ObservableObject {
             category: card.category,
             templateId: card.id
         )
+        return TimelineNode(type: .battle(boss), isLocked: true)
+    }
+    
+    private func makeNode(from template: TaskTemplate) -> TimelineNode {
+        let boss = SpawnManager.spawn(from: template)
         return TimelineNode(type: .battle(boss), isLocked: true)
     }
     

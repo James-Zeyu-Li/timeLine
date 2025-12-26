@@ -124,56 +124,6 @@ public class DaySession: ObservableObject, Codable {
             }
         }
     }
-    
-    public func loadRoutine(_ template: RoutineTemplate) {
-        // Clear all nodes and reset index
-        // This is legacy behavior. We will keep it but `appendRoutine` is preferred for V1.
-        
-        var newNodes: [TimelineNode] = []
-        
-        for (index, preset) in template.presets.enumerated() {
-            let boss = Boss(name: preset.title, maxHp: preset.duration, style: preset.style)
-            let node = TimelineNode(type: .battle(boss), isLocked: index > 0)
-            newNodes.append(node)
-        }
-        
-        self.nodes = newNodes
-        self.currentIndex = 0
-    }
-    
-    public func appendRoutine(_ template: RoutineTemplate) {
-        // 1. Convert presets to Boss objects
-        let bosses = template.presets.map { preset in
-            Boss(name: preset.title, maxHp: preset.duration, style: preset.style, category: preset.category)
-        }
-        
-        // 2. Generate route (Auto-inserts Bonfires)
-        var newNodes = RouteGenerator.generateRoute(from: bosses)
-        
-        // 3. Normalize: Force all new nodes to be locked/pending initially
-        for i in 0..<newNodes.count {
-            newNodes[i].isLocked = true
-            newNodes[i].isCompleted = false
-        }
-        
-        // 4. Append to timeline
-        let oldNodeCount = nodes.count
-        self.nodes.append(contentsOf: newNodes)
-        
-        // 5. Activation Rule:
-        // If the timeline was empty or finished before appending, we must activate the first new node.
-        // Otherwise (mid-run), do nothing. they await their turn.
-        
-        let shouldActivateFirst = (oldNodeCount == 0) || isFinished
-        
-        if shouldActivateFirst && !newNodes.isEmpty {
-            // Unlock the first *new* node. 
-            // Note: RouteGenerator might put a locked Bonfire somewhere, but node[0] is usually the task.
-            // We unlock nodes[oldNodeCount] which is the start of the new batch.
-            nodes[oldNodeCount].isLocked = false
-        }
-    }
-    
     // MARK: - Node Operations
     
     public func updateNode(id: UUID, payload: TaskTemplate) {

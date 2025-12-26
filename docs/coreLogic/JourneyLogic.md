@@ -1,6 +1,6 @@
 # Journey System Logic (Architecture V1)
 
-> **Last Updated**: 2025-12-24  
+> **Last Updated**: 2025-12-25  
 > Core models live in `TimeLineCore`.
 
 ---
@@ -46,14 +46,14 @@ Route manager and progression.
   - `advance()` marks current complete and unlocks next
   - `moveNode()` reorders and recalculates lock states
   - `resetCurrentToFirstUpcoming()` for idle state
-  - `appendRoutine()` appends legacy routine packs with bonfires (legacy path)
+  - Timeline placement is handled in the app layer (`TimelineStore.place*`)
 
 ### E. Card & Deck Models
 Card system lives in `TimeLineCore` for persistence.
 - `CardTemplate`: reusable card concept used by DeckOverlay.
 - `DeckTemplate`: app-layer deck bundle (stored in app target).
 - `EnergyColorToken`: token enum only (no UI color in core).
-App layer creates timeline occurrences via `TimelineStore.placeCardOccurrence` / `placeDeckBatch` (no CardInstance store).
+App layer creates timeline occurrences via `TimelineStore.placeCardOccurrence` / `placeDeckBatch` / `placeTaskTemplateOccurrenceAtEnd` (no CardInstance store).
 
 ---
 
@@ -84,7 +84,7 @@ Aggregates daily history and heatmap intensity.
 
 ### Spawning
 - `SpawnManager.spawn(from:)` creates `Boss` with `recommendedStart`.
-- Timeline nodes are appended to `DaySession` via `TimelineStore` in the app layer (placeCardOccurrence/placeDeckBatch for DeckOverlay; appendTaskTemplate for legacy inbox/QuickEntry).
+- Timeline nodes are appended to `DaySession` via `TimelineStore` in the app layer (placeCardOccurrence/placeDeckBatch for DeckOverlay; placeTaskTemplateOccurrenceAtEnd for legacy inbox/QuickEntry).
 
 ---
 

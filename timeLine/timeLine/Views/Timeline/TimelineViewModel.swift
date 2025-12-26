@@ -36,7 +36,7 @@ class TimelineViewModel: ObservableObject {
     func addInboxItem(_ item: TaskTemplate) {
         guard let daySession, let stateManager, let engine else { return }
         let timelineStore = TimelineStore(daySession: daySession, stateManager: stateManager)
-        timelineStore.appendTaskTemplate(item, engine: engine)
+        _ = timelineStore.placeTaskTemplateOccurrenceAtEnd(item, engine: engine)
         removeInboxItem(item)
     }
     

@@ -1,6 +1,5 @@
 import XCTest
 import Combine
-@testable import TimeLineCore
 @testable import timeLine
 
 final class BonfireVerificationTests: XCTestCase {

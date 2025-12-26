@@ -1,21 +1,10 @@
 import XCTest
-@testable import TimeLineCore
 @testable import timeLine
-
-@MainActor
-final class MockStateSaver: StateSaver {
-    var saveRequested = false
-    func requestSave() {
-        saveRequested = true
-    }
-}
 
 @MainActor
 final class TimelineStoreDeckTests: XCTestCase {
     
     func testPlaceDeckBatch_CreatesNodes() throws {
-        throw XCTSkip("Skipping due to persistent malloc/double-free crash caused by TimeLineCore duplicate linking in Test Bundle vs App Host. Logic is verified by review.")
-        
         // Setup dependencies
         let daySession = DaySession(nodes: [])
         let mockSaver = MockStateSaver()
@@ -68,8 +57,6 @@ final class TimelineStoreDeckTests: XCTestCase {
     }
     
     func testUndoDeckBatch_RemovesNodes() throws {
-        throw XCTSkip("Skipping due to persistent malloc/double-free crash caused by TimeLineCore duplicate linking in Test Bundle vs App Host.")
-        
         // Setup
         let daySession = DaySession(nodes: [])
         let mockSaver = MockStateSaver()
@@ -100,7 +87,7 @@ final class TimelineStoreDeckTests: XCTestCase {
         XCTAssertEqual(daySession.nodes.count, 2)
         
         // Undo
-        mockSaver.saveRequested = false // Reset
+        mockSaver.reset()
         timelineStore.undoLastBatch(batchId: result.batchId)
         
         // Verify

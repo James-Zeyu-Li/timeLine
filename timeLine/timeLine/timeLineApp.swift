@@ -4,11 +4,25 @@ import TimeLineCore
 @main
 struct AppEntryPoint {
     static func main() {
-        if NSClassFromString("XCTestCase") != nil {
-            TestApp.main()
+        if isRunningTests {
+            if isRunningUITests {
+                TimeLineApp.main()
+            } else {
+                TestApp.main()
+            }
         } else {
             TimeLineApp.main()
         }
+    }
+    
+    private static var isRunningTests: Bool {
+        NSClassFromString("XCTestCase") != nil
+    }
+    
+    private static var isRunningUITests: Bool {
+        let env = ProcessInfo.processInfo.environment
+        let args = ProcessInfo.processInfo.arguments
+        return env["UITESTS"] == "1" || env["XCUI_TESTS"] == "1" || args.contains("-ui-testing")
     }
 }
 

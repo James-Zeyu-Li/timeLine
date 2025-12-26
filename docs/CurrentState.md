@@ -1,6 +1,6 @@
 # Current Project State: TimeLineApp
 
-> **Last Updated**: 2025-12-24 (DeckOverlay + template-driven placement + floating controls)  
+> **Last Updated**: 2025-12-25 (DeckOverlay + template-driven placement + floating controls)  
 > **Status**: V1 Core Complete + UI Semantics Expanded
 
 ---
@@ -24,7 +24,7 @@ A roguelike-inspired iOS focus app built with SwiftUI.
 ### Core Functionality
 - **Timeline engine**: `DaySession` manages nodes, progression, and lock states; `BattleEngine` handles focus timing and outcomes.
 - **Template semantics**: `CardTemplate` + `DeckTemplate` are reusable; timeline placement creates occurrences (templates never consumed). `TaskTemplate` remains for QuickEntry/Inbox + TaskSheet edits (legacy path).
-- **Write path**: placement uses `TimelineStore.placeCardOccurrence / placeDeckBatch` (legacy `appendTaskTemplate` still exists for inbox/QuickEntry, planned cleanup).
+- **Write path**: placement uses `TimelineStore.placeCardOccurrence / placeDeckBatch / placeTaskTemplateOccurrenceAtEnd` (TaskTemplate path is legacy inbox/QuickEntry).
 - **App mode**: `AppModeManager` enforces overlay/drag/edit exclusivity.
 - **Drag system**: `DragDropCoordinator` handles global coords + hover targeting.
 - **Persistence + events**: `AppStateManager` saves; `TimelineEventCoordinator` advances on battle end.
