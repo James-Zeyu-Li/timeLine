@@ -33,11 +33,11 @@ Represents a focused task.
 - **Fields**: `id`, `name`, `maxHp`, `currentHp`, `style`, `category`
 - **Recommended Start**: `recommendedStart: DateComponents?` (for UI hints)
 
-### C. `TaskTemplate` (Legacy: QuickEntry/Inbox/TaskSheet)
+### C. `TaskTemplate` (Legacy: repeat/QuickEntry/TaskSheet)
 Reusable task definition for legacy flows.
 - **Fields**: `title`, `duration`, `fixedTime`, `repeatRule`, `category`, `style`
 - **Repeat Rules**: daily/weekly/monthly for auto-spawn.
-- **Usage**: QuickEntry + Inbox capture + TaskSheet edits (not used by DeckOverlay templates).
+- **Usage**: repeat rules + TaskSheet edits; QuickEntry returns TaskTemplate but app converts to CardTemplate for placement.
 
 ### D. `DaySession`
 Route manager and progression.
@@ -53,7 +53,7 @@ Card system lives in `TimeLineCore` for persistence.
 - `CardTemplate`: reusable card concept used by DeckOverlay.
 - `DeckTemplate`: app-layer deck bundle (stored in app target).
 - `EnergyColorToken`: token enum only (no UI color in core).
-App layer creates timeline occurrences via `TimelineStore.placeCardOccurrence` / `placeDeckBatch` / `placeTaskTemplateOccurrenceAtEnd` (no CardInstance store).
+App layer creates timeline occurrences via `TimelineStore.placeCardOccurrence` / `placeDeckBatch` (empty timeline uses `placeCardOccurrenceAtStart`; no CardInstance store).
 
 ---
 
@@ -84,7 +84,7 @@ Aggregates daily history and heatmap intensity.
 
 ### Spawning
 - `SpawnManager.spawn(from:)` creates `Boss` with `recommendedStart`.
-- Timeline nodes are appended to `DaySession` via `TimelineStore` in the app layer (placeCardOccurrence/placeDeckBatch for DeckOverlay; placeTaskTemplateOccurrenceAtEnd for legacy inbox/QuickEntry).
+- Timeline nodes are appended to `DaySession` via `TimelineStore` in the app layer (placeCardOccurrence/placeDeckBatch for DeckOverlay; inbox/QuickEntry creates CardTemplate and uses placeCardOccurrence).
 
 ---
 
@@ -107,6 +107,6 @@ On launch, `TimeLineApp.restoreState()`:
 
 ## 7. Persistence
 `AppState` stores:
-- `daySession`, `engineState`, `history`, `templates`
-- `inbox` (tomorrow tasks)
+- `daySession`, `engineState`, `history`, `templates`, `cardTemplates`
+- `inbox` (CardTemplate IDs for tomorrow tasks)
 - `spawnedKeys` ledger

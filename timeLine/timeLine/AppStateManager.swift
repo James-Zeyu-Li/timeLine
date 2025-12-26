@@ -10,19 +10,27 @@ final class AppStateManager: ObservableObject, StateSaver {
     let engine: BattleEngine
     let daySession: DaySession
     let templateStore: TemplateStore
+    let cardStore: CardTemplateStore
     
     // MARK: - Ledger
     @Published var spawnedKeys: Set<String> = []
-    @Published var inbox: [TaskTemplate] = []
+    @Published var inbox: [UUID] = []
     
     // MARK: - Debounced Save
     private let saveSubject = PassthroughSubject<Void, Never>()
     private var saveCancellable: AnyCancellable?
     
-    init(engine: BattleEngine, daySession: DaySession, templateStore: TemplateStore, enablePersistence: Bool = true) {
+    init(
+        engine: BattleEngine,
+        daySession: DaySession,
+        templateStore: TemplateStore,
+        cardStore: CardTemplateStore,
+        enablePersistence: Bool = true
+    ) {
         self.engine = engine
         self.daySession = daySession
         self.templateStore = templateStore
+        self.cardStore = cardStore
         
         // Debounce saves by 500ms
         if enablePersistence {
@@ -69,6 +77,7 @@ final class AppStateManager: ObservableObject, StateSaver {
             engineState: snapshot,
             history: engine.history,
             templates: templateStore.templates,
+            cardTemplates: cardStore.orderedTemplates(),
             inbox: inbox,
             spawnedKeys: spawnedKeys
         )
@@ -90,6 +99,8 @@ final class AppStateManager: ObservableObject, StateSaver {
         
         // Restore templates
         templateStore.load(from: state.templates)
+        cardStore.load(from: state.cardTemplates)
+        cardStore.seedDefaultsIfNeeded()
         inbox = state.inbox
         self.spawnedKeys = state.spawnedKeys
         
@@ -126,6 +137,8 @@ final class AppStateManager: ObservableObject, StateSaver {
         
         // Load default templates
         templateStore.loadDefaults()
+        cardStore.reset()
+        cardStore.seedDefaultsIfNeeded()
         
         // Create demo journey for first-time experience
         let demoTasks = [

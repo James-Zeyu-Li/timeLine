@@ -2,6 +2,7 @@ import XCTest
 import Combine
 @testable import timeLine
 
+@MainActor
 final class BonfireVerificationTests: XCTestCase {
     
     var coordinator: TimelineEventCoordinator!
@@ -14,7 +15,12 @@ final class BonfireVerificationTests: XCTestCase {
         super.setUp()
         engine = BattleEngine()
         daySession = DaySession(nodes: []) // Empty initially
-        stateManager = AppStateManager(engine: engine, daySession: daySession, templateStore: TemplateStore())
+        stateManager = AppStateManager(
+            engine: engine,
+            daySession: daySession,
+            templateStore: TemplateStore(),
+            cardStore: CardTemplateStore()
+        )
         coordinator = TimelineEventCoordinator(engine: engine, daySession: daySession, stateManager: stateManager)
         cancellables = []
     }

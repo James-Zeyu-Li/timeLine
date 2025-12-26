@@ -8,6 +8,7 @@ class TimelineViewModel: ObservableObject {
     private var engine: BattleEngine?
     private var daySession: DaySession?
     private var stateManager: AppStateManager?
+    private var cardStore: CardTemplateStore?
     private var use24HourClock: Bool
     
     // Published State for UI
@@ -20,10 +21,17 @@ class TimelineViewModel: ObservableObject {
         self.use24HourClock = use24HourClock
     }
     
-    func bind(engine: BattleEngine, daySession: DaySession, stateManager: AppStateManager, use24HourClock: Bool) {
+    func bind(
+        engine: BattleEngine,
+        daySession: DaySession,
+        stateManager: AppStateManager,
+        cardStore: CardTemplateStore,
+        use24HourClock: Bool
+    ) {
         self.engine = engine
         self.daySession = daySession
         self.stateManager = stateManager
+        self.cardStore = cardStore
         self.use24HourClock = use24HourClock
     }
     
@@ -33,16 +41,30 @@ class TimelineViewModel: ObservableObject {
     }
     
     // MARK: - Inbox Management
-    func addInboxItem(_ item: TaskTemplate) {
-        guard let daySession, let stateManager, let engine else { return }
+    func addInboxItem(_ item: CardTemplate) {
+        guard let daySession, let stateManager, let cardStore, let engine else { return }
         let timelineStore = TimelineStore(daySession: daySession, stateManager: stateManager)
-        _ = timelineStore.placeTaskTemplateOccurrenceAtEnd(item, engine: engine)
-        removeInboxItem(item)
+        
+        if let anchorId = daySession.nodes.last?.id {
+            _ = timelineStore.placeCardOccurrence(
+                cardTemplateId: item.id,
+                anchorNodeId: anchorId,
+                using: cardStore
+            )
+        } else {
+            _ = timelineStore.placeCardOccurrenceAtStart(
+                cardTemplateId: item.id,
+                using: cardStore,
+                engine: engine
+            )
+        }
+        
+        removeInboxItem(item.id)
     }
     
-    func removeInboxItem(_ item: TaskTemplate) {
+    func removeInboxItem(_ itemId: UUID) {
         guard let stateManager else { return }
-        stateManager.inbox.removeAll { $0.id == item.id }
+        stateManager.inbox.removeAll { $0 == itemId }
         stateManager.requestSave()
     }
     

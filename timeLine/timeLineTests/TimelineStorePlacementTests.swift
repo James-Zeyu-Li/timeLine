@@ -4,7 +4,7 @@ import XCTest
 @MainActor
 final class TimelineStorePlacementTests: XCTestCase {
     
-    func testPlaceCreatesNewNodeFromTemplate() {
+    func testPlaceCreatesNewNodeFromTemplate() async {
         let daySession = DaySession(nodes: [
             TimelineNode(type: .treasure, isLocked: false)
         ])
@@ -35,15 +35,23 @@ final class TimelineStorePlacementTests: XCTestCase {
         XCTAssertTrue(stateManager.saveRequested)
     }
     
-    func testPlaceTaskTemplateOccurrenceAppendsAndSaves() {
+    func testPlaceCardOccurrenceAtStart_AppendsAndSaves() async {
         let daySession = DaySession(nodes: [])
         let stateManager = MockStateSaver()
         let timelineStore = TimelineStore(daySession: daySession, stateManager: stateManager)
         let engine = BattleEngine()
         
-        let template = TaskTemplate(title: "Inbox Task", duration: 600)
-        let newNodeId = timelineStore.placeTaskTemplateOccurrenceAtEnd(template, engine: engine)
+        let cardStore = CardTemplateStore()
+        let template = CardTemplate(title: "Inbox Task", defaultDuration: 600)
+        cardStore.add(template)
         
+        let newNodeId = timelineStore.placeCardOccurrenceAtStart(
+            cardTemplateId: template.id,
+            using: cardStore,
+            engine: engine
+        )
+        
+        XCTAssertNotNil(newNodeId)
         XCTAssertEqual(daySession.nodes.count, 1)
         XCTAssertEqual(daySession.nodes[0].id, newNodeId)
         XCTAssertFalse(daySession.nodes[0].isLocked)
@@ -55,7 +63,7 @@ final class TimelineStorePlacementTests: XCTestCase {
         }
         
         XCTAssertEqual(boss.name, template.title)
-        XCTAssertEqual(boss.maxHp, 600)
+        XCTAssertEqual(boss.maxHp, template.defaultDuration)
         XCTAssertEqual(boss.templateId, template.id)
         XCTAssertTrue(stateManager.saveRequested)
     }

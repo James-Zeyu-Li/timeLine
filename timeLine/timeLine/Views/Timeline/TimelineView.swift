@@ -8,6 +8,7 @@ struct TimelineView: View {
     @EnvironmentObject var daySession: DaySession
     @EnvironmentObject var engine: BattleEngine
     @EnvironmentObject var templateStore: TemplateStore
+    @EnvironmentObject var cardStore: CardTemplateStore
     @EnvironmentObject var stateManager: AppStateManager
     @EnvironmentObject var coordinator: TimelineEventCoordinator
     @EnvironmentObject var appMode: AppModeManager
@@ -81,11 +82,12 @@ struct TimelineView: View {
                     )
 
                     // Inbox (Tomorrow / Later)
-                    if !stateManager.inbox.isEmpty {
+                    let inboxTemplates = stateManager.inbox.compactMap { cardStore.get(id: $0) }
+                    if !inboxTemplates.isEmpty {
                         InboxListView(
-                            items: stateManager.inbox,
+                            items: inboxTemplates,
                             onAdd: { item in viewModel.addInboxItem(item) },
-                            onRemove: { item in viewModel.removeInboxItem(item) }
+                            onRemove: { item in viewModel.removeInboxItem(item.id) }
                         )
                             .padding(.horizontal, TimelineLayout.horizontalInset)
                             .padding(.vertical, 16)
@@ -121,12 +123,13 @@ struct TimelineView: View {
             viewModel.handleUIEvent(event)
         }
         .onAppear {
-            viewModel.bind(
-                engine: engine,
-                daySession: daySession,
-                stateManager: stateManager,
-                use24HourClock: use24HourClock
-            )
+                viewModel.bind(
+                    engine: engine,
+                    daySession: daySession,
+                    stateManager: stateManager,
+                    cardStore: cardStore,
+                    use24HourClock: use24HourClock
+                )
             
             if !isSessionActive {
                 daySession.resetCurrentToFirstUpcoming()

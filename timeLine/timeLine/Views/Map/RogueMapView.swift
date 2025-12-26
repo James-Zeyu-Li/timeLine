@@ -5,6 +5,7 @@ struct RogueMapView: View {
     @EnvironmentObject var daySession: DaySession
     @EnvironmentObject var engine: BattleEngine
     @EnvironmentObject var templateStore: TemplateStore
+    @EnvironmentObject var cardStore: CardTemplateStore
     @EnvironmentObject var stateManager: AppStateManager
     @EnvironmentObject var coordinator: TimelineEventCoordinator
     @EnvironmentObject var appMode: AppModeManager
@@ -44,11 +45,12 @@ struct RogueMapView: View {
                 VStack(spacing: 24) {
                     mapTrack
                     
-                    if !stateManager.inbox.isEmpty {
+                    let inboxTemplates = stateManager.inbox.compactMap { cardStore.get(id: $0) }
+                    if !inboxTemplates.isEmpty {
                         InboxListView(
-                            items: stateManager.inbox,
+                            items: inboxTemplates,
                             onAdd: { item in viewModel.addInboxItem(item) },
-                            onRemove: { item in viewModel.removeInboxItem(item) }
+                            onRemove: { item in viewModel.removeInboxItem(item.id) }
                         )
                         .padding(.horizontal, TimelineLayout.horizontalInset)
                         .padding(.vertical, 16)
@@ -91,6 +93,7 @@ struct RogueMapView: View {
                     engine: engine,
                     daySession: daySession,
                     stateManager: stateManager,
+                    cardStore: cardStore,
                     use24HourClock: use24HourClock
                 )
                 

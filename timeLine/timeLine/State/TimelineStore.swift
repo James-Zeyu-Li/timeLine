@@ -93,12 +93,6 @@ final class TimelineStore: ObservableObject {
         stateManager.requestSave()
     }
     
-    func placeTaskTemplateOccurrenceAtEnd(_ template: TaskTemplate, engine: BattleEngine) -> UUID {
-        let node = makeNode(from: template)
-        appendNodes([node], engine: engine)
-        return node.id
-    }
-    
     private func appendNodes(_ newNodes: [TimelineNode], engine: BattleEngine) {
         guard !newNodes.isEmpty else { return }
         
@@ -163,11 +157,6 @@ final class TimelineStore: ObservableObject {
             category: card.category,
             templateId: card.id
         )
-        return TimelineNode(type: .battle(boss), isLocked: true)
-    }
-    
-    private func makeNode(from template: TaskTemplate) -> TimelineNode {
-        let boss = SpawnManager.spawn(from: template)
         return TimelineNode(type: .battle(boss), isLocked: true)
     }
     

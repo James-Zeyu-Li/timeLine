@@ -31,6 +31,16 @@ final class CardTemplateStore: ObservableObject {
         order.compactMap { templates[$0] }
     }
     
+    func load(from templates: [CardTemplate]) {
+        self.templates = Dictionary(uniqueKeysWithValues: templates.map { ($0.id, $0) })
+        self.order = templates.map(\.id)
+    }
+    
+    func reset() {
+        templates.removeAll()
+        order.removeAll()
+    }
+    
     func seedDefaultsIfNeeded() {
         guard order.isEmpty else { return }
         for template in DefaultCardTemplates.all.reversed() {

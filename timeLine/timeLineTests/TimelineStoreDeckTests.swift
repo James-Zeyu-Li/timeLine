@@ -4,7 +4,7 @@ import XCTest
 @MainActor
 final class TimelineStoreDeckTests: XCTestCase {
     
-    func testPlaceDeckBatch_CreatesNodes() throws {
+    func testPlaceDeckBatch_CreatesNodes() async throws {
         // Setup dependencies
         let daySession = DaySession(nodes: [])
         let mockSaver = MockStateSaver()
@@ -56,7 +56,7 @@ final class TimelineStoreDeckTests: XCTestCase {
         XCTAssertEqual(boss2.name, "Card 2")
     }
     
-    func testUndoDeckBatch_RemovesNodes() throws {
+    func testUndoDeckBatch_RemovesNodes() async throws {
         // Setup
         let daySession = DaySession(nodes: [])
         let mockSaver = MockStateSaver()

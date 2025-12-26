@@ -2,9 +2,9 @@ import SwiftUI
 import TimeLineCore
 
 struct InboxListView: View {
-    let items: [TaskTemplate]
-    let onAdd: (TaskTemplate) -> Void
-    let onRemove: (TaskTemplate) -> Void
+    let items: [CardTemplate]
+    let onAdd: (CardTemplate) -> Void
+    let onRemove: (CardTemplate) -> Void
     
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -23,7 +23,7 @@ struct InboxListView: View {
                         Text(item.title)
                             .font(.system(.subheadline, design: .rounded))
                             .foregroundColor(.white)
-                        Text(TimeFormatter.formatDuration(item.duration ?? 0))
+                        Text(TimeFormatter.formatDuration(item.defaultDuration))
                             .font(.system(.caption2, design: .monospaced))
                             .foregroundColor(.gray)
                     }

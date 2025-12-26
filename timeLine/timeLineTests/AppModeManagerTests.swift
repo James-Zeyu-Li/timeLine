@@ -4,7 +4,7 @@ import XCTest
 @MainActor
 final class AppModeManagerTests: XCTestCase {
     
-    func testDraggingOnlyFromDeckOverlay() {
+    func testDraggingOnlyFromDeckOverlay() async {
         let manager = AppModeManager()
         let cardId = UUID()
         let payload = DragPayload(type: .cardTemplate(cardId), source: .cards)
@@ -18,7 +18,7 @@ final class AppModeManagerTests: XCTestCase {
         XCTAssertEqual(manager.mode, .dragging(payload))
     }
     
-    func testCardDetailEditAllowedFromDeckOrHomeCollapsed() {
+    func testCardDetailEditAllowedFromDeckOrHomeCollapsed() async {
         let manager = AppModeManager()
         let cardId = UUID()
         
@@ -40,7 +40,7 @@ final class AppModeManagerTests: XCTestCase {
         }
     }
     
-    func testCardDetailEditForbiddenFromHomeExpandedAndDragging() {
+    func testCardDetailEditForbiddenFromHomeExpandedAndDragging() async {
         let manager = AppModeManager()
         let cardId = UUID()
         let payload = DragPayload(type: .cardTemplate(cardId), source: .cards)
@@ -56,7 +56,7 @@ final class AppModeManagerTests: XCTestCase {
         XCTAssertEqual(manager.mode, .dragging(payload))
     }
     
-    func testHomeExpandedOnlyFromHomeCollapsed() {
+    func testHomeExpandedOnlyFromHomeCollapsed() async {
         let manager = AppModeManager()
         
         manager.enter(.deckOverlay(.cards))
@@ -68,7 +68,7 @@ final class AppModeManagerTests: XCTestCase {
         XCTAssertEqual(manager.mode, .homeExpanded)
     }
     
-    func testExitDragReturnsToDeckOverlay() {
+    func testExitDragReturnsToDeckOverlay() async {
         let manager = AppModeManager()
         let cardId = UUID()
         let payload = DragPayload(type: .cardTemplate(cardId), source: .cards)
@@ -80,7 +80,7 @@ final class AppModeManagerTests: XCTestCase {
         XCTAssertEqual(manager.mode, .deckOverlay(.cards))
     }
     
-    func testExitCardEditReturnsToCapturedMode() {
+    func testExitCardEditReturnsToCapturedMode() async {
         let manager = AppModeManager()
         let cardId = UUID()
         
@@ -91,7 +91,7 @@ final class AppModeManagerTests: XCTestCase {
         XCTAssertEqual(manager.mode, .deckOverlay(.decks))
     }
     
-    func testDeckEditAllowedFromDeckOverlayAndHomeCollapsed() {
+    func testDeckEditAllowedFromDeckOverlayAndHomeCollapsed() async {
         let manager = AppModeManager()
         let deckId = UUID()
         

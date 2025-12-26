@@ -36,8 +36,7 @@ struct RootView: View {
             // 3. Dragging card on top
             draggingLayer
             
-            // 5. Bottom sheet (locked when overlay active)
-            // Note: MapBottomSheet is now inside RogueMapView, we just need to pass isLocked
+            // 5. Bottom sheet (removed)
         }
         .environmentObject(appMode)
         .environmentObject(dragCoordinator)

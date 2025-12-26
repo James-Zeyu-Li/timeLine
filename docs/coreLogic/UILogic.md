@@ -15,7 +15,7 @@
 | **`AppModeManager`** | Single overlay state machine | `enter(_:)`, `exitDrag()`, `exitCardEdit()` |
 | **`CardTemplateStore`** | Template cards for DeckOverlay | `add()`, `update()`, `orderedTemplates()` |
 | **`DeckStore`** | Deck bundles | `add()`, `update()`, `orderedDecks()` |
-| **`TimelineStore`** | Single placement write path | `placeCardOccurrence()`, `placeDeckBatch()`, `placeTaskTemplateOccurrenceAtEnd()` |
+| **`TimelineStore`** | Single placement write path | `placeCardOccurrence()`, `placeDeckBatch()`, `placeCardOccurrenceAtStart()` |
 | **`DragDropCoordinator`** | Drag location + hover | `startDrag(payload:)`, `updatePosition()`, `drop()` |
 
 ---

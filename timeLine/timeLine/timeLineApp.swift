@@ -33,7 +33,7 @@ struct TimeLineApp: App {
     @StateObject private var engine = BattleEngine()
     @StateObject private var daySession: DaySession
     @StateObject private var templateStore = TemplateStore()
-    @StateObject private var cardStore = CardTemplateStore()
+    @StateObject private var cardStore: CardTemplateStore
     @StateObject private var deckStore = DeckStore()
     @StateObject private var appMode = AppModeManager()
     @StateObject private var stateManager: AppStateManager
@@ -66,15 +66,18 @@ struct TimeLineApp: App {
         // Create shared objects first
         let engine = BattleEngine()
         let templateStore = TemplateStore()
+        let cardStore = CardTemplateStore()
         
         _engine = StateObject(wrappedValue: engine)
         _templateStore = StateObject(wrappedValue: templateStore)
+        _cardStore = StateObject(wrappedValue: cardStore)
         
         // Create state manager
         let manager = AppStateManager(
             engine: engine,
             daySession: initialDaySession,
-            templateStore: templateStore
+            templateStore: templateStore,
+            cardStore: cardStore
         )
         _stateManager = StateObject(wrappedValue: manager)
         
@@ -142,6 +145,8 @@ struct TimeLineApp: App {
             
             // Restore Templates
             templateStore.load(from: state.templates)
+            cardStore.load(from: state.cardTemplates)
+            cardStore.seedDefaultsIfNeeded()
             stateManager.spawnedKeys = state.spawnedKeys
             stateManager.inbox = state.inbox
             
