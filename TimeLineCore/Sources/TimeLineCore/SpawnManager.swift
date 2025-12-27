@@ -5,13 +5,12 @@ public struct SpawnManager {
     // MARK: - Spawning Logic
     
     /// Creates a playable Boss (Task) from a Template
-    public static func spawn(from template: TaskTemplate) -> Boss {
+    public static func spawn(from template: CardTemplate) -> Boss {
         // Determine style
         let style: BossStyle = (template.style == .passive) ? .passive : .focus
         
         // Determine duration
-        // Use template.duration or default to 30m (1800s)
-        let duration = template.duration ?? 1800
+        let duration = template.defaultDuration
         
         return Boss(
             name: template.title,
@@ -28,7 +27,7 @@ public struct SpawnManager {
     /// Returns a list of tasks that should be auto-spawned for a specific date,
     /// filtering out any that have already been spawned (checked via ledger).
     public static func processRepeats(
-        templates: [TaskTemplate],
+        templates: [CardTemplate],
         for date: Date,
         ledger: Set<String>
     ) -> (tasks: [Boss], newKeys: [String]) {

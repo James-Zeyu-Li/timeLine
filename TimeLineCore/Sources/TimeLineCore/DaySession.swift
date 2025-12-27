@@ -126,7 +126,7 @@ public class DaySession: ObservableObject, Codable {
     }
     // MARK: - Node Operations
     
-    public func updateNode(id: UUID, payload: TaskTemplate) {
+    public func updateNode(id: UUID, payload: CardTemplate) {
         guard let index = nodes.firstIndex(where: { $0.id == id }) else { return }
         
         var node = nodes[index]
@@ -134,7 +134,7 @@ public class DaySession: ObservableObject, Codable {
         switch node.type {
         case .battle(var boss):
             boss.name = payload.title
-            boss.maxHp = payload.duration ?? 1800 // Fallback if nil, though focus tasks should have duration
+            boss.maxHp = payload.defaultDuration
             boss.currentHp = boss.maxHp // Reset HP on edit
             boss.style = payload.style
             boss.category = payload.category
@@ -144,7 +144,7 @@ public class DaySession: ObservableObject, Codable {
             
         case .bonfire(_):
             // Update bonfire duration
-            let newDuration = payload.duration ?? 900 // Default 15 minutes
+            let newDuration = payload.defaultDuration
             node.type = .bonfire(newDuration)
             nodes[index] = node
             

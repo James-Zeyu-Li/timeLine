@@ -9,7 +9,6 @@ final class AppStateManager: ObservableObject, StateSaver {
     // MARK: - Dependencies
     let engine: BattleEngine
     let daySession: DaySession
-    let templateStore: TemplateStore
     let cardStore: CardTemplateStore
     
     // MARK: - Ledger
@@ -23,13 +22,11 @@ final class AppStateManager: ObservableObject, StateSaver {
     init(
         engine: BattleEngine,
         daySession: DaySession,
-        templateStore: TemplateStore,
         cardStore: CardTemplateStore,
         enablePersistence: Bool = true
     ) {
         self.engine = engine
         self.daySession = daySession
-        self.templateStore = templateStore
         self.cardStore = cardStore
         
         // Debounce saves by 500ms
@@ -76,7 +73,6 @@ final class AppStateManager: ObservableObject, StateSaver {
             daySession: daySession,
             engineState: snapshot,
             history: engine.history,
-            templates: templateStore.templates,
             cardTemplates: cardStore.orderedTemplates(),
             inbox: inbox,
             spawnedKeys: spawnedKeys
@@ -97,8 +93,6 @@ final class AppStateManager: ObservableObject, StateSaver {
             engine.restore(from: engineState)
         }
         
-        // Restore templates
-        templateStore.load(from: state.templates)
         cardStore.load(from: state.cardTemplates)
         cardStore.seedDefaultsIfNeeded()
         inbox = state.inbox
@@ -135,8 +129,6 @@ final class AppStateManager: ObservableObject, StateSaver {
         engine.totalFocusedHistoryToday = 0
         engine.history.removeAll()
         
-        // Load default templates
-        templateStore.loadDefaults()
         cardStore.reset()
         cardStore.seedDefaultsIfNeeded()
         

@@ -10,12 +10,10 @@ final class TimelineStoreReorderTests: XCTestCase {
         let nodeC = TimelineNode(id: UUID(), type: .treasure, isLocked: false)
         let daySession = DaySession(nodes: [nodeA, nodeB, nodeC], currentIndex: 1)
         let engine = BattleEngine()
-        let templateStore = TemplateStore()
         let cardStore = CardTemplateStore()
         let stateManager = AppStateManager(
             engine: engine,
             daySession: daySession,
-            templateStore: templateStore,
             cardStore: cardStore
         )
         let timelineStore = TimelineStore(daySession: daySession, stateManager: stateManager)
@@ -33,12 +31,10 @@ final class TimelineStoreReorderTests: XCTestCase {
         let nodeD = TimelineNode(id: UUID(), type: .treasure, isLocked: true)
         let daySession = DaySession(nodes: [nodeA, nodeB, nodeC, nodeD], currentIndex: 1)
         let engine = BattleEngine()
-        let templateStore = TemplateStore()
         let cardStore = CardTemplateStore()
         let stateManager = AppStateManager(
             engine: engine,
             daySession: daySession,
-            templateStore: templateStore,
             cardStore: cardStore
         )
         let timelineStore = TimelineStore(daySession: daySession, stateManager: stateManager)
@@ -58,12 +54,10 @@ final class TimelineStoreReorderTests: XCTestCase {
         let nodeC = TimelineNode(id: UUID(), type: .treasure, isLocked: false)
         let daySession = DaySession(nodes: [nodeA, nodeB, nodeC], currentIndex: 1)
         let engine = BattleEngine()
-        let templateStore = TemplateStore()
         let cardStore = CardTemplateStore()
         let stateManager = AppStateManager(
             engine: engine,
             daySession: daySession,
-            templateStore: templateStore,
             cardStore: cardStore
         )
         let timelineStore = TimelineStore(daySession: daySession, stateManager: stateManager)
@@ -81,12 +75,10 @@ final class TimelineStoreReorderTests: XCTestCase {
         let nodeD = TimelineNode(id: UUID(), type: .treasure, isCompleted: false, isLocked: true)
         let daySession = DaySession(nodes: [nodeA, nodeB, nodeC, nodeD], currentIndex: 0)
         let engine = BattleEngine()
-        let templateStore = TemplateStore()
         let cardStore = CardTemplateStore()
         let stateManager = AppStateManager(
             engine: engine,
             daySession: daySession,
-            templateStore: templateStore,
             cardStore: cardStore
         )
         let timelineStore = TimelineStore(daySession: daySession, stateManager: stateManager)

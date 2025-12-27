@@ -4,7 +4,6 @@ import TimeLineCore
 struct RogueMapView: View {
     @EnvironmentObject var daySession: DaySession
     @EnvironmentObject var engine: BattleEngine
-    @EnvironmentObject var templateStore: TemplateStore
     @EnvironmentObject var cardStore: CardTemplateStore
     @EnvironmentObject var stateManager: AppStateManager
     @EnvironmentObject var coordinator: TimelineEventCoordinator

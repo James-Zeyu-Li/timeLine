@@ -11,13 +11,15 @@ final class DaySessionEditingTests: XCTestCase {
         let node = TimelineNode(type: .battle(originalBoss), isLocked: false)
         let session = DaySession(nodes: [node])
         
-        let updatePayload = TaskTemplate(
+        let updatePayload = CardTemplate(
             id: node.id,
             title: "New Name",
-            style: .passive,
-            duration: 3600,
-            repeatRule: .none,
-            category: .rest
+            icon: TaskCategory.rest.icon,
+            defaultDuration: 3600,
+            tags: [],
+            energyColor: .rest,
+            category: .rest,
+            style: .passive
         )
         
         // Action

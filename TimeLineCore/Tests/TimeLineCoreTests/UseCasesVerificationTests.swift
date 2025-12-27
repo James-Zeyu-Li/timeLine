@@ -17,7 +17,7 @@ final class UseCasesVerificationTests: XCTestCase {
         
         // Check Title & Duration
         XCTAssertEqual(result.template.title, "写作业")
-        XCTAssertEqual(result.template.duration, 3600) // 1h
+        XCTAssertEqual(result.template.defaultDuration, 3600) // 1h
         
         // Verify Placement (Today)
         XCTAssertEqual(result.placement, .today)
@@ -67,10 +67,10 @@ final class UseCasesVerificationTests: XCTestCase {
         components.hour = 14
         components.minute = 30
         
-        let template = TaskTemplate(
+        let template = CardTemplate(
             id: UUID(),
             title: "Meeting",
-            duration: 1800,
+            defaultDuration: 1800,
             fixedTime: components,
             repeatRule: .none
         )

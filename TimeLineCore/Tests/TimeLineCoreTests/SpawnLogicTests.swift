@@ -16,7 +16,7 @@ final class SpawnLogicTests: XCTestCase {
     // MARK: - Tests
     
     func testDailySpawn() {
-        let template = TaskTemplate(id: UUID(), title: "Daily Task", repeatRule: .daily)
+        let template = CardTemplate(id: UUID(), title: "Daily Task", repeatRule: .daily)
         let today = date(year: 2025, month: 1, day: 1)
         var ledger: Set<String> = []
         
@@ -48,7 +48,7 @@ final class SpawnLogicTests: XCTestCase {
     func testWeeklySpawn() {
         // Create a Monday task (2 = Monday in Gregorian)
         // Note: Set<Int> for weekdays
-        let template = TaskTemplate(id: UUID(), title: "Monday Task", repeatRule: .weekly(days: [2]))
+        let template = CardTemplate(id: UUID(), title: "Monday Task", repeatRule: .weekly(days: [2]))
         
         // Test on a Monday (Jan 6, 2025 is a Monday)
         let monday = date(year: 2025, month: 1, day: 6)
@@ -71,7 +71,7 @@ final class SpawnLogicTests: XCTestCase {
     
     func testLedgerKeyFormat() {
         let id = UUID()
-        let template = TaskTemplate(id: id, title: "Test", repeatRule: .daily)
+        let template = CardTemplate(id: id, title: "Test", repeatRule: .daily)
         let day = date(year: 2025, month: 5, day: 20)
         
         let (_, newKeys) = SpawnManager.processRepeats(

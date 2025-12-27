@@ -10,7 +10,7 @@ final class QuickEntryTests: XCTestCase {
         }
         
         XCTAssertEqual(task.title, "Code")
-        XCTAssertEqual(task.duration, 1800)
+        XCTAssertEqual(task.defaultDuration, 1800)
         XCTAssertEqual(task.style, .focus)
     }
     
@@ -24,7 +24,7 @@ final class QuickEntryTests: XCTestCase {
         
         for (input, expectedSeconds) in cases {
             let task = QuickEntryParser.parse(input: input)!
-            XCTAssertEqual(task.duration, expectedSeconds, "Failed for \(input)")
+            XCTAssertEqual(task.defaultDuration, expectedSeconds, "Failed for \(input)")
         }
     }
     
@@ -43,7 +43,7 @@ final class QuickEntryTests: XCTestCase {
         
         XCTAssertEqual(task.style, .focus)
         XCTAssertEqual(task.category, .work) // Default
-        XCTAssertEqual(task.duration, 1500) // Default 25m
+        XCTAssertEqual(task.defaultDuration, 1500) // Default 25m
     }
     
     func testMixedOrder() {
@@ -52,7 +52,7 @@ final class QuickEntryTests: XCTestCase {
         let task = QuickEntryParser.parse(input: input)!
         
         XCTAssertEqual(task.title, "Review Notes")
-        XCTAssertEqual(task.duration, 2700)
+        XCTAssertEqual(task.defaultDuration, 2700)
         XCTAssertEqual(task.category, .study)
     }
     

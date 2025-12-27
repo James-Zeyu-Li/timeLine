@@ -4,12 +4,12 @@ import TimeLineCore
 
 struct TaskSheet: View {
     @Environment(\.dismiss) var dismiss
-    @EnvironmentObject var templateStore: TemplateStore
-    @Binding var templateToEdit: TaskTemplate?
+    @EnvironmentObject var cardStore: CardTemplateStore
+    @Binding var templateToEdit: CardTemplate?
     
     // Node Editing Mode
     var isEditingNode: Bool = false
-    var onSaveNode: ((TaskTemplate) -> Void)? = nil
+    var onSaveNode: ((CardTemplate) -> Void)? = nil
     
     @State private var draft = TaskDraft.default
     @State private var didLoad = false
@@ -40,12 +40,12 @@ struct TaskSheet: View {
             selectedWeekdays: []
         )
         
-        static func fromTemplate(_ template: TaskTemplate) -> TaskDraft {
+        static func fromTemplate(_ template: CardTemplate) -> TaskDraft {
             var draft = TaskDraft.default
             draft.title = template.title
             draft.selectedCategory = template.category
             draft.selectedStyle = template.style
-            draft.duration = template.duration ?? 1800
+            draft.duration = template.defaultDuration
             switch template.repeatRule {
             case .none:
                 draft.repeatType = .none
@@ -388,21 +388,37 @@ struct TaskSheet: View {
         }
         
         let id = templateToEdit?.id ?? UUID()
-        let template = TaskTemplate(
+        let template = CardTemplate(
             id: id,
             title: draft.title,
+            icon: draft.selectedCategory.icon,
+            defaultDuration: draft.duration,
+            tags: [],
+            energyColor: energyToken(for: draft.selectedCategory),
+            category: draft.selectedCategory,
             style: draft.selectedStyle,
-            duration: draft.duration,
-            fixedTime: nil, // V0 assumes duration based
-            repeatRule: rule,
-            category: draft.selectedCategory
+            fixedTime: nil,
+            repeatRule: rule
         )
         
         if isEditingNode, let onSave = onSaveNode {
              onSave(template)
         } else {
-             templateStore.add(template)
+             cardStore.add(template)
         }
         dismiss()
+    }
+    
+    private func energyToken(for category: TaskCategory) -> EnergyColorToken {
+        switch category {
+        case .work, .study:
+            return .focus
+        case .gym:
+            return .gym
+        case .rest:
+            return .rest
+        case .other:
+            return .creative
+        }
     }
 }

@@ -7,7 +7,6 @@ import UIKit
 struct TimelineView: View {
     @EnvironmentObject var daySession: DaySession
     @EnvironmentObject var engine: BattleEngine
-    @EnvironmentObject var templateStore: TemplateStore
     @EnvironmentObject var cardStore: CardTemplateStore
     @EnvironmentObject var stateManager: AppStateManager
     @EnvironmentObject var coordinator: TimelineEventCoordinator
@@ -20,7 +19,7 @@ struct TimelineView: View {
     
     @State private var showStats = false
     @State private var showingEditSheet = false
-    @State private var templateToEdit: TaskTemplate?
+    @State private var templateToEdit: CardTemplate?
     @State private var editingNodeId: UUID?
     private let bottomSheetInset: CGFloat = 96
     
@@ -276,26 +275,30 @@ struct TimelineView: View {
     private func startEditing(node: TimelineNode) {
         switch node.type {
         case .battle(let boss):
-            let temp = TaskTemplate(
+            let temp = CardTemplate(
                 id: boss.id,
                 title: boss.name,
-                style: boss.style,
-                duration: boss.maxHp,
-                repeatRule: .none,
-                category: boss.category
+                icon: boss.category.icon,
+                defaultDuration: boss.maxHp,
+                tags: [],
+                energyColor: energyToken(for: boss.category),
+                category: boss.category,
+                style: boss.style
             )
             self.templateToEdit = temp
             self.editingNodeId = node.id
             self.showingEditSheet = true
             
         case .bonfire(let duration):
-            let temp = TaskTemplate(
+            let temp = CardTemplate(
                 id: node.id,
                 title: "Rest",
-                style: .passive,
-                duration: duration,
-                repeatRule: .none,
-                category: .rest
+                icon: TaskCategory.rest.icon,
+                defaultDuration: duration,
+                tags: [],
+                energyColor: energyToken(for: .rest),
+                category: .rest,
+                style: .passive
             )
             self.templateToEdit = temp
             self.editingNodeId = node.id
@@ -306,6 +309,19 @@ struct TimelineView: View {
             withAnimation(.spring(response: 0.3, dampingFraction: 0.9)) {
                 viewModel.banner = BannerData(kind: .distraction(wastedMinutes: 0), upNextTitle: "系统节点无法编辑")
             }
+        }
+    }
+
+    private func energyToken(for category: TaskCategory) -> EnergyColorToken {
+        switch category {
+        case .work, .study:
+            return .focus
+        case .gym:
+            return .gym
+        case .rest:
+            return .rest
+        case .other:
+            return .creative
         }
     }
 }

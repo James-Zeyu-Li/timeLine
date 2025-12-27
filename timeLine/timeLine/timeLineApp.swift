@@ -32,7 +32,6 @@ struct TimeLineApp: App {
     // Core State Objects
     @StateObject private var engine = BattleEngine()
     @StateObject private var daySession: DaySession
-    @StateObject private var templateStore = TemplateStore()
     @StateObject private var cardStore: CardTemplateStore
     @StateObject private var deckStore = DeckStore()
     @StateObject private var appMode = AppModeManager()
@@ -65,18 +64,15 @@ struct TimeLineApp: App {
         
         // Create shared objects first
         let engine = BattleEngine()
-        let templateStore = TemplateStore()
         let cardStore = CardTemplateStore()
         
         _engine = StateObject(wrappedValue: engine)
-        _templateStore = StateObject(wrappedValue: templateStore)
         _cardStore = StateObject(wrappedValue: cardStore)
         
         // Create state manager
         let manager = AppStateManager(
             engine: engine,
             daySession: initialDaySession,
-            templateStore: templateStore,
             cardStore: cardStore
         )
         _stateManager = StateObject(wrappedValue: manager)
@@ -96,7 +92,6 @@ struct TimeLineApp: App {
                 RootView()
                     .environmentObject(engine)
                     .environmentObject(daySession)
-                    .environmentObject(templateStore)
                     .environmentObject(cardStore)
                     .environmentObject(deckStore)
                     .environmentObject(appMode)
@@ -143,8 +138,6 @@ struct TimeLineApp: App {
                 engine.restore(from: engineState)
             }
             
-            // Restore Templates
-            templateStore.load(from: state.templates)
             cardStore.load(from: state.cardTemplates)
             cardStore.seedDefaultsIfNeeded()
             stateManager.spawnedKeys = state.spawnedKeys
@@ -167,7 +160,7 @@ struct TimeLineApp: App {
                 
                 // Auto-Spawn Repeating Tasks
                 let (tasks, newKeys) = SpawnManager.processRepeats(
-                    templates: state.templates,
+                    templates: cardStore.orderedTemplates(),
                     for: Date(),
                     ledger: stateManager.spawnedKeys
                 )

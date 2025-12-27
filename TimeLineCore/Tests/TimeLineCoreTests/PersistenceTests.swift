@@ -29,7 +29,6 @@ final class PersistenceTests: XCTestCase {
             daySession: session,
             engineState: engineState,
             history: [],
-            templates: [],
             spawnedKeys: ["test_key"]
         )
         
@@ -47,48 +46,6 @@ final class PersistenceTests: XCTestCase {
         XCTAssertTrue(decodedState.spawnedKeys.contains("test_key"))
     }
 
-    func testLegacyInboxMigratesToCardTemplates() throws {
-        struct LegacyAppState: Codable {
-            var version: Int = 1
-            var lastSeenAt: Date
-            var daySession: DaySession
-            var engineState: BattleSnapshot?
-            var history: [DailyFunctionality]
-            var templates: [TaskTemplate]
-            var inbox: [TaskTemplate]
-            var spawnedKeys: Set<String>
-        }
-
-        let boss = Boss(name: "Legacy Boss", maxHp: 300)
-        let session = DaySession(nodes: [TimelineNode(type: .battle(boss), isLocked: false)])
-        let inboxTemplate = TaskTemplate(
-            title: "Legacy Inbox",
-            style: .focus,
-            duration: 1200,
-            category: .study
-        )
-
-        let legacy = LegacyAppState(
-            lastSeenAt: Date(),
-            daySession: session,
-            engineState: nil,
-            history: [],
-            templates: [],
-            inbox: [inboxTemplate],
-            spawnedKeys: []
-        )
-
-        let data = try JSONEncoder().encode(legacy)
-        let decoded = try JSONDecoder().decode(AppState.self, from: data)
-
-        XCTAssertEqual(decoded.inbox.count, 1)
-        XCTAssertEqual(decoded.cardTemplates.count, 1)
-        XCTAssertEqual(decoded.inbox[0], decoded.cardTemplates[0].id)
-        XCTAssertEqual(decoded.cardTemplates[0].title, inboxTemplate.title)
-        XCTAssertEqual(decoded.cardTemplates[0].defaultDuration, 1200)
-        XCTAssertEqual(decoded.cardTemplates[0].category, .study)
-    }
-    
     // MARK: - Reconciliation Tests
     
     func testCrashReconciliation() {

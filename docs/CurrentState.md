@@ -23,7 +23,7 @@ A roguelike-inspired iOS focus app built with SwiftUI.
 
 ### Core Functionality
 - **Timeline engine**: `DaySession` manages nodes, progression, and lock states; `BattleEngine` handles focus timing and outcomes.
-- **Template semantics**: `CardTemplate` + `DeckTemplate` are reusable; timeline placement creates occurrences (templates never consumed). `TaskTemplate` remains for repeat rules + TaskSheet edits (legacy path). Inbox stores CardTemplate IDs in `AppState.inbox` with templates persisted in `AppState.cardTemplates`.
+- **Template semantics**: `CardTemplate` + `DeckTemplate` are reusable; timeline placement creates occurrences (templates never consumed). `CardTemplate` carries repeatRule/fixedTime. Inbox stores CardTemplate IDs in `AppState.inbox` with templates persisted in `AppState.cardTemplates`.
 - **Write path**: placement uses `TimelineStore.placeCardOccurrence / placeDeckBatch` (Inbox/QuickEntry create CardTemplate then place).
 - **App mode**: `AppModeManager` enforces overlay/drag/edit exclusivity.
 - **Drag system**: `DragDropCoordinator` handles global coords + hover targeting.
@@ -51,7 +51,7 @@ A roguelike-inspired iOS focus app built with SwiftUI.
 
 ### Key Types (Core)
 - `DaySession`, `TimelineNode`, `Boss`, `BattleEngine`, `AppState`
-- `TaskTemplate` (legacy repeat/TaskSheet), `RepeatRule`, `TaskCategory`, `BossStyle`
+- `RepeatRule`, `TaskCategory`, `BossStyle`
 - `CardTemplate`, `EnergyColorToken`, `RoutineTemplate`
 
 ### Key Types (App Layer)
@@ -65,7 +65,7 @@ A roguelike-inspired iOS focus app built with SwiftUI.
 - **SessionResult Publisher**: victory/retreat events (atomic, data-rich)
 - **DaySession**: append/move/delete, lock-state recalculation, reset to first upcoming
 - **RouteGenerator**: bonfire auto-insertion every N battles
-- **TemplateStore**: default templates + 25m preset
+- **DefaultCardTemplates**: stable UUID defaults for card templates
 - **SpawnManager**: template spawning + recommended start time passthrough
 - **QuickEntryParser**: supports tonight/tomorrow/daily keywords
 - **AppState**: `inbox` for tomorrow tasks

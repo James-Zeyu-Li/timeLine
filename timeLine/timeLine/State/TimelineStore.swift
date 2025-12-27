@@ -118,7 +118,7 @@ final class TimelineStore: ObservableObject {
         stateManager.requestSave()
     }
 
-    func updateNode(id: UUID, payload: TaskTemplate) {
+    func updateNode(id: UUID, payload: CardTemplate) {
         daySession.updateNode(id: id, payload: payload)
         stateManager.requestSave()
     }

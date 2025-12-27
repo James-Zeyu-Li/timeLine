@@ -22,7 +22,7 @@ struct SwipeableTimelineNode: View {
     @State private var dragOffset: CGSize = .zero
     @State private var showingEditActions = false
     @State private var showingEditSheet = false
-    @State private var templateToEdit: TaskTemplate?
+    @State private var templateToEdit: CardTemplate?
     
     // MARK: - Constants
     
@@ -341,13 +341,15 @@ private extension SwipeableTimelineNode {
     func startEditing() {
         guard case .battle(let boss) = node.type else { return }
         
-        templateToEdit = TaskTemplate(
+        templateToEdit = CardTemplate(
             id: boss.id,
             title: boss.name,
-            style: boss.style,
-            duration: boss.maxHp,
-            repeatRule: .none,
-            category: boss.category
+            icon: boss.category.icon,
+            defaultDuration: boss.maxHp,
+            tags: [],
+            energyColor: energyToken(for: boss.category),
+            category: boss.category,
+            style: boss.style
         )
         showingEditSheet = true
         hideEditActions()
@@ -371,6 +373,18 @@ private extension SwipeableTimelineNode {
 // MARK: - Computed Properties for Styling
 
 private extension SwipeableTimelineNode {
+    func energyToken(for category: TaskCategory) -> EnergyColorToken {
+        switch category {
+        case .work, .study:
+            return .focus
+        case .gym:
+            return .gym
+        case .rest:
+            return .rest
+        case .other:
+            return .creative
+        }
+    }
     
     var nodeColor: Color {
         switch node.type {

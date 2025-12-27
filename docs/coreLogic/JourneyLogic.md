@@ -33,11 +33,11 @@ Represents a focused task.
 - **Fields**: `id`, `name`, `maxHp`, `currentHp`, `style`, `category`
 - **Recommended Start**: `recommendedStart: DateComponents?` (for UI hints)
 
-### C. `TaskTemplate` (Legacy: repeat/QuickEntry/TaskSheet)
-Reusable task definition for legacy flows.
-- **Fields**: `title`, `duration`, `fixedTime`, `repeatRule`, `category`, `style`
+### C. `CardTemplate`
+Reusable task definition for creation and repeat spawning.
+- **Fields**: `title`, `defaultDuration`, `fixedTime`, `repeatRule`, `category`, `style`, `icon`, `tags`, `energyColor`
 - **Repeat Rules**: daily/weekly/monthly for auto-spawn.
-- **Usage**: repeat rules + TaskSheet edits; QuickEntry returns TaskTemplate but app converts to CardTemplate for placement.
+- **Usage**: TaskSheet edits and QuickEntry both produce `CardTemplate` directly.
 
 ### D. `DaySession`
 Route manager and progression.
@@ -53,7 +53,7 @@ Card system lives in `TimeLineCore` for persistence.
 - `CardTemplate`: reusable card concept used by DeckOverlay.
 - `DeckTemplate`: app-layer deck bundle (stored in app target).
 - `EnergyColorToken`: token enum only (no UI color in core).
-App layer creates timeline occurrences via `TimelineStore.placeCardOccurrence` / `placeDeckBatch` (empty timeline uses `placeCardOccurrenceAtStart`; no CardInstance store).
+App layer creates timeline occurrences via `TimelineStore.placeCardOccurrence` / `placeDeckBatch` (empty timeline uses `placeCardOccurrenceAtStart`; occurrences are `TimelineNode`, no CardInstance model).
 
 ---
 
@@ -72,12 +72,12 @@ Aggregates daily history and heatmap intensity.
 ## 4. Planning & Spawning
 
 ### Templates & Routines
-- `TemplateStore` provides defaults (including 25m).
+- `DefaultCardTemplates` provides defaults (stable UUIDs).
 - `RoutineProvider` supplies routine presets; app layer converts them into Decks.
 
 ### Quick Entry Flow
 - `QuickEntryParser.parseDetailed()` returns:
-  - `TaskTemplate` (legacy template type, not `CardTemplate`)
+  - `CardTemplate`
   - `placement`: `.today` or `.inbox`
   - `suggestedTime` (e.g., "今晚" -> 20:00)
 - **"明天"** tasks go to `inbox` (not added to today).
@@ -107,6 +107,6 @@ On launch, `TimeLineApp.restoreState()`:
 
 ## 7. Persistence
 `AppState` stores:
-- `daySession`, `engineState`, `history`, `templates`, `cardTemplates`
+- `daySession`, `engineState`, `history`, `cardTemplates`
 - `inbox` (CardTemplate IDs for tomorrow tasks)
 - `spawnedKeys` ledger

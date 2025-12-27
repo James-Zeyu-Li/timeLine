@@ -172,7 +172,6 @@ extension TimelineEventCoordinator {
             stateManager: AppStateManager(
                 engine: BattleEngine(),
                 daySession: DaySession(nodes: []),
-                templateStore: TemplateStore(),
                 cardStore: CardTemplateStore()
             )
         )

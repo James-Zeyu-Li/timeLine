@@ -8,7 +8,7 @@ public struct QuickEntryParser {
     }
     
     public struct QuickEntryResult {
-        public let template: TaskTemplate
+        public let template: CardTemplate
         public let placement: QuickEntryPlacement
         public let suggestedTime: DateComponents?
     }
@@ -58,7 +58,6 @@ public struct QuickEntryParser {
         // Iterate tags in reverse to allow easy range removal
         for match in tagMatches.reversed() {
             if let range = Range(match.range, in: workingText) {
-                let fullTag = String(workingText[range]) // e.g., "@focus"
                 let tagName = String(workingText[Range(match.range(at: 1), in: workingText)!]).lowercased()
                 
                 // Parse Style
@@ -77,8 +76,6 @@ public struct QuickEntryParser {
         
         // 2. Extract Duration
         var duration: TimeInterval = 1500 // Default 25m
-        var durationFound = false
-        
         let durRegex = try! NSRegularExpression(pattern: durationPattern, options: .caseInsensitive)
         // Find FIRST duration match
         if let match = durRegex.firstMatch(in: workingText, range: NSRange(workingText.startIndex..., in: workingText)) {
@@ -95,7 +92,6 @@ public struct QuickEntryParser {
                     } else {
                         duration = value * 60
                     }
-                    durationFound = true
                 }
                 
                 // Remove duration from text
@@ -112,17 +108,19 @@ public struct QuickEntryParser {
         if title.isEmpty { return nil }
         
         // Smart defaults: if no duration found and style is passive, default to 0?
-        // But TaskTemplate.duration is optional.
         // Let's stick to spec: "default 25m" if not specified.
         
-        let template = TaskTemplate(
+        let template = CardTemplate(
             id: UUID(),
             title: title,
+            icon: category.icon,
+            defaultDuration: duration,
+            tags: [],
+            energyColor: energyToken(for: category),
+            category: category,
             style: style,
-            duration: duration, 
             fixedTime: suggestedTime,
-            repeatRule: repeatRule,
-            category: category
+            repeatRule: repeatRule
         )
         
         return QuickEntryResult(
@@ -132,7 +130,20 @@ public struct QuickEntryParser {
         )
     }
     
-    public static func parse(input: String) -> TaskTemplate? {
+    public static func parse(input: String) -> CardTemplate? {
         return parseDetailed(input: input)?.template
+    }
+
+    private static func energyToken(for category: TaskCategory) -> EnergyColorToken {
+        switch category {
+        case .work, .study:
+            return .focus
+        case .gym:
+            return .gym
+        case .rest:
+            return .rest
+        case .other:
+            return .creative
+        }
     }
 }

@@ -7,17 +7,26 @@ public struct AppState: Codable {
     public var daySession: DaySession // DaySession needs to be Codable
     public var engineState: BattleSnapshot?
     public var history: [DailyFunctionality] // Stats History
-    public var templates: [TaskTemplate]
     public var cardTemplates: [CardTemplate]
     public var inbox: [UUID]
     public var spawnedKeys: Set<String> // Ledger for de-duplication
+    
+    private enum CodingKeys: String, CodingKey {
+        case version
+        case lastSeenAt
+        case daySession
+        case engineState
+        case history
+        case cardTemplates
+        case inbox
+        case spawnedKeys
+    }
     
     public init(
         lastSeenAt: Date,
         daySession: DaySession,
         engineState: BattleSnapshot?,
         history: [DailyFunctionality],
-        templates: [TaskTemplate] = [],
         cardTemplates: [CardTemplate] = [],
         inbox: [UUID] = [],
         spawnedKeys: Set<String> = []
@@ -26,7 +35,6 @@ public struct AppState: Codable {
         self.daySession = daySession
         self.engineState = engineState
         self.history = history
-        self.templates = templates
         self.cardTemplates = cardTemplates
         self.inbox = inbox
         self.spawnedKeys = spawnedKeys
@@ -40,46 +48,23 @@ public struct AppState: Codable {
         self.daySession = try container.decode(DaySession.self, forKey: .daySession)
         self.engineState = try container.decodeIfPresent(BattleSnapshot.self, forKey: .engineState)
         self.history = try container.decode(Array<DailyFunctionality>.self, forKey: .history)
-        self.templates = try container.decodeIfPresent([TaskTemplate].self, forKey: .templates) ?? []
         self.cardTemplates = try container.decodeIfPresent([CardTemplate].self, forKey: .cardTemplates) ?? []
-        if let inboxIds = try? container.decode([UUID].self, forKey: .inbox) {
-            self.inbox = inboxIds
-        } else {
-            let legacyInbox = try container.decodeIfPresent([TaskTemplate].self, forKey: .inbox) ?? []
-            let migratedTemplates = legacyInbox.map { Self.cardTemplate(from: $0) }
-            self.cardTemplates.append(contentsOf: migratedTemplates)
-            self.inbox = migratedTemplates.map(\.id)
-        }
+        self.inbox = try container.decodeIfPresent([UUID].self, forKey: .inbox) ?? []
         self.spawnedKeys = try container.decodeIfPresent(Set<String>.self, forKey: .spawnedKeys) ?? []
     }
     
-    private static func cardTemplate(from legacy: TaskTemplate) -> CardTemplate {
-        let duration = legacy.duration ?? 1800
-        let icon = legacy.style == .passive ? "sparkles" : "bolt.fill"
-        let energy = energyToken(for: legacy.category)
-        return CardTemplate(
-            title: legacy.title,
-            icon: icon,
-            defaultDuration: duration,
-            tags: [],
-            energyColor: energy,
-            category: legacy.category,
-            style: legacy.style
-        )
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(version, forKey: .version)
+        try container.encode(lastSeenAt, forKey: .lastSeenAt)
+        try container.encode(daySession, forKey: .daySession)
+        try container.encodeIfPresent(engineState, forKey: .engineState)
+        try container.encode(history, forKey: .history)
+        try container.encode(cardTemplates, forKey: .cardTemplates)
+        try container.encode(inbox, forKey: .inbox)
+        try container.encode(spawnedKeys, forKey: .spawnedKeys)
     }
     
-    private static func energyToken(for category: TaskCategory) -> EnergyColorToken {
-        switch category {
-        case .work, .study:
-            return .focus
-        case .gym:
-            return .gym
-        case .rest:
-            return .rest
-        case .other:
-            return .creative
-        }
-    }
 }
 
 /// A snapshot of the BattleEngine's active state.

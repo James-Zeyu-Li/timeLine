@@ -18,7 +18,6 @@ final class BonfireVerificationTests: XCTestCase {
         stateManager = AppStateManager(
             engine: engine,
             daySession: daySession,
-            templateStore: TemplateStore(),
             cardStore: CardTemplateStore()
         )
         coordinator = TimelineEventCoordinator(engine: engine, daySession: daySession, stateManager: stateManager)
