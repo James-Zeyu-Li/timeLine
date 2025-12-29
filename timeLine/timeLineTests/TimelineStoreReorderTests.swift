@@ -9,14 +9,8 @@ final class TimelineStoreReorderTests: XCTestCase {
         let nodeB = TimelineNode(id: UUID(), type: .treasure, isLocked: false)
         let nodeC = TimelineNode(id: UUID(), type: .treasure, isLocked: false)
         let daySession = DaySession(nodes: [nodeA, nodeB, nodeC], currentIndex: 1)
-        let engine = BattleEngine()
-        let cardStore = CardTemplateStore()
-        let stateManager = AppStateManager(
-            engine: engine,
-            daySession: daySession,
-            cardStore: cardStore
-        )
-        let timelineStore = TimelineStore(daySession: daySession, stateManager: stateManager)
+        let stateSaver = MockStateSaver()
+        let timelineStore = TimelineStore(daySession: daySession, stateManager: stateSaver)
         
         timelineStore.moveNode(from: IndexSet(integer: 0), to: 3)
         
@@ -30,14 +24,8 @@ final class TimelineStoreReorderTests: XCTestCase {
         let nodeC = TimelineNode(id: UUID(), type: .treasure, isCompleted: true, isLocked: true)
         let nodeD = TimelineNode(id: UUID(), type: .treasure, isLocked: true)
         let daySession = DaySession(nodes: [nodeA, nodeB, nodeC, nodeD], currentIndex: 1)
-        let engine = BattleEngine()
-        let cardStore = CardTemplateStore()
-        let stateManager = AppStateManager(
-            engine: engine,
-            daySession: daySession,
-            cardStore: cardStore
-        )
-        let timelineStore = TimelineStore(daySession: daySession, stateManager: stateManager)
+        let stateSaver = MockStateSaver()
+        let timelineStore = TimelineStore(daySession: daySession, stateManager: stateSaver)
         
         timelineStore.moveNode(from: IndexSet(integer: 3), to: 1)
         
@@ -53,14 +41,8 @@ final class TimelineStoreReorderTests: XCTestCase {
         let nodeB = TimelineNode(id: UUID(), type: .treasure, isLocked: false)
         let nodeC = TimelineNode(id: UUID(), type: .treasure, isLocked: false)
         let daySession = DaySession(nodes: [nodeA, nodeB, nodeC], currentIndex: 1)
-        let engine = BattleEngine()
-        let cardStore = CardTemplateStore()
-        let stateManager = AppStateManager(
-            engine: engine,
-            daySession: daySession,
-            cardStore: cardStore
-        )
-        let timelineStore = TimelineStore(daySession: daySession, stateManager: stateManager)
+        let stateSaver = MockStateSaver()
+        let timelineStore = TimelineStore(daySession: daySession, stateManager: stateSaver)
         
         timelineStore.moveNode(from: IndexSet(integer: 1), to: 3)
         timelineStore.finalizeReorder(isSessionActive: true, activeNodeId: nodeB.id)
@@ -74,14 +56,8 @@ final class TimelineStoreReorderTests: XCTestCase {
         let nodeC = TimelineNode(id: UUID(), type: .treasure, isCompleted: false, isLocked: true)
         let nodeD = TimelineNode(id: UUID(), type: .treasure, isCompleted: false, isLocked: true)
         let daySession = DaySession(nodes: [nodeA, nodeB, nodeC, nodeD], currentIndex: 0)
-        let engine = BattleEngine()
-        let cardStore = CardTemplateStore()
-        let stateManager = AppStateManager(
-            engine: engine,
-            daySession: daySession,
-            cardStore: cardStore
-        )
-        let timelineStore = TimelineStore(daySession: daySession, stateManager: stateManager)
+        let stateSaver = MockStateSaver()
+        let timelineStore = TimelineStore(daySession: daySession, stateManager: stateSaver)
         
         timelineStore.finalizeReorder(isSessionActive: false, activeNodeId: nil)
         

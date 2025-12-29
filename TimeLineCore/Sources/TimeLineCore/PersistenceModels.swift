@@ -77,10 +77,43 @@ public struct BattleSnapshot: Codable {
     public let isImmune: Bool
     public let immunityCount: Int
     public let distractionStartTime: Date?
+    public let freezeTokensUsed: Int?
+    public let freezeHistory: [FreezeRecord]?
+    public let freezeStartTime: Date?
     public let totalFocusedHistoryToday: TimeInterval?
     public let history: [DailyFunctionality]?
     
-    public init(boss: Boss, state: BattleState, startTime: Date, elapsedBeforeLastSave: TimeInterval, wastedTime: TimeInterval, isImmune: Bool, immunityCount: Int, distractionStartTime: Date?, totalFocusedHistoryToday: TimeInterval?, history: [DailyFunctionality]?) {
+    private enum CodingKeys: String, CodingKey {
+        case boss
+        case state
+        case startTime
+        case elapsedBeforeLastSave
+        case wastedTime
+        case isImmune
+        case immunityCount
+        case distractionStartTime
+        case freezeTokensUsed
+        case freezeHistory
+        case freezeStartTime
+        case totalFocusedHistoryToday
+        case history
+    }
+    
+    public init(
+        boss: Boss,
+        state: BattleState,
+        startTime: Date,
+        elapsedBeforeLastSave: TimeInterval,
+        wastedTime: TimeInterval,
+        isImmune: Bool,
+        immunityCount: Int,
+        distractionStartTime: Date?,
+        freezeTokensUsed: Int? = nil,
+        freezeHistory: [FreezeRecord]? = nil,
+        freezeStartTime: Date? = nil,
+        totalFocusedHistoryToday: TimeInterval?,
+        history: [DailyFunctionality]?
+    ) {
         self.boss = boss
         self.state = state
         self.startTime = startTime
@@ -89,8 +122,45 @@ public struct BattleSnapshot: Codable {
         self.isImmune = isImmune
         self.immunityCount = immunityCount
         self.distractionStartTime = distractionStartTime
+        self.freezeTokensUsed = freezeTokensUsed
+        self.freezeHistory = freezeHistory
+        self.freezeStartTime = freezeStartTime
         self.totalFocusedHistoryToday = totalFocusedHistoryToday
         self.history = history
+    }
+    
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.boss = try container.decode(Boss.self, forKey: .boss)
+        self.state = try container.decode(BattleState.self, forKey: .state)
+        self.startTime = try container.decode(Date.self, forKey: .startTime)
+        self.elapsedBeforeLastSave = try container.decode(TimeInterval.self, forKey: .elapsedBeforeLastSave)
+        self.wastedTime = try container.decode(TimeInterval.self, forKey: .wastedTime)
+        self.isImmune = try container.decode(Bool.self, forKey: .isImmune)
+        self.immunityCount = try container.decode(Int.self, forKey: .immunityCount)
+        self.distractionStartTime = try container.decodeIfPresent(Date.self, forKey: .distractionStartTime)
+        self.freezeTokensUsed = try container.decodeIfPresent(Int.self, forKey: .freezeTokensUsed)
+        self.freezeHistory = try container.decodeIfPresent([FreezeRecord].self, forKey: .freezeHistory)
+        self.freezeStartTime = try container.decodeIfPresent(Date.self, forKey: .freezeStartTime)
+        self.totalFocusedHistoryToday = try container.decodeIfPresent(TimeInterval.self, forKey: .totalFocusedHistoryToday)
+        self.history = try container.decodeIfPresent([DailyFunctionality].self, forKey: .history)
+    }
+    
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(boss, forKey: .boss)
+        try container.encode(state, forKey: .state)
+        try container.encode(startTime, forKey: .startTime)
+        try container.encode(elapsedBeforeLastSave, forKey: .elapsedBeforeLastSave)
+        try container.encode(wastedTime, forKey: .wastedTime)
+        try container.encode(isImmune, forKey: .isImmune)
+        try container.encode(immunityCount, forKey: .immunityCount)
+        try container.encodeIfPresent(distractionStartTime, forKey: .distractionStartTime)
+        try container.encodeIfPresent(freezeTokensUsed, forKey: .freezeTokensUsed)
+        try container.encodeIfPresent(freezeHistory, forKey: .freezeHistory)
+        try container.encodeIfPresent(freezeStartTime, forKey: .freezeStartTime)
+        try container.encodeIfPresent(totalFocusedHistoryToday, forKey: .totalFocusedHistoryToday)
+        try container.encodeIfPresent(history, forKey: .history)
     }
 }
 

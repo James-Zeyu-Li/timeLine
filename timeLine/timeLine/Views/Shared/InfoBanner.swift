@@ -1,9 +1,9 @@
 import SwiftUI
 import TimeLineCore
 
-// MARK: - UI Event Banners
 enum BannerKind: Equatable {
     case distraction(wastedMinutes: Int)
+    case incompleteExit(focusedSeconds: TimeInterval, remainingSeconds: TimeInterval?)
     case restComplete
     case bonfireSuggested(reason: String)
 }
@@ -14,7 +14,6 @@ struct BannerData: Identifiable, Equatable {
     let upNextTitle: String?
 }
 
-// MARK: - Info Banner
 struct InfoBanner: View {
     let data: BannerData
     var body: some View {
@@ -27,6 +26,15 @@ struct InfoBanner: View {
                     Text("Retreat / Distraction")
                         .font(.caption).bold().foregroundColor(.white)
                     Text("Wasted +\(wasted) min")
+                        .font(.caption2).foregroundColor(.gray)
+                }
+            case .incompleteExit(let focusedSeconds, let remainingSeconds):
+                Image(systemName: "flag.fill")
+                    .foregroundColor(.red)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("撤退（未完成）")
+                        .font(.caption).bold().foregroundColor(.white)
+                    Text(incompleteExitSubtitle(focusedSeconds: focusedSeconds, remainingSeconds: remainingSeconds))
                         .font(.caption2).foregroundColor(.gray)
                 }
             case .restComplete:
@@ -58,5 +66,24 @@ struct InfoBanner: View {
         .cornerRadius(12)
         .shadow(color: .black.opacity(0.3), radius: 6, x: 0, y: 2)
         .padding(.horizontal, 16)
+    }
+    
+    private func incompleteExitSubtitle(focusedSeconds: TimeInterval, remainingSeconds: TimeInterval?) -> String {
+        let focusedText = formatDuration(focusedSeconds)
+        if let remaining = remainingSeconds {
+            let remainingText = formatDuration(remaining)
+            return "已造成 \(focusedText) 伤害，剩余 \(remainingText)"
+        }
+        return "已造成 \(focusedText) 伤害"
+    }
+    
+    private func formatDuration(_ seconds: TimeInterval) -> String {
+        let totalMinutes = max(0, Int(seconds.rounded() / 60))
+        if totalMinutes < 60 {
+            return "\(totalMinutes)m"
+        }
+        let hours = totalMinutes / 60
+        let minutes = totalMinutes % 60
+        return String(format: "%dh %02dm", hours, minutes)
     }
 }

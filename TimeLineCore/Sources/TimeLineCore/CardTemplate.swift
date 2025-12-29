@@ -21,6 +21,7 @@ public struct CardTemplate: Identifiable, Codable, Equatable {
     public var energyColor: EnergyColorToken
     public var category: TaskCategory
     public var style: BossStyle
+    public var taskMode: TaskMode
     public var fixedTime: DateComponents?
     public var repeatRule: RepeatRule
 
@@ -33,6 +34,7 @@ public struct CardTemplate: Identifiable, Codable, Equatable {
         case energyColor
         case category
         case style
+        case taskMode
         case fixedTime
         case repeatRule
     }
@@ -46,6 +48,7 @@ public struct CardTemplate: Identifiable, Codable, Equatable {
         energyColor: EnergyColorToken = .focus,
         category: TaskCategory = .work,
         style: BossStyle = .focus,
+        taskMode: TaskMode = .focusStrictFixed,
         fixedTime: DateComponents? = nil,
         repeatRule: RepeatRule = .none
     ) {
@@ -57,6 +60,7 @@ public struct CardTemplate: Identifiable, Codable, Equatable {
         self.energyColor = energyColor
         self.category = category
         self.style = style
+        self.taskMode = taskMode
         self.fixedTime = fixedTime
         self.repeatRule = repeatRule
     }
@@ -71,6 +75,7 @@ public struct CardTemplate: Identifiable, Codable, Equatable {
         self.energyColor = try container.decode(EnergyColorToken.self, forKey: .energyColor)
         self.category = try container.decode(TaskCategory.self, forKey: .category)
         self.style = try container.decode(BossStyle.self, forKey: .style)
+        self.taskMode = try container.decodeIfPresent(TaskMode.self, forKey: .taskMode) ?? .focusStrictFixed
         self.fixedTime = try container.decodeIfPresent(DateComponents.self, forKey: .fixedTime)
         self.repeatRule = try container.decodeIfPresent(RepeatRule.self, forKey: .repeatRule) ?? .none
     }

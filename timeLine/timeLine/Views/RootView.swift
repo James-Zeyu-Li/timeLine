@@ -11,8 +11,6 @@ struct RootView: View {
     
     @StateObject private var dragCoordinator = DragDropCoordinator()
     
-    @AppStorage("useMapPrototype") private var useMapPrototype = true  // default to map
-    
     @State private var nodeFrames: [UUID: CGRect] = [:]
     @State private var lastDeckBatch: DeckBatchResult?
     @State private var showDeckToast = false
@@ -109,14 +107,8 @@ struct RootView: View {
     @ViewBuilder
     private var baseLayer: some View {
         switch engine.state {
-        case .idle, .victory, .retreat:
-            Group {
-                if useMapPrototype {
-                    RogueMapView()
-                } else {
-                    TimelineView()
-                }
-            }
+        case .idle, .victory, .retreat, .frozen:
+            RogueMapView()
             .transition(.opacity)
             
         case .fighting, .paused:
@@ -204,19 +196,20 @@ struct RootView: View {
         let success: Bool
         
         switch action {
-        case .placeCard(let cardTemplateId, let anchorNodeId):
+        case .placeCard(let cardTemplateId, let anchorNodeId, let placement):
             // Create TimelineStore with current session
             let timelineStore = TimelineStore(daySession: daySession, stateManager: stateManager)
             _ = timelineStore.placeCardOccurrence(
                 cardTemplateId: cardTemplateId,
                 anchorNodeId: anchorNodeId,
+                placement: placement,
                 using: cardStore
             )
             
             UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
             success = true
             
-        case .placeDeck(let deckId, let anchorNodeId):
+        case .placeDeck(let deckId, let anchorNodeId, let placement):
             guard !isDeckPlacementLocked else {
                 UIImpactFeedbackGenerator(style: .light).impactOccurred()
                 success = false
@@ -226,6 +219,7 @@ struct RootView: View {
             if let result = timelineStore.placeDeckBatch(
                 deckId: deckId,
                 anchorNodeId: anchorNodeId,
+                placement: placement,
                 using: deckStore,
                 cardStore: cardStore
             ) {
@@ -334,7 +328,7 @@ struct RootView: View {
         switch engine.state {
         case .idle, .victory, .retreat:
             return true
-        case .fighting, .paused, .resting:
+        case .fighting, .paused, .frozen, .resting:
             return false
         }
     }

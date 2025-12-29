@@ -32,10 +32,25 @@ final class TimelineStore: ObservableObject {
         anchorNodeId: UUID,
         using cardStore: CardTemplateStore
     ) -> UUID? {
+        placeCardOccurrence(
+            cardTemplateId: cardTemplateId,
+            anchorNodeId: anchorNodeId,
+            placement: .after,
+            using: cardStore
+        )
+    }
+    
+    func placeCardOccurrence(
+        cardTemplateId: UUID,
+        anchorNodeId: UUID,
+        placement: DropPlacement,
+        using cardStore: CardTemplateStore
+    ) -> UUID? {
         guard let card = cardStore.get(id: cardTemplateId) else { return nil }
         guard let anchorIndex = daySession.nodes.firstIndex(where: { $0.id == anchorNodeId }) else { return nil }
         let node = makeNode(from: card)
-        daySession.nodes.insert(node, at: anchorIndex + 1)
+        let insertIndex = placement == .after ? anchorIndex + 1 : anchorIndex
+        daySession.nodes.insert(node, at: insertIndex)
         stateManager.requestSave()
         return node.id
     }
@@ -46,10 +61,27 @@ final class TimelineStore: ObservableObject {
         using deckStore: DeckStore,
         cardStore: CardTemplateStore
     ) -> DeckBatchResult? {
+        placeDeckBatch(
+            deckId: deckId,
+            anchorNodeId: anchorNodeId,
+            placement: .after,
+            using: deckStore,
+            cardStore: cardStore
+        )
+    }
+    
+    func placeDeckBatch(
+        deckId: UUID,
+        anchorNodeId: UUID,
+        placement: DropPlacement,
+        using deckStore: DeckStore,
+        cardStore: CardTemplateStore
+    ) -> DeckBatchResult? {
         guard let deck = deckStore.get(id: deckId) else { return nil }
         guard let anchorIndex = daySession.nodes.firstIndex(where: { $0.id == anchorNodeId }) else { return nil }
         guard let nodes = makeNodes(for: deck, using: cardStore), !nodes.isEmpty else { return nil }
-        daySession.nodes.insert(contentsOf: nodes, at: anchorIndex + 1)
+        let insertIndex = placement == .after ? anchorIndex + 1 : anchorIndex
+        daySession.nodes.insert(contentsOf: nodes, at: insertIndex)
         stateManager.requestSave()
         
         let batchId = UUID()

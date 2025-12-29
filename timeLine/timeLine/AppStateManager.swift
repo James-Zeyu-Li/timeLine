@@ -128,6 +128,8 @@ final class AppStateManager: ObservableObject, StateSaver {
         engine.wastedTime = 0
         engine.totalFocusedHistoryToday = 0
         engine.history.removeAll()
+        engine.freezeTokensUsed = 0
+        engine.freezeHistory.removeAll()
         
         cardStore.reset()
         cardStore.seedDefaultsIfNeeded()

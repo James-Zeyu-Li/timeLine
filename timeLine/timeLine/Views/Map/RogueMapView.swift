@@ -11,7 +11,7 @@ struct RogueMapView: View {
     @EnvironmentObject var dragCoordinator: DragDropCoordinator
     
     // View Model
-    @StateObject private var viewModel = TimelineViewModel()
+    @StateObject private var viewModel = MapViewModel()
     
     @AppStorage("use24HourClock") private var use24HourClock = true
     
@@ -51,7 +51,7 @@ struct RogueMapView: View {
                             onAdd: { item in viewModel.addInboxItem(item) },
                             onRemove: { item in viewModel.removeInboxItem(item.id) }
                         )
-                        .padding(.horizontal, TimelineLayout.horizontalInset)
+                        .padding(.horizontal, MapLayout.horizontalInset)
                         .padding(.vertical, 16)
                     }
                 }
@@ -143,13 +143,13 @@ struct RogueMapView: View {
                 .id(node.id)
             }
         }
-        .padding(.horizontal, TimelineLayout.horizontalInset)
+        .padding(.horizontal, MapLayout.horizontalInset)
         .padding(.bottom, bottomFocusPadding)
     }
     
     private var isSessionActive: Bool {
         switch engine.state {
-        case .fighting, .paused, .resting:
+        case .fighting, .paused, .frozen, .resting:
             return true
         default:
             return false
@@ -192,7 +192,10 @@ struct RogueMapView: View {
                 engine.startBattle(boss: boss)
                 stateManager.requestSave()
             } else {
-                if engine.state != .fighting {
+                if engine.state == .frozen {
+                    engine.resumeFromFreeze()
+                    stateManager.requestSave()
+                } else if engine.state != .fighting {
                     engine.startBattle(boss: boss)
                 } else {
                     UIImpactFeedbackGenerator(style: .light).impactOccurred()
@@ -498,7 +501,7 @@ private struct MapNodeRow: View {
                     .allowsHitTesting(false)
                     .overlay(alignment: .bottom) {
                         if isHovering {
-                            InsertAfterHint()
+                            InsertHint(placement: dragCoordinator.hoveringPlacement)
                                 .padding(.bottom, 8)
                         }
                     }
@@ -563,12 +566,15 @@ private struct MapNodeAnchorKey: PreferenceKey {
     }
 }
 
-private struct InsertAfterHint: View {
+private struct InsertHint: View {
+    let placement: DropPlacement
+
     var body: some View {
+        let isAfter = placement == .after
         HStack(spacing: 6) {
-            Image(systemName: "arrow.up")
+            Image(systemName: isAfter ? "arrow.up" : "arrow.down")
                 .font(.system(size: 10, weight: .bold))
-            Text("Drop to insert after")
+            Text(isAfter ? "Drop to insert after" : "Drop to insert before")
                 .font(.system(size: 10, weight: .bold))
         }
         .foregroundColor(.white)

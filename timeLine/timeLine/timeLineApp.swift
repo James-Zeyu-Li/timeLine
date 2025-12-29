@@ -182,6 +182,8 @@ struct TimeLineApp: App {
                 engine.currentBoss = nil
                 engine.state = .idle
                 engine.wastedTime = 0
+                engine.freezeTokensUsed = 0
+                engine.freezeHistory.removeAll()
                 
                 // 3. Trigger Alert
                 showNewDayAlert = true

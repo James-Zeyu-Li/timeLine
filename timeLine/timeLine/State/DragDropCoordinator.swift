@@ -5,9 +5,19 @@ import TimeLineCore
 // MARK: - Drop Action
 
 enum DropAction: Equatable {
-    case placeCard(cardTemplateId: UUID, anchorNodeId: UUID)
-    case placeDeck(deckId: UUID, anchorNodeId: UUID)
+    case placeCard(cardTemplateId: UUID, anchorNodeId: UUID, placement: DropPlacement)
+    case placeDeck(deckId: UUID, anchorNodeId: UUID, placement: DropPlacement)
     case cancel
+}
+
+enum DropPlacement: Equatable {
+    case before
+    case after
+}
+
+enum DropAxisDirection {
+    case topToBottom
+    case bottomToTop
 }
 
 struct DeckDragSummary: Equatable {
@@ -25,10 +35,12 @@ final class DragDropCoordinator: ObservableObject {
     @Published var dragLocation: CGPoint = .zero
     @Published var hoveringNodeId: UUID?
     @Published var activeDeckSummary: DeckDragSummary?
+    @Published var hoveringPlacement: DropPlacement = .after
     
     // MARK: - Internal State
     
     private(set) var activePayload: DragPayload?
+    private var axisDirection: DropAxisDirection = .bottomToTop
     
     // MARK: - Drag Lifecycle
     
@@ -38,34 +50,51 @@ final class DragDropCoordinator: ObservableObject {
         activePayload = payload
         activeDeckSummary = nil
         hoveringNodeId = nil
+        hoveringPlacement = .after
     }
     
     func startDeckDrag(payload: DragPayload, summary: DeckDragSummary) {
         activePayload = payload
         activeDeckSummary = summary
         hoveringNodeId = nil
+        hoveringPlacement = .after
     }
+    
     
     func updatePosition(_ location: CGPoint, nodeFrames: [UUID: CGRect]) {
         dragLocation = location
         
         // Find the nearest node center among frames that contain the drag location.
-        let candidates = nodeFrames.compactMap { (id, frame) -> (UUID, CGPoint)? in
+        let candidates = nodeFrames.compactMap { (id, frame) -> (UUID, CGRect, CGPoint)? in
             guard frame.contains(location) else { return nil }
             let center = CGPoint(x: frame.midX, y: frame.midY)
-            return (id, center)
+            return (id, frame, center)
         }
         guard !candidates.isEmpty else {
             hoveringNodeId = nil
+            hoveringPlacement = .after
             return
         }
-        hoveringNodeId = candidates.min { lhs, rhs in
-            let left = (lhs.1.x - location.x) * (lhs.1.x - location.x)
-                + (lhs.1.y - location.y) * (lhs.1.y - location.y)
-            let right = (rhs.1.x - location.x) * (rhs.1.x - location.x)
-                + (rhs.1.y - location.y) * (rhs.1.y - location.y)
+        let bestCandidate = candidates.min { lhs, rhs in
+            let left = (lhs.2.x - location.x) * (lhs.2.x - location.x)
+                + (lhs.2.y - location.y) * (lhs.2.y - location.y)
+            let right = (rhs.2.x - location.x) * (rhs.2.x - location.x)
+                + (rhs.2.y - location.y) * (rhs.2.y - location.y)
             return left < right
-        }?.0
+        }
+        guard let selected = bestCandidate else {
+            hoveringNodeId = nil
+            hoveringPlacement = .after
+            return
+        }
+        hoveringNodeId = selected.0
+        let isAboveCenter = location.y < selected.1.midY
+        switch axisDirection {
+        case .topToBottom:
+            hoveringPlacement = isAboveCenter ? .before : .after
+        case .bottomToTop:
+            hoveringPlacement = isAboveCenter ? .after : .before
+        }
     }
     
     func drop() -> DropAction {
@@ -75,9 +104,9 @@ final class DragDropCoordinator: ObservableObject {
         
         switch payload.type {
         case .cardTemplate(let cardTemplateId):
-            return .placeCard(cardTemplateId: cardTemplateId, anchorNodeId: nodeId)
+            return .placeCard(cardTemplateId: cardTemplateId, anchorNodeId: nodeId, placement: hoveringPlacement)
         case .deck(let deckId):
-            return .placeDeck(deckId: deckId, anchorNodeId: nodeId)
+            return .placeDeck(deckId: deckId, anchorNodeId: nodeId, placement: hoveringPlacement)
         }
     }
     
@@ -89,6 +118,7 @@ final class DragDropCoordinator: ObservableObject {
         activePayload = nil
         activeDeckSummary = nil
         hoveringNodeId = nil
+        hoveringPlacement = .after
         dragLocation = .zero
     }
 }

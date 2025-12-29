@@ -8,18 +8,14 @@ final class BonfireVerificationTests: XCTestCase {
     var coordinator: TimelineEventCoordinator!
     var engine: BattleEngine!
     var daySession: DaySession!
-    var stateManager: AppStateManager!
+    var stateManager: MockStateSaver!
     var cancellables: Set<AnyCancellable>!
     
     override func setUp() {
         super.setUp()
         engine = BattleEngine()
         daySession = DaySession(nodes: []) // Empty initially
-        stateManager = AppStateManager(
-            engine: engine,
-            daySession: daySession,
-            cardStore: CardTemplateStore()
-        )
+        stateManager = MockStateSaver()
         coordinator = TimelineEventCoordinator(engine: engine, daySession: daySession, stateManager: stateManager)
         cancellables = []
     }

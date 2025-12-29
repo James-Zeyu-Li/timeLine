@@ -3,7 +3,7 @@ import Combine
 import TimeLineCore
 
 @MainActor
-class TimelineViewModel: ObservableObject {
+class MapViewModel: ObservableObject {
     // Dependencies
     private var engine: BattleEngine?
     private var daySession: DaySession?
@@ -16,9 +16,11 @@ class TimelineViewModel: ObservableObject {
     @Published var pulseNextNodeId: UUID?
     
     private var pulseClearTask: DispatchWorkItem?
+    private let allowsPulseClear: Bool
     
-    init(use24HourClock: Bool = true) {
+    init(use24HourClock: Bool = true, allowsPulseClear: Bool = true) {
         self.use24HourClock = use24HourClock
+        self.allowsPulseClear = allowsPulseClear
     }
     
     func bind(
@@ -32,6 +34,18 @@ class TimelineViewModel: ObservableObject {
         self.daySession = daySession
         self.stateManager = stateManager
         self.cardStore = cardStore
+        self.use24HourClock = use24HourClock
+    }
+    
+    func bind(
+        engine: BattleEngine,
+        daySession: DaySession,
+        use24HourClock: Bool
+    ) {
+        self.engine = engine
+        self.daySession = daySession
+        self.stateManager = nil
+        self.cardStore = nil
         self.use24HourClock = use24HourClock
     }
     
@@ -180,6 +194,16 @@ class TimelineViewModel: ObservableObject {
             banner = BannerData(kind: .distraction(wastedMinutes: wastedMinutes), upNextTitle: resolved.title)
             pulseNextNodeId = resolved.nodeId
             schedulePulseClear()
+        case .incompleteExit(_, let focusedSeconds, let remainingSeconds):
+            banner = BannerData(
+                kind: .incompleteExit(
+                    focusedSeconds: focusedSeconds,
+                    remainingSeconds: remainingSeconds
+                ),
+                upNextTitle: resolved.title
+            )
+            pulseNextNodeId = resolved.nodeId
+            schedulePulseClear()
         case .bonfireComplete:
             banner = BannerData(kind: .restComplete, upNextTitle: resolved.title)
             pulseNextNodeId = resolved.nodeId
@@ -226,6 +250,7 @@ class TimelineViewModel: ObservableObject {
     }
     
     private func schedulePulseClear() {
+        guard allowsPulseClear else { return }
         pulseClearTask?.cancel()
         let task = DispatchWorkItem { [weak self] in
             self?.pulseNextNodeId = nil

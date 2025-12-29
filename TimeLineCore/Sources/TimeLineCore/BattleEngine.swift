@@ -5,9 +5,18 @@ import Combine
 // MARK: - Session Result Event
 /// Emitted when a battle session ends. Contains all data needed for UI/Stats.
 /// This is the "atomic" event that carries session context.
-public enum SessionResult: Equatable {
-    case victory(bossName: String, focusedSeconds: TimeInterval, wastedSeconds: TimeInterval)
-    case retreat(bossName: String, focusedSeconds: TimeInterval, wastedSeconds: TimeInterval)
+public enum SessionEndReason: String, Codable, Equatable {
+    case victory
+    case retreat
+    case incompleteExit
+}
+
+public struct SessionResult: Equatable {
+    public let bossName: String
+    public let focusedSeconds: TimeInterval
+    public let wastedSeconds: TimeInterval
+    public let endReason: SessionEndReason
+    public let remainingSecondsAtExit: TimeInterval?
 }
 
 public class BattleEngine: ObservableObject {
@@ -22,6 +31,15 @@ public class BattleEngine: ObservableObject {
     @Published public var isImmune: Bool = false
     @Published public var immunityCount: Int = 1
     @Published public var wastedTime: TimeInterval = 0
+
+    // Freeze (real-world interruption)
+    public let maxFreezeTokens = 3
+    @Published public var freezeTokensUsed: Int = 0
+    @Published public var freezeHistory: [FreezeRecord] = []
+    
+    public var freezeTokensRemaining: Int {
+        max(0, maxFreezeTokens - freezeTokensUsed)
+    }
     
     // Total focused time recorded in previous sessions of the day
     @Published public var totalFocusedHistoryToday: TimeInterval = 0
@@ -39,7 +57,7 @@ public class BattleEngine: ObservableObject {
     public var totalFocusedToday: TimeInterval {
         var total = totalFocusedHistoryToday
         // Only add active session progress if we are currently fighting
-        if state == .fighting, let boss = currentBoss {
+        if (state == .fighting || state == .paused || state == .frozen), let boss = currentBoss {
             let currentFocused = boss.maxHp - boss.currentHp
             total += currentFocused
         }
@@ -49,11 +67,12 @@ public class BattleEngine: ObservableObject {
     /// Returns the remaining time for the current task/rest session.
     /// Used for accurate time estimation in Timeline UI.
     public var remainingTime: TimeInterval? {
-        guard let start = startTime else { return nil }
-        
-        if state == .fighting, let boss = currentBoss {
+        if state == .fighting, let boss = currentBoss, let start = startTime {
             let elapsed = Date().timeIntervalSince(start) + elapsedBeforeCurrentSession
             return max(0, boss.maxHp - elapsed)
+        } else if (state == .paused || state == .frozen), let boss = currentBoss {
+            let effectiveCombatTime = max(0, elapsedBeforeCurrentSession - wastedTime)
+            return max(0, boss.maxHp - effectiveCombatTime)
         } else if state == .resting {
             // For bonfire, we need to track duration differently
             // For now, return nil as resting doesn't have a fixed duration in current model
@@ -65,9 +84,12 @@ public class BattleEngine: ObservableObject {
     
     // Track when we went into background to calculate wasted time
     private var distractionStartTime: Date?
+    private var freezeStartTime: Date?
     
     // Idempotent guard for finalizeSession
     private var hasFinalized = false
+    private var endReasonOverride: SessionEndReason?
+    private var remainingSecondsAtExit: TimeInterval?
     
     public init() {}
     
@@ -81,6 +103,9 @@ public class BattleEngine: ObservableObject {
         self.immunityCount = 1 
         self.isImmune = false
         self.hasFinalized = false
+        self.endReasonOverride = nil
+        self.remainingSecondsAtExit = nil
+        self.freezeStartTime = nil
         print("[Engine] Battle Started: \(boss.name) at \(time)")
     }
     
@@ -99,11 +124,82 @@ public class BattleEngine: ObservableObject {
         self.state = .fighting
         print("[Engine] Resumed at \(time)")
     }
+
+    public func freeze(at time: Date = Date()) -> Bool {
+        guard state == .fighting, let boss = currentBoss, boss.style == .focus else { return false }
+        guard freezeTokensUsed < maxFreezeTokens else { return false }
+        finalizeDistraction(at: time)
+        pause(at: time)
+        freezeStartTime = time
+        freezeTokensUsed += 1
+        state = .frozen
+        print("[Engine] Frozen at \(time)")
+        return true
+    }
+
+    public func resumeFromFreeze(at time: Date = Date()) {
+        guard state == .frozen else { return }
+        if let start = freezeStartTime {
+            let duration = max(0, time.timeIntervalSince(start))
+            let record = FreezeRecord(
+                startedAt: start,
+                endedAt: time,
+                duration: duration,
+                bossName: currentBoss?.name
+            )
+            freezeHistory.append(record)
+        }
+        freezeStartTime = nil
+        startTime = time
+        state = .fighting
+        print("[Engine] Resumed from Freeze at \(time)")
+    }
     
-    public func retreat() {
+    public func retreat(at time: Date = Date()) {
+        if state == .fighting, let boss = currentBoss {
+            finalizeDistraction(at: time)
+            if boss.style == .focus, let remaining = remainingTime(at: time) {
+                var updatedBoss = boss
+                updatedBoss.currentHp = remaining
+                currentBoss = updatedBoss
+                remainingSecondsAtExit = remaining
+            }
+        }
+        endReasonOverride = .incompleteExit
         self.state = .retreat
         self.startTime = nil
+        self.distractionStartTime = nil
         print("[Engine] Retreat")
+        finalizeSession()
+    }
+
+    public func abortSession() {
+        guard state == .fighting || state == .paused || state == .frozen else { return }
+        state = .idle
+        currentBoss = nil
+        startTime = nil
+        elapsedBeforeCurrentSession = 0
+        wastedTime = 0
+        isImmune = false
+        immunityCount = 1
+        distractionStartTime = nil
+        freezeStartTime = nil
+        hasFinalized = false
+        endReasonOverride = nil
+        remainingSecondsAtExit = nil
+        print("[Engine] Session Aborted (no record)")
+    }
+
+    public func currentSessionElapsed(at time: Date = Date()) -> TimeInterval? {
+        switch state {
+        case .fighting:
+            guard let start = startTime else { return nil }
+            return elapsedBeforeCurrentSession + time.timeIntervalSince(start)
+        case .paused, .frozen:
+            return elapsedBeforeCurrentSession
+        default:
+            return nil
+        }
     }
     
     /// Starts a rest period (Bonfire).
@@ -211,6 +307,8 @@ public class BattleEngine: ObservableObject {
                  // Time ran out but Boss alive (Too much wasted time)
                  // Treat as Retreat/Defeat for now? Or just Stop?
                  self.state = .retreat // Let's call it retreat for now as "Failed"
+                 endReasonOverride = .retreat
+                 remainingSecondsAtExit = max(0, newHp)
                  print("[Engine] Time Over! Boss survived. You wasted too much time.")
              }
              self.startTime = nil
@@ -275,19 +373,15 @@ public class BattleEngine: ObservableObject {
         
         // Emit session complete event BEFORE clearing boss
         let result: SessionResult
-        if state == .victory {
-            result = .victory(
-                bossName: boss.name,
-                focusedSeconds: focusedThisSession,
-                wastedSeconds: wastedTime
-            )
-        } else {
-            result = .retreat(
-                bossName: boss.name,
-                focusedSeconds: focusedThisSession,
-                wastedSeconds: wastedTime
-            )
-        }
+        let endReason = endReasonOverride ?? (state == .victory ? .victory : .retreat)
+        let remaining = remainingSecondsAtExit ?? (endReason == .victory ? nil : max(0, boss.currentHp))
+        result = SessionResult(
+            bossName: boss.name,
+            focusedSeconds: focusedThisSession,
+            wastedSeconds: wastedTime,
+            endReason: endReason,
+            remainingSecondsAtExit: remaining
+        )
         sessionCompleteSubject.send(result)
         print("[Engine] Emitting SessionResult: \(result)")
         
@@ -304,7 +398,29 @@ public class BattleEngine: ObservableObject {
         
         // Clear current boss to prevent double-finalizing if tick is called again
         self.currentBoss = nil 
+        self.endReasonOverride = nil
+        self.remainingSecondsAtExit = nil
         print("[Engine] Session Finalized. Added \(focusedThisSession)s to daily total. History now has \(history.count) days.")
+    }
+
+    private func finalizeDistraction(at time: Date) {
+        if let start = distractionStartTime {
+            let distractedDuration = time.timeIntervalSince(start)
+            wastedTime += distractedDuration
+            distractionStartTime = nil
+        }
+    }
+    
+    private func remainingTime(at time: Date) -> TimeInterval? {
+        guard state == .fighting, let boss = currentBoss, boss.style == .focus, let start = startTime else { return nil }
+        let currentSessionElapsed = time.timeIntervalSince(start)
+        let totalElapsed = elapsedBeforeCurrentSession + currentSessionElapsed
+        var currentWasted = wastedTime
+        if let distStart = distractionStartTime {
+            currentWasted += time.timeIntervalSince(distStart)
+        }
+        let effectiveCombatTime = totalElapsed - currentWasted
+        return max(0, boss.maxHp - effectiveCombatTime)
     }
     // MARK: - Persistence
     
@@ -321,6 +437,9 @@ public class BattleEngine: ObservableObject {
             isImmune: isImmune,
             immunityCount: immunityCount,
             distractionStartTime: distractionStartTime,
+            freezeTokensUsed: freezeTokensUsed,
+            freezeHistory: freezeHistory,
+            freezeStartTime: freezeStartTime,
             totalFocusedHistoryToday: totalFocusedHistoryToday,
             history: history
         )
@@ -333,11 +452,14 @@ public class BattleEngine: ObservableObject {
         }
         self.state = snapshot.state
         self.elapsedBeforeCurrentSession = snapshot.elapsedBeforeLastSave
-        self.startTime = snapshot.startTime
+        self.startTime = snapshot.state == .fighting || snapshot.state == .resting ? snapshot.startTime : nil
         self.wastedTime = snapshot.wastedTime
         self.isImmune = snapshot.isImmune
         self.immunityCount = snapshot.immunityCount
         self.distractionStartTime = snapshot.distractionStartTime
+        self.freezeTokensUsed = snapshot.freezeTokensUsed ?? 0
+        self.freezeHistory = snapshot.freezeHistory ?? []
+        self.freezeStartTime = snapshot.state == .frozen ? snapshot.freezeStartTime : nil
         self.totalFocusedHistoryToday = snapshot.totalFocusedHistoryToday ?? 0
         self.history = snapshot.history ?? []
         

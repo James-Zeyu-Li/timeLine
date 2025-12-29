@@ -4,11 +4,16 @@ import TimeLineCore
 
 struct BattleView: View {
     @EnvironmentObject var engine: BattleEngine
+    @EnvironmentObject var daySession: DaySession
+    @EnvironmentObject var stateManager: AppStateManager
+    @EnvironmentObject var cardStore: CardTemplateStore
     // Note: daySession.advance() is now handled by TimelineEventCoordinator
     // which listens to engine.$state changes
     
     // Timer to drive the UI updates (since engine needs explicit ticks)
     let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
+
+    @State private var showExitOptions = false
     
     var body: some View {
         GeometryReader { geometry in
@@ -196,10 +201,34 @@ struct BattleView: View {
                     
                     // 控制按钮区域（仅专注模式）
                     if let boss = engine.currentBoss, boss.style == .focus {
-                        HStack(spacing: 60) {
+                        HStack(spacing: 50) {
+                            // Freeze 按钮
+                            Button(action: {
+                                handleFreezeTap()
+                            }) {
+                                VStack(spacing: 12) {
+                                    ZStack {
+                                        Circle()
+                                            .fill(Color(white: 0.1))
+                                            .frame(width: 60, height: 60)
+                                        
+                                        Image(systemName: "snowflake")
+                                            .font(.system(size: 20))
+                                            .foregroundColor(.cyan)
+                                    }
+                                    
+                                    Text("FREEZE \(engine.freezeTokensRemaining)")
+                                        .font(.system(size: 10, weight: .bold))
+                                        .tracking(1)
+                                        .foregroundColor(.cyan)
+                                }
+                            }
+                            .disabled(!canFreeze)
+                            .opacity(canFreeze ? 1.0 : 0.3)
+                            
                             // 撤退按钮
                             Button(action: {
-                                engine.retreat()
+                                handleRetreatTap()
                             }) {
                                 VStack(spacing: 12) {
                                     ZStack {
@@ -288,10 +317,67 @@ struct BattleView: View {
             engine.tick(at: input)
             // Note: Victory/retreat handling moved to TimelineEventCoordinator
         }
+        .confirmationDialog(
+            "Exit session?",
+            isPresented: $showExitOptions,
+            titleVisibility: .visible
+        ) {
+            if exitOptions.contains(.undoStart) {
+                Button("Undo Start") {
+                    exitController.handle(.undoStart)
+                }
+            }
+            Button("End & Record") {
+                exitController.handle(.endAndRecord)
+            }
+            Button("Keep Focusing", role: .cancel) {
+                exitController.handle(.keepFocusing)
+            }
+        } message: {
+            Text("Undo Start is only available within 60 seconds. Otherwise, exit will be recorded as incomplete.")
+        }
     }
     
     var progress: CGFloat {
         guard let boss = engine.currentBoss else { return 0 }
         return CGFloat(boss.currentHp / boss.maxHp)
+    }
+
+    private var currentTaskMode: TaskMode {
+        guard let node = daySession.currentNode else { return .focusStrictFixed }
+        return node.effectiveTaskMode { id in
+            cardStore.get(id: id)
+        }
+    }
+
+    private var exitOptions: [BattleExitOption] {
+        BattleExitPolicy.options(elapsedSeconds: engine.currentSessionElapsed())
+    }
+
+    private var exitController: BattleExitController {
+        BattleExitController(engine: engine, stateSaver: stateManager)
+    }
+
+    private var canFreeze: Bool {
+        guard engine.state == .fighting, let boss = engine.currentBoss, boss.style == .focus else { return false }
+        return engine.freezeTokensRemaining > 0
+    }
+
+    private func handleRetreatTap() {
+        switch currentTaskMode {
+        case .focusGroupFlexible, .focusStrictFixed:
+            showExitOptions = true
+        case .reminderOnly:
+            engine.retreat()
+        }
+    }
+
+    private func handleFreezeTap() {
+        if engine.freeze() {
+            stateManager.requestSave()
+            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        } else {
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        }
     }
 }

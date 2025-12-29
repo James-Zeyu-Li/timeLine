@@ -23,23 +23,25 @@ A roguelike-inspired iOS focus app built with SwiftUI.
 
 ### Core Functionality
 - **Timeline engine**: `DaySession` manages nodes, progression, and lock states; `BattleEngine` handles focus timing and outcomes.
-- **Template semantics**: `CardTemplate` + `DeckTemplate` are reusable; timeline placement creates occurrences (templates never consumed). `CardTemplate` carries repeatRule/fixedTime. Inbox stores CardTemplate IDs in `AppState.inbox` with templates persisted in `AppState.cardTemplates`.
+- **Template semantics**: `CardTemplate` + `DeckTemplate` are reusable; timeline placement creates occurrences (templates never consumed). `CardTemplate` carries taskMode/repeatRule/fixedTime. Inbox stores CardTemplate IDs in `AppState.inbox` with templates persisted in `AppState.cardTemplates`.
 - **Write path**: placement uses `TimelineStore.placeCardOccurrence / placeDeckBatch` (Inbox/QuickEntry create CardTemplate then place).
 - **App mode**: `AppModeManager` enforces overlay/drag/edit exclusivity.
 - **Drag system**: `DragDropCoordinator` handles global coords + hover targeting.
 - **Persistence + events**: `AppStateManager` saves; `TimelineEventCoordinator` advances on battle end.
+- **Exit rules**: Retreat offers Undo Start ≤60s (no record). Otherwise End & Record → incompleteExit.
+- **Freeze tokens**: 3/day; Freeze suspends battle and returns to map, resume continues same task; logs duration.
 - **Routine decks**: `RoutineTemplate` converts into Decks; no direct DaySession append in UI.
 
 ### UI Surfaces
-- **RootView**: layered map/timeline, DeckOverlay, drag layer, edit sheets, floating Add/Settings + message.
-- **TimelineView**: card timeline with edit mode reorder/delete and finished section.
+- **RootView**: map layer, DeckOverlay, drag layer, edit sheets, floating Add/Settings + message.
+- **RogueMapView**: map route with node snapping, header, and banners.
 - **DeckOverlay** + **CardFanView**: Cards/Decks tabs with fan layout.
 - **QuickBuilderSheet**: fast template creator (no direct timeline writes).
 - **DeckDetailEditSheet / CardDetailEditSheet**: long-press edit for Decks and CardTemplates.
 - **RoutinePickerView**: Routine Decks list + preview sheet.
 - **Drag ghost + Undo**: deck hover preview + 2s undo toast.
 - **Empty drop zone**: drag-to-drop creates first node.
-- **SettingsView**: time format toggle + map prototype.
+- **SettingsView**: time format toggle.
 
 ### Interaction Flow
 - **+ Add → DeckOverlay** is the primary creation surface.
@@ -47,12 +49,12 @@ A roguelike-inspired iOS focus app built with SwiftUI.
 - **Deck hover** shows “Insert N / Est. X”; drop inserts batch + Undo.
 - **Long press** opens template/deck edit sheets.
 - **QuickBuilder create** returns to Cards tab with drag hint.
-- **Empty timeline** accepts drop to create the first node.
+- **Empty map** accepts drop to create the first node.
 
 ### Key Types (Core)
 - `DaySession`, `TimelineNode`, `Boss`, `BattleEngine`, `AppState`
 - `RepeatRule`, `TaskCategory`, `BossStyle`
-- `CardTemplate`, `EnergyColorToken`, `RoutineTemplate`
+- `CardTemplate`, `TaskMode`, `EnergyColorToken`, `RoutineTemplate`
 
 ### Key Types (App Layer)
 - `AppModeManager`, `DragDropCoordinator`, `TimelineStore`
@@ -62,7 +64,7 @@ A roguelike-inspired iOS focus app built with SwiftUI.
 
 ### Core Logic (`TimeLineCore`)
 - **BattleEngine**: timer, wasted time, immunity, reconciliation, idempotent finalization
-- **SessionResult Publisher**: victory/retreat events (atomic, data-rich)
+- **SessionResult Publisher**: victory/retreat/incompleteExit events (atomic, data-rich, includes remainingSecondsAtExit)
 - **DaySession**: append/move/delete, lock-state recalculation, reset to first upcoming
 - **RouteGenerator**: bonfire auto-insertion every N battles
 - **DefaultCardTemplates**: stable UUID defaults for card templates
@@ -73,7 +75,7 @@ A roguelike-inspired iOS focus app built with SwiftUI.
 - **Energy Tokens**: `EnergyColorToken` stored as token only (no UI color)
 
 ### UI
-- **TimelineView**: pinned header, event banners, pulse effects
+- **RogueMapView**: pinned header, event banners, pulse effects, node snapping
 - **DeckOverlay**: Cards / Decks tabs with fan display
 - **CardFanView**: tap preview, long-press edit, drag to map node
 - **QuickBuilderSheet**: Add Card button opens quick template creator (no direct timeline writes)
@@ -81,21 +83,18 @@ A roguelike-inspired iOS focus app built with SwiftUI.
 - **Routine Decks**: Decks tab top strip + See All picker
 - **Drag Layer**: floating card/deck follows global drag location
 - **Deck Ghost + Undo**: hover shows insert summary; drop creates batch + undo toast
-- **Empty Timeline Drop**: drag-to-drop auto-creates first node
+- **Empty Map Drop**: drag-to-drop auto-creates first node
 - **Floating Controls**: Add + Settings buttons + floating message
 - **Inbox Section**: tomorrow tasks stored outside today
 - **Labels**: FIRST / NEXT / STARTED status tags
 - **Recommended Time**: RECOMMENDED label from `Boss.recommendedStart`
-- **Edit Mode**: drag handle reorder, delete button, swipe actions
 - **Settings**: 24h/12h time toggle
-- **RogueMapView (Prototype)**: map-style route with node snapping + bottom anchor
 - **PixelTheme**: unified palette, grid scale, borders, shadows
 - **Terrain Tiles**: forest/plains/cave/campfire tiles behind nodes
-- **Map Prototype Toggle**: Settings switch to swap Timeline vs Map
 
 ### Event System
 - **TimelineEventCoordinator**: unified advancement + bonfire suggestion
-- **Banner Types**: distraction, rest complete, bonfire suggested
+- **Banner Types**: distraction, incomplete exit, rest complete, bonfire suggested
 
 ### App State & Stores
 - **AppModeManager**: single overlay state machine + transition guards
@@ -111,7 +110,7 @@ A roguelike-inspired iOS focus app built with SwiftUI.
 |---|---|
 | 12.1-4 UX & Onboarding | ✅ Complete |
 | 13.1-3 Event System & Validation | ✅ Complete |
-| 14.1 Finished Section Refinements | ✅ Complete |
+| 14.1 Map Route Visuals | ✅ Complete |
 | 14.2 Hero Task Visuals | ✅ Complete |
 | 14.3 Drag/Switch Interactions | ✅ Complete |
 | 14.4 Timeline Code Refactoring | ✅ Complete |

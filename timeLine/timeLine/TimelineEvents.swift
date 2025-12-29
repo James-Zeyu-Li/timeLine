@@ -7,6 +7,7 @@ import Foundation
 public enum TimelineUIEvent: Equatable {
     case victory(taskName: String, focusedMinutes: Int)
     case retreat(taskName: String, wastedMinutes: Int)
+    case incompleteExit(taskName: String, focusedSeconds: TimeInterval, remainingSeconds: TimeInterval?)
     case bonfireComplete
     case bonfireSuggested(reason: String, bonfireId: UUID?)
 }

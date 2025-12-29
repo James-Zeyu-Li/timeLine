@@ -46,23 +46,21 @@ Primary creation surface.
 | **Close** | background tap / swipe | `exitToHome()` |
 
 ### `RogueMapView.swift`
-Map prototype + drop target feedback.
+Map route UI + drop target feedback.
 
 | Feature | Code Component | Logic Description |
 |---|---|---|
 | **Node Frames** | `NodeFrameKey` | global frames for drop hit-testing |
 | **Drop Rings** | MapNodeRow overlay | highlight nodes during drag |
-| **Insert Hint** | MapNodeRow overlay | "Drop to insert after" label on hover |
+| **Insert Hint** | MapNodeRow overlay | Hover shows insert before/after |
 
 ### Gesture System (Current)
 
 | Gesture | Action | Notes |
 |---|---|---|
-| **Tap** | Start task | Disabled while Edit Mode is on |
-| **Drag (Handle)** | Reorder | Only in Edit Mode; hand icon in row |
-| **Swipe Left** | Edit/Delete | Non-edit mode shortcut |
-| **Context Menu** | Edit/Duplicate/Delete | Long press menu without blocking tap |
-| **Drag Card/Deck** | Place on node | Empty timeline creates first node |
+| **Tap** | Start task | Starts battle or rest |
+| **Drag Card/Deck** | Place on node | Empty map creates first node |
+| **Scroll Drag** | Map snap | Drag ends → snaps to nearest node |
 
 ---
 
@@ -91,7 +89,7 @@ Banners auto-dismiss after ~1.8s. Next actionable node pulses with cyan glow.
 ### Deck Drag → Timeline Placement
 1. Drag card/deck enters `.dragging(DragPayload)`.
 2. `DragDropCoordinator` tracks global drag location.
-3. On drop, `TimelineStore.placeCardOccurrence/ placeDeckBatch` inserts after anchor.
+3. On drop, `TimelineStore.placeCardOccurrence/ placeDeckBatch` inserts before/after anchor based on hover.
 4. App returns to `.deckOverlay` for chain-add.
 5. Deck drop shows ghost summary on hover + undo toast after placement.
 
@@ -113,4 +111,4 @@ Banners auto-dismiss after ~1.8s. Next actionable node pulses with cyan glow.
 ### Bonfire Suggestion Flow
 1. Coordinator tracks battles and focused time since last rest.
 2. When threshold reached, emits `bonfireSuggested`.
-3. Timeline shows banner and highlights next bonfire node.
+3. Map shows banner and highlights next bonfire node.

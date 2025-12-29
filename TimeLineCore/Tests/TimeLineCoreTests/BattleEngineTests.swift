@@ -1,4 +1,5 @@
 import XCTest
+import Combine
 @testable import TimeLineCore
 
 final class BattleEngineTests: XCTestCase {
@@ -84,6 +85,30 @@ final class BattleEngineTests: XCTestCase {
         XCTAssertEqual(engine.state, .retreat)
     }
     
+    func testRetreatEmitsIncompleteExit() {
+        let boss = Boss(name: "Boss", maxHp: 60)
+        let startTime = Date()
+        let expectation = XCTestExpectation(description: "Incomplete exit emits session result")
+        var received: SessionResult?
+        var cancellables = Set<AnyCancellable>()
+        
+        engine.onSessionComplete
+            .sink { result in
+                received = result
+                expectation.fulfill()
+            }
+            .store(in: &cancellables)
+        
+        engine.startBattle(boss: boss, at: startTime)
+        let retreatTime = startTime.addingTimeInterval(10)
+        engine.tick(at: retreatTime)
+        engine.retreat(at: retreatTime)
+        
+        wait(for: [expectation], timeout: 1.0)
+        XCTAssertEqual(received?.endReason, .incompleteExit)
+        XCTAssertNotNil(received?.remainingSecondsAtExit)
+    }
+    
     func testForceCompleteTask() {
         let boss = Boss(name: "Debug Boss", maxHp: 3600)
         engine.startBattle(boss: boss)
@@ -94,5 +119,125 @@ final class BattleEngineTests: XCTestCase {
         XCTAssertNil(engine.currentBoss)
         // Should have credited full duration (3600)
         XCTAssertEqual(engine.totalFocusedToday, 3600)
+    }
+
+    func testFreezeRecordsDurationAndConsumesToken() {
+        let boss = Boss(name: "Freeze Boss", maxHp: 600)
+        let startTime = Date()
+        engine.startBattle(boss: boss, at: startTime)
+        
+        let freezeTime = startTime.addingTimeInterval(120)
+        engine.tick(at: freezeTime)
+        
+        XCTAssertTrue(engine.freeze(at: freezeTime))
+        XCTAssertEqual(engine.state, .frozen)
+        XCTAssertEqual(engine.freezeTokensUsed, 1)
+        XCTAssertEqual(engine.freezeTokensRemaining, 2)
+        
+        let resumeTime = freezeTime.addingTimeInterval(90)
+        engine.resumeFromFreeze(at: resumeTime)
+        
+        XCTAssertEqual(engine.state, .fighting)
+        XCTAssertEqual(engine.freezeHistory.count, 1)
+        let record = engine.freezeHistory[0]
+        XCTAssertEqual(record.bossName, "Freeze Boss")
+        XCTAssertEqual(record.duration, 90, accuracy: 0.1)
+    }
+    
+    // MARK: - Grace Exit Tests
+    
+    func testAbortSessionWithinGracePeriod() {
+        let boss = Boss(name: "Grace Task", maxHp: 600)
+        let startTime = Date()
+        engine.startBattle(boss: boss, at: startTime)
+        
+        // Within grace period (≤60s)
+        let abortTime = startTime.addingTimeInterval(30)
+        engine.tick(at: abortTime)
+        
+        let elapsed = engine.currentSessionElapsed(at: abortTime)
+        XCTAssertNotNil(elapsed)
+        XCTAssertEqual(elapsed!, 30, accuracy: 0.1)
+        XCTAssertEqual(engine.state, .fighting)
+        
+        // Abort session
+        engine.abortSession()
+        
+        // Should return to idle without recording
+        XCTAssertEqual(engine.state, .idle)
+        XCTAssertNil(engine.currentBoss)
+        XCTAssertEqual(engine.totalFocusedToday, 0) // No credit
+    }
+    
+    func testAbortSessionAfterGracePeriodStillWorks() {
+        let boss = Boss(name: "Late Abort Task", maxHp: 600)
+        let startTime = Date()
+        engine.startBattle(boss: boss, at: startTime)
+        
+        // After grace period (>60s)
+        let abortTime = startTime.addingTimeInterval(120)
+        engine.tick(at: abortTime)
+        
+        let elapsed = engine.currentSessionElapsed(at: abortTime)
+        XCTAssertNotNil(elapsed)
+        XCTAssertEqual(elapsed!, 120, accuracy: 0.1)
+        
+        // Abort still works (no recording)
+        engine.abortSession()
+        
+        XCTAssertEqual(engine.state, .idle)
+        XCTAssertNil(engine.currentBoss)
+        XCTAssertEqual(engine.totalFocusedToday, 0)
+    }
+    
+    func testCurrentSessionElapsedWithinGrace() {
+        let boss = Boss(name: "Elapsed Task", maxHp: 600)
+        let startTime = Date()
+        engine.startBattle(boss: boss, at: startTime)
+        
+        let checkTime30s = startTime.addingTimeInterval(30)
+        engine.tick(at: checkTime30s)
+        let elapsed30 = engine.currentSessionElapsed(at: checkTime30s)
+        XCTAssertNotNil(elapsed30)
+        XCTAssertEqual(elapsed30!, 30, accuracy: 0.1)
+        
+        let checkTime60s = startTime.addingTimeInterval(60)
+        engine.tick(at: checkTime60s)
+        let elapsed60 = engine.currentSessionElapsed(at: checkTime60s)
+        XCTAssertNotNil(elapsed60)
+        XCTAssertEqual(elapsed60!, 60, accuracy: 0.1)
+        
+        let checkTime61s = startTime.addingTimeInterval(61)
+        engine.tick(at: checkTime61s)
+        let elapsed61 = engine.currentSessionElapsed(at: checkTime61s)
+        XCTAssertNotNil(elapsed61)
+        XCTAssertEqual(elapsed61!, 61, accuracy: 0.1)
+    }
+
+    
+    func testAbortSessionResetsAllState() {
+        let boss = Boss(name: "Reset Task", maxHp: 600)
+        let startTime = Date()
+        engine.startBattle(boss: boss, at: startTime)
+        
+        // Accumulate wasted time (without immunity)
+        engine.handleBackgrounding(at: startTime.addingTimeInterval(10))
+        engine.handleForegrounding(at: startTime.addingTimeInterval(20))
+        
+        XCTAssertTrue(engine.wastedTime > 0)
+        
+        // Grant immunity to test it gets reset
+        engine.grantImmunity()
+        XCTAssertTrue(engine.isImmune)
+        XCTAssertEqual(engine.immunityCount, 0)
+        
+        // Abort should reset everything
+        engine.abortSession()
+        
+        XCTAssertEqual(engine.state, .idle)
+        XCTAssertNil(engine.currentBoss)
+        XCTAssertEqual(engine.wastedTime, 0)
+        XCTAssertFalse(engine.isImmune)
+        XCTAssertEqual(engine.immunityCount, 1)
     }
 }

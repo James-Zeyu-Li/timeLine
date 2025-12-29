@@ -10,7 +10,7 @@ final class TimelineEventCoordinator: ObservableObject {
     // MARK: - Dependencies
     private let engine: BattleEngine
     private let daySession: DaySession
-    private let stateManager: AppStateManager
+    private let stateManager: StateSaver
     
     // MARK: - UI Events Publisher
     private let uiEventSubject = PassthroughSubject<TimelineUIEvent, Never>()
@@ -24,7 +24,7 @@ final class TimelineEventCoordinator: ObservableObject {
     private var hasSuggestedBonfireSinceRest = false
     
     // MARK: - Init
-    init(engine: BattleEngine, daySession: DaySession, stateManager: AppStateManager) {
+    init(engine: BattleEngine, daySession: DaySession, stateManager: StateSaver) {
         self.engine = engine
         self.daySession = daySession
         self.stateManager = stateManager
@@ -57,27 +57,37 @@ final class TimelineEventCoordinator: ObservableObject {
         guard advanceSuccess else { return }
         
         // Emit UI event based on result
-        switch result {
-        case .victory(let bossName, let focusedSeconds, _):
+        switch result.endReason {
+        case .victory:
             battlesSinceRest += 1
-            focusedSecondsSinceRest += focusedSeconds
+            focusedSecondsSinceRest += result.focusedSeconds
             uiEventSubject.send(.victory(
-                taskName: bossName,
-                focusedMinutes: Int(focusedSeconds / 60)
+                taskName: result.bossName,
+                focusedMinutes: Int(result.focusedSeconds / 60)
             ))
-            print("[Coordinator] ✅ Victory: \(bossName)")
+            print("[Coordinator] ✅ Victory: \(result.bossName)")
             
-        case .retreat(let bossName, let focusedSeconds, let wastedSeconds):
+        case .retreat:
             battlesSinceRest += 1
-            focusedSecondsSinceRest += focusedSeconds
+            focusedSecondsSinceRest += result.focusedSeconds
             // Only emit retreat banner if significant wasted time (>= 3 min)
-            if wastedSeconds >= 180 {
+            if result.wastedSeconds >= 180 {
                 uiEventSubject.send(.retreat(
-                    taskName: bossName,
-                    wastedMinutes: Int(wastedSeconds / 60)
+                    taskName: result.bossName,
+                    wastedMinutes: Int(result.wastedSeconds / 60)
                 ))
             }
-            print("[Coordinator] 🏳️ Retreat: \(bossName), wasted \(Int(wastedSeconds))s")
+            print("[Coordinator] 🏳️ Retreat: \(result.bossName), wasted \(Int(result.wastedSeconds))s")
+            
+        case .incompleteExit:
+            battlesSinceRest += 1
+            focusedSecondsSinceRest += result.focusedSeconds
+            uiEventSubject.send(.incompleteExit(
+                taskName: result.bossName,
+                focusedSeconds: result.focusedSeconds,
+                remainingSeconds: result.remainingSecondsAtExit
+            ))
+            print("[Coordinator] ⏹️ Incomplete Exit: \(result.bossName)")
         }
         
         maybeSuggestBonfire()

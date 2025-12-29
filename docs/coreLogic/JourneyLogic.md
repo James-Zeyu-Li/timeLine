@@ -35,8 +35,9 @@ Represents a focused task.
 
 ### C. `CardTemplate`
 Reusable task definition for creation and repeat spawning.
-- **Fields**: `title`, `defaultDuration`, `fixedTime`, `repeatRule`, `category`, `style`, `icon`, `tags`, `energyColor`
+- **Fields**: `title`, `defaultDuration`, `taskMode`, `fixedTime`, `repeatRule`, `category`, `style`, `icon`, `tags`, `energyColor`
 - **Repeat Rules**: daily/weekly/monthly for auto-spawn.
+- **Scheduling vs Mode**: `fixedTime/repeatRule` are scheduling semantics; `taskMode` is execution semantics (orthogonal, not a replacement).
 - **Usage**: TaskSheet edits and QuickEntry both produce `CardTemplate` directly.
 
 ### D. `DaySession`
@@ -47,6 +48,8 @@ Route manager and progression.
   - `moveNode()` reorders and recalculates lock states
   - `resetCurrentToFirstUpcoming()` for idle state
   - Timeline placement is handled in the app layer (`TimelineStore.place*`)
+
+`TimelineNode` stores an optional `taskModeOverride`; effective task mode resolves override first, then template.
 
 ### E. Card & Deck Models
 Card system lives in `TimeLineCore` for persistence.
