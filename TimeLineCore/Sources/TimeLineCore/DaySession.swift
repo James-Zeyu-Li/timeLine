@@ -138,6 +138,8 @@ public class DaySession: ObservableObject, Codable {
             boss.currentHp = boss.maxHp // Reset HP on edit
             boss.style = payload.style
             boss.category = payload.category
+            boss.remindAt = payload.remindAt
+            boss.leadTimeMinutes = payload.leadTimeMinutes
             
             node.type = .battle(boss)
             nodes[index] = node
@@ -200,7 +202,9 @@ public class DaySession: ObservableObject, Codable {
                 category: boss.category,
                 templateId: boss.templateId,
                 recommendedStart: boss.recommendedStart,
-                focusGroupPayload: boss.focusGroupPayload
+                focusGroupPayload: boss.focusGroupPayload,
+                remindAt: boss.remindAt,
+                leadTimeMinutes: boss.leadTimeMinutes
             )
             newType = .battle(newBoss)
         }

@@ -1,6 +1,6 @@
 # TimeLine App — UI & Coordination Logic
 
-> **Last Updated**: 2025-12-24  
+> **Last Updated**: 2025-12-30  
 > Location: `timeLine/timeLine/` (Main App Target)
 
 ---
@@ -20,6 +20,35 @@
 
 ---
 
+## 功能位置索引（中文）
+
+### 卡片 / Library / Deck
+- **CardTemplate 模型**：`TimeLineCore/Sources/TimeLineCore/CardTemplate.swift`
+- **CardTemplateStore / LibraryStore**：`timeLine/timeLine/State/CardTemplateStore.swift`
+- **LibraryEntry**：`TimeLineCore/Sources/TimeLineCore/LibraryEntry.swift`
+- **Cards UI**：`timeLine/timeLine/Views/Deck/CardFanView.swift`
+- **Library UI**：`timeLine/timeLine/Views/Deck/DeckOverlay.swift`（`LibraryTabView`）
+- **Library 选卡弹窗**：`timeLine/timeLine/Views/Deck/CardLibraryPickerSheet.swift`
+- **Library 选择列表**：`timeLine/timeLine/Views/Deck/CardLibrarySelectionView.swift`
+- **DeckTemplate / DeckStore**：`timeLine/timeLine/State/DeckStore.swift`
+- **Decks UI**：`timeLine/timeLine/Views/Deck/DeckOverlay.swift`
+
+### 拖拽与放置
+- **拖拽 payload / hover**：`timeLine/timeLine/State/DragPayload.swift` / `timeLine/timeLine/State/DragDropCoordinator.swift`
+- **拖拽落点与 placement**：`timeLine/timeLine/Views/RootView.swift`
+- **放置写入**：`timeLine/timeLine/State/TimelineStore.swift`
+- **路线结构**：`TimeLineCore/Sources/TimeLineCore/DaySession.swift`
+
+### Focus Group / Rest Prompt
+- **FocusGroup payload**：`TimeLineCore/Sources/TimeLineCore/FocusGroupPayload.swift`
+- **FocusGroup 分账**：`TimeLineCore/Sources/TimeLineCore/FocusGroupSessionCoordinator.swift`
+- **Group Focus UI**：`timeLine/timeLine/Views/FocusGroup/GroupFocusView.swift`
+- **完成/报告协调**：`timeLine/timeLine/TimelineEventCoordinator.swift`
+- **RestPrompt 逻辑**：`TimeLineCore/Sources/TimeLineCore/RestPromptService.swift`
+- **RestPrompt UI**：`timeLine/timeLine/Views/Shared/RestSuggestionBanner.swift`
+
+---
+
 ## View Logic Map
 
 ### `RootView.swift`
@@ -27,7 +56,7 @@ Layer orchestration and drag routing.
 
 | Feature | Code Component | Logic Description |
 |---|---|---|
-| **Layer Order** | `RootView` | Map → DeckOverlay → DraggingCard/Deck → Modal edit sheet |
+| **Layer Order** | `RootView` | Map → DeckOverlay → DraggingCard/Deck/Group → Modal edit sheet |
 | **Drag Routing** | `DragGesture` | Global coords; uses `nodeFrames` from preference |
 | **Drop Handling** | `handleDrop()` | calls `TimelineStore.place*` then `exitDrag()` |
 | **Empty Drop** | `handleEmptyDropFallback()` | empty timeline → create first node |
@@ -39,11 +68,13 @@ Primary creation surface.
 
 | Feature | Code Component | Logic Description |
 |---|---|---|
-| **Tabs** | `DeckTab` | Cards / Decks (Create tab removed; Add Card opens QuickBuilder) |
-| **Fan** | `CardFanView` | tap preview, long press → edit, drag → start |
-| **QuickBuilder** | `QuickBuilderSheet` | Add Card opens template creator; returns to Cards with drag hint |
+| **Tabs** | `DeckTab` | Cards / Library / Decks (Create tab removed; Add Card opens QuickBuilder) |
+| **Fan** | `CardFanView` | tap to add to Library, long press → edit |
+| **Library** | `LibraryTabView` | long-press drag to map; select → Add to Group or drag group token |
+| **QuickBuilder** | `QuickBuilderSheet` | Add Card opens template creator; returns to Cards with add-to-Library hint |
 | **Routine Decks** | Decks tab | small row of routine decks + See All |
 | **Close** | background tap / swipe | `exitToHome()` |
+| **Sheet** | `DeckOverlay` | bottom sheet (map remains visible) |
 
 ### `RogueMapView.swift`
 Map route UI + drop target feedback.
@@ -53,13 +84,15 @@ Map route UI + drop target feedback.
 | **Node Frames** | `NodeFrameKey` | global frames for drop hit-testing |
 | **Drop Rings** | MapNodeRow overlay | highlight nodes during drag |
 | **Insert Hint** | MapNodeRow overlay | Hover shows insert before/after |
+| **Drop Rules** | MapNodeRow overlay | only upcoming (non-completed) nodes are droppable |
 
 ### Gesture System (Current)
 
 | Gesture | Action | Notes |
 |---|---|---|
 | **Tap** | Start task | Starts battle or rest |
-| **Drag Card/Deck** | Place on node | Empty map creates first node |
+| **Drag Library/Deck** | Place on node | Empty map creates first node |
+| **Drag Group Token** | Place group occurrence | Select ≥2 in Library |
 | **Scroll Drag** | Map snap | Drag ends → snaps to nearest node |
 
 ---
@@ -87,9 +120,9 @@ Banners auto-dismiss after ~1.8s. Next actionable node pulses with cyan glow.
 ## Coordination Flows
 
 ### Deck Drag → Timeline Placement
-1. Drag card/deck enters `.dragging(DragPayload)`.
+1. Drag Library/Deck/Group enters `.dragging(DragPayload)`.
 2. `DragDropCoordinator` tracks global drag location.
-3. On drop, `TimelineStore.placeCardOccurrence/ placeDeckBatch` inserts before/after anchor based on hover.
+3. On drop, `TimelineStore.placeCardOccurrence/ placeDeckBatch/ placeFocusGroupOccurrence` inserts before/after anchor based on hover.
 4. App returns to `.deckOverlay` for chain-add.
 5. Deck drop shows ghost summary on hover + undo toast after placement.
 

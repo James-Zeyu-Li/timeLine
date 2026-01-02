@@ -7,6 +7,7 @@ import TimeLineCore
 enum DropAction: Equatable {
     case placeCard(cardTemplateId: UUID, anchorNodeId: UUID, placement: DropPlacement)
     case placeDeck(deckId: UUID, anchorNodeId: UUID, placement: DropPlacement)
+    case placeFocusGroup(memberTemplateIds: [UUID], anchorNodeId: UUID, placement: DropPlacement)
     case cancel
 }
 
@@ -44,8 +45,6 @@ final class DragDropCoordinator: ObservableObject {
     
     // MARK: - Drag Lifecycle
     
-    // MARK: - Drag Lifecycle
-    
     func startDrag(payload: DragPayload) {
         activePayload = payload
         activeDeckSummary = nil
@@ -61,11 +60,12 @@ final class DragDropCoordinator: ObservableObject {
     }
     
     
-    func updatePosition(_ location: CGPoint, nodeFrames: [UUID: CGRect]) {
+    func updatePosition(_ location: CGPoint, nodeFrames: [UUID: CGRect], allowedNodeIds: Set<UUID>) {
         dragLocation = location
         
         // Find the nearest node center among frames that contain the drag location.
         let candidates = nodeFrames.compactMap { (id, frame) -> (UUID, CGRect, CGPoint)? in
+            guard allowedNodeIds.contains(id) else { return nil }
             guard frame.contains(location) else { return nil }
             let center = CGPoint(x: frame.midX, y: frame.midY)
             return (id, frame, center)
@@ -107,6 +107,8 @@ final class DragDropCoordinator: ObservableObject {
             return .placeCard(cardTemplateId: cardTemplateId, anchorNodeId: nodeId, placement: hoveringPlacement)
         case .deck(let deckId):
             return .placeDeck(deckId: deckId, anchorNodeId: nodeId, placement: hoveringPlacement)
+        case .focusGroup(let memberTemplateIds):
+            return .placeFocusGroup(memberTemplateIds: memberTemplateIds, anchorNodeId: nodeId, placement: hoveringPlacement)
         }
     }
     

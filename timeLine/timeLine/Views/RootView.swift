@@ -48,7 +48,11 @@ struct RootView: View {
             DragGesture(minimumDistance: 0, coordinateSpace: .global)
                 .onChanged { value in
                     if appMode.isDragging {
-                        dragCoordinator.updatePosition(value.location, nodeFrames: nodeFrames)
+                        dragCoordinator.updatePosition(
+                            value.location,
+                            nodeFrames: nodeFrames,
+                            allowedNodeIds: droppableNodeIds
+                        )
                     }
                 }
                 .onEnded { _ in
@@ -169,6 +173,8 @@ struct RootView: View {
                 DraggingCardView(cardId: id)
             case .deck(let deckId):
                 DraggingDeckView(deckId: deckId)
+            case .focusGroup(let memberTemplateIds):
+                DraggingGroupView(memberTemplateIds: memberTemplateIds)
             }
         default:
             EmptyView()
@@ -232,6 +238,14 @@ struct RootView: View {
         } == .focusGroupFlexible
     }
     
+    private var droppableNodeIds: Set<UUID> {
+        let upcoming = daySession.nodes.filter { !$0.isCompleted }
+        if upcoming.isEmpty {
+            return Set(daySession.nodes.map(\.id))
+        }
+        return Set(upcoming.map(\.id))
+    }
+    
     // MARK: - Drop Handling
     
     private func handleDrop() {
@@ -277,6 +291,21 @@ struct RootView: View {
                 success = false
             }
             
+        case .placeFocusGroup(let memberTemplateIds, let anchorNodeId, let placement):
+            let timelineStore = TimelineStore(daySession: daySession, stateManager: stateManager)
+            if timelineStore.placeFocusGroupOccurrence(
+                memberTemplateIds: memberTemplateIds,
+                anchorNodeId: anchorNodeId,
+                placement: placement,
+                using: cardStore
+            ) != nil {
+                UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
+                success = true
+            } else {
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                success = false
+            }
+
         case .cancel:
             success = handleEmptyDropFallback()
         }
@@ -321,6 +350,15 @@ struct RootView: View {
                 UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
                 return true
             }
+        case .focusGroup(let memberTemplateIds):
+            if timelineStore.placeFocusGroupOccurrenceAtStart(
+                memberTemplateIds: memberTemplateIds,
+                using: cardStore,
+                engine: engine
+            ) != nil {
+                UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
+                return true
+            }
         }
         
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
@@ -354,6 +392,9 @@ struct RootView: View {
     }
     
     private var emptyDropTitle: String {
+        if case .focusGroup = dragCoordinator.activePayload?.type {
+            return "Drop to place focus group"
+        }
         if appMode.draggingDeckId != nil {
             return "Drop to insert deck"
         }
@@ -361,6 +402,13 @@ struct RootView: View {
     }
     
     private var emptyDropSubtitle: String? {
+        if case .focusGroup(let memberTemplateIds) = dragCoordinator.activePayload?.type {
+            let totalSeconds = memberTemplateIds.compactMap { id in
+                cardStore.get(id: id)?.defaultDuration
+            }.reduce(0, +)
+            let minutes = Int(totalSeconds / 60)
+            return "Insert \(memberTemplateIds.count) cards · \(minutes) min"
+        }
         guard let summary = dragCoordinator.activeDeckSummary else { return nil }
         let minutes = Int(summary.duration / 60)
         return "Insert \(summary.count) cards · \(minutes) min"

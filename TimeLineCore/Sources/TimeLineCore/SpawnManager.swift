@@ -18,7 +18,9 @@ public struct SpawnManager {
             style: style,
             category: template.category,
             templateId: template.id,
-            recommendedStart: template.fixedTime
+            recommendedStart: template.fixedTime,
+            remindAt: template.remindAt,
+            leadTimeMinutes: template.leadTimeMinutes
         )
     }
     

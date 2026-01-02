@@ -24,6 +24,8 @@ public struct CardTemplate: Identifiable, Codable, Equatable {
     public var taskMode: TaskMode
     public var fixedTime: DateComponents?
     public var repeatRule: RepeatRule
+    public var remindAt: Date?
+    public var leadTimeMinutes: Int
 
     private enum CodingKeys: String, CodingKey {
         case id
@@ -37,6 +39,8 @@ public struct CardTemplate: Identifiable, Codable, Equatable {
         case taskMode
         case fixedTime
         case repeatRule
+        case remindAt
+        case leadTimeMinutes
     }
     
     public init(
@@ -50,7 +54,9 @@ public struct CardTemplate: Identifiable, Codable, Equatable {
         style: BossStyle = .focus,
         taskMode: TaskMode = .focusStrictFixed,
         fixedTime: DateComponents? = nil,
-        repeatRule: RepeatRule = .none
+        repeatRule: RepeatRule = .none,
+        remindAt: Date? = nil,
+        leadTimeMinutes: Int = 0
     ) {
         self.id = id
         self.title = title
@@ -63,6 +69,8 @@ public struct CardTemplate: Identifiable, Codable, Equatable {
         self.taskMode = taskMode
         self.fixedTime = fixedTime
         self.repeatRule = repeatRule
+        self.remindAt = remindAt
+        self.leadTimeMinutes = leadTimeMinutes
     }
     
     public init(from decoder: Decoder) throws {
@@ -78,5 +86,7 @@ public struct CardTemplate: Identifiable, Codable, Equatable {
         self.taskMode = try container.decodeIfPresent(TaskMode.self, forKey: .taskMode) ?? .focusStrictFixed
         self.fixedTime = try container.decodeIfPresent(DateComponents.self, forKey: .fixedTime)
         self.repeatRule = try container.decodeIfPresent(RepeatRule.self, forKey: .repeatRule) ?? .none
+        self.remindAt = try container.decodeIfPresent(Date.self, forKey: .remindAt)
+        self.leadTimeMinutes = try container.decodeIfPresent(Int.self, forKey: .leadTimeMinutes) ?? 0
     }
 }

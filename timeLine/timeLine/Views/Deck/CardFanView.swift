@@ -10,12 +10,8 @@ struct CardFanView: View {
     @EnvironmentObject var libraryStore: LibraryStore
     @EnvironmentObject var stateManager: AppStateManager
     @EnvironmentObject var appMode: AppModeManager
-    @EnvironmentObject var dragCoordinator: DragDropCoordinator
     
-    @State private var raisedCardId: UUID?
     @State private var showQuickBuilder = false
-    @State private var showDragHint = false
-    @State private var dragHintTask: DispatchWorkItem?
     @State private var isSelecting = false
     @State private var selectedIds: Set<UUID> = []
     
@@ -26,16 +22,10 @@ struct CardFanView: View {
         VStack(spacing: 12) {
             headerRow
             
-            if !isSelecting, showDragHint {
-                Text("Drag onto a node to place")
+            if !isSelecting {
+                Text("Tap a card to add it to Library")
                     .font(.system(.caption, design: .rounded))
                     .foregroundColor(.white.opacity(0.7))
-                    .transition(.opacity)
-            }
-            
-            if !isSelecting, let preview = previewCard {
-                CardPreviewPanel(template: preview)
-                    .transition(.opacity.combined(with: .move(edge: .top)))
             }
             
             if isSelecting {
@@ -51,29 +41,22 @@ struct CardFanView: View {
                         CardView(template: card)
                             .offset(fanOffset(index: index, total: count))
                             .rotationEffect(fanRotation(index: index, total: count))
-                            .scaleEffect(raisedCardId == card.id ? 1.1 : 1.0)
-                            .zIndex(raisedCardId == card.id ? 100 : Double(index))
-                            .gesture(cardGesture(for: card))
+                            .zIndex(Double(index))
                             .onTapGesture {
                                 guard !appMode.isDragging else { return }
-                                withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
-                                    raisedCardId = raisedCardId == card.id ? nil : card.id
-                                }
+                                addCardToLibrary(card.id)
                             }
                             .onLongPressGesture(minimumDuration: 0.5) {
                                 guard !appMode.isDragging else { return }
                                 appMode.enterCardEdit(cardTemplateId: card.id)
                             }
-                            .animation(.spring(response: 0.3), value: raisedCardId)
                     }
                 }
                 .frame(height: 200)
             }
         }
         .sheet(isPresented: $showQuickBuilder) {
-            QuickBuilderSheet(onCreated: {
-                showDragHintMessage()
-            })
+            QuickBuilderSheet()
         }
     }
     
@@ -161,20 +144,6 @@ struct CardFanView: View {
         .padding(.bottom, 8)
     }
     
-    private func showDragHintMessage() {
-        dragHintTask?.cancel()
-        let task = DispatchWorkItem {
-            withAnimation(.easeInOut(duration: 0.2)) {
-                showDragHint = false
-            }
-        }
-        dragHintTask = task
-        withAnimation(.easeInOut(duration: 0.2)) {
-            showDragHint = true
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2, execute: task)
-    }
-
     private func addSelectedToLibrary() {
         for id in selectedIds {
             libraryStore.add(templateId: id)
@@ -185,6 +154,12 @@ struct CardFanView: View {
             selectedIds.removeAll()
             isSelecting = false
         }
+    }
+
+    private func addCardToLibrary(_ id: UUID) {
+        libraryStore.add(templateId: id)
+        stateManager.requestSave()
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
     }
     
     // MARK: - Fan Layout
@@ -204,30 +179,6 @@ struct CardFanView: View {
     }
     
     // MARK: - Gestures
-    
-    private func cardGesture(for card: CardTemplate) -> some Gesture {
-        DragGesture(minimumDistance: 10, coordinateSpace: .global)
-            .onChanged { value in
-                if appMode.draggingCardId == nil && !appMode.isDragging {
-                    // Start drag
-                    appMode.enter(.dragging(DragPayload(type: .cardTemplate(card.id), source: tab)))
-                    if appMode.draggingCardId == card.id {
-                        dragCoordinator.startDrag(payload: DragPayload(type: .cardTemplate(card.id), source: tab))
-                    } else {
-                        return
-                    }
-                }
-                dragCoordinator.dragLocation = value.location
-            }
-            .onEnded { _ in
-                // Drop handled by parent
-            }
-    }
-    
-    private var previewCard: CardTemplate? {
-        guard let id = raisedCardId else { return nil }
-        return cardStore.get(id: id)
-    }
 }
 
 // MARK: - Card View

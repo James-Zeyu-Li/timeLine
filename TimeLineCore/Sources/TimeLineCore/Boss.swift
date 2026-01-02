@@ -10,6 +10,8 @@ public struct Boss: Identifiable, Equatable, Codable {
     public var templateId: UUID?
     public var recommendedStart: DateComponents?
     public var focusGroupPayload: FocusGroupPayload?
+    public var remindAt: Date?
+    public var leadTimeMinutes: Int
     
     public init(
         id: UUID = UUID(),
@@ -19,7 +21,9 @@ public struct Boss: Identifiable, Equatable, Codable {
         category: TaskCategory = .work,
         templateId: UUID? = nil,
         recommendedStart: DateComponents? = nil,
-        focusGroupPayload: FocusGroupPayload? = nil
+        focusGroupPayload: FocusGroupPayload? = nil,
+        remindAt: Date? = nil,
+        leadTimeMinutes: Int = 0
     ) {
         self.id = id
         self.name = name
@@ -30,6 +34,8 @@ public struct Boss: Identifiable, Equatable, Codable {
         self.templateId = templateId
         self.recommendedStart = recommendedStart
         self.focusGroupPayload = focusGroupPayload
+        self.remindAt = remindAt
+        self.leadTimeMinutes = leadTimeMinutes
     }
     
     // Custom Decoding for Backward Compatibility
@@ -46,5 +52,7 @@ public struct Boss: Identifiable, Equatable, Codable {
         self.templateId = try container.decodeIfPresent(UUID.self, forKey: .templateId)
         self.recommendedStart = try container.decodeIfPresent(DateComponents.self, forKey: .recommendedStart)
         self.focusGroupPayload = try container.decodeIfPresent(FocusGroupPayload.self, forKey: .focusGroupPayload)
+        self.remindAt = try container.decodeIfPresent(Date.self, forKey: .remindAt)
+        self.leadTimeMinutes = try container.decodeIfPresent(Int.self, forKey: .leadTimeMinutes) ?? 0
     }
 }

@@ -17,21 +17,64 @@ struct DeckOverlay: View {
     }
     
     var body: some View {
+        GeometryReader { proxy in
+            let maxHeight = proxy.size.height
+            let expandedHeight = min(maxHeight * 0.6, 520)
+            let collapsedHeight = min(maxHeight * 0.42, 360)
+            let sheetHeight = isDimmed ? collapsedHeight : expandedHeight
+            
+            ZStack(alignment: .bottom) {
+                Color.black.opacity(isDimmed ? 0.0 : 0.45)
+                    .ignoresSafeArea()
+                    .accessibilityIdentifier("deckOverlayBackground")
+                    .allowsHitTesting(!isDimmed)
+                    .onTapGesture {
+                        if !isDimmed {
+                            appMode.closeDeck()
+                        }
+                    }
+                    .gesture(
+                        DragGesture()
+                            .onEnded { value in
+                                if !isDimmed && value.translation.height > 80 {
+                                    appMode.exitToHome()
+                                }
+                            }
+                    )
+                
+                sheetContent
+                    .frame(maxWidth: .infinity)
+                    .frame(height: sheetHeight)
+                    .background(sheetBackground)
+                    .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+                    .overlay(sheetBorder)
+                    .shadow(color: .black.opacity(0.35), radius: 12, x: 0, y: -4)
+                    .padding(.horizontal, 12)
+                    .padding(.bottom, proxy.safeAreaInsets.bottom + 8)
+            }
+        }
+    }
+
+    private var sheetContent: some View {
         VStack(spacing: 0) {
-            Spacer()
+            Capsule()
+                .fill(Color.white.opacity(0.2))
+                .frame(width: 36, height: 4)
+                .padding(.top, 8)
+                .padding(.bottom, 10)
             
             // Tip prompt
             if !isDimmed {
-                Text("Drag a card or deck onto the timeline")
+                Text(tipText)
                     .font(.system(.caption, design: .rounded))
                     .foregroundColor(.white.opacity(0.6))
-                    .padding(.bottom, 12)
+                    .padding(.bottom, 10)
             }
             
             // Tab bar
             if !isDimmed {
                 tabBar
-                    .padding(.bottom, 8)
+                    .padding(.bottom, 6)
             }
             
             // Content based on tab
@@ -45,27 +88,29 @@ struct DeckOverlay: View {
                     DecksTabView()
                 }
             }
-            .padding(.bottom, 40)
+            .padding(.bottom, 16)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(
-            Color.black.opacity(isDimmed ? 0.3 : 0.7)
-                .ignoresSafeArea()
-                .accessibilityIdentifier("deckOverlayBackground")
-                .onTapGesture {
-                    if !isDimmed {
-                        appMode.closeDeck()
-                    }
-                }
-                .gesture(
-                    DragGesture()
-                        .onEnded { value in
-                            if !isDimmed && value.translation.height > 80 {
-                                appMode.exitToHome()
-                            }
-                        }
-                )
-        )
+    }
+
+    private var sheetBackground: some View {
+        RoundedRectangle(cornerRadius: 24, style: .continuous)
+            .fill(Color.black.opacity(0.85))
+    }
+
+    private var sheetBorder: some View {
+        RoundedRectangle(cornerRadius: 24, style: .continuous)
+            .stroke(Color.white.opacity(0.08), lineWidth: 1)
+    }
+
+    private var tipText: String {
+        switch tab {
+        case .cards:
+            return "Tap a card to add it to Library"
+        case .library:
+            return "Drag a task to the map, or select to group"
+        case .decks:
+            return "Drag a deck onto the map"
+        }
     }
     
     // MARK: - Tab Bar
@@ -376,6 +421,7 @@ private struct LibraryTabView: View {
     @State private var isSelecting = false
     @State private var selectedIds: Set<UUID> = []
     @State private var showCardPicker = false
+    @State private var wasDragging = false
     
     var body: some View {
         let grouped = libraryStore.groupedEntries(using: cardStore)
@@ -403,11 +449,23 @@ private struct LibraryTabView: View {
             }
             
             if isSelecting {
-                addToGroupButton
+                selectionBar
             }
         }
         .sheet(isPresented: $showCardPicker) {
             CardLibraryPickerSheet(title: "Add from Cards")
+        }
+        .onChange(of: appMode.mode) { _, newMode in
+            if case .dragging = newMode {
+                wasDragging = true
+                return
+            }
+            if wasDragging {
+                wasDragging = false
+                if isSelecting {
+                    exitSelection()
+                }
+            }
         }
     }
     
@@ -441,11 +499,12 @@ private struct LibraryTabView: View {
                         )
                 )
                 
-                Button(isSelecting ? "Done" : "Select") {
+                Button(isSelecting ? "Cancel" : "Select") {
                     withAnimation(.spring(response: 0.25, dampingFraction: 0.85)) {
-                        isSelecting.toggle()
-                        if !isSelecting {
-                            selectedIds.removeAll()
+                        if isSelecting {
+                            exitSelection()
+                        } else {
+                            isSelecting = true
                         }
                     }
                 }
@@ -467,34 +526,40 @@ private struct LibraryTabView: View {
         .padding(.horizontal, 24)
     }
     
-    private var addToGroupButton: some View {
+    private var selectionBar: some View {
         VStack(spacing: 6) {
-            Button {
-                addSelectedToGroup()
-            } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: "square.stack.3d.up")
-                        .font(.system(size: 12, weight: .bold))
-                    Text("Add to Group")
-                        .font(.system(.caption, design: .rounded))
-                        .fontWeight(.semibold)
+            HStack(spacing: 12) {
+                Button {
+                    addSelectedToGroup()
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "square.stack.3d.up")
+                            .font(.system(size: 12, weight: .bold))
+                        Text("Add to Group")
+                            .font(.system(.caption, design: .rounded))
+                            .fontWeight(.semibold)
+                    }
+                    .foregroundColor(selectedIds.isEmpty ? .gray : .cyan)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(
+                        Capsule()
+                            .fill(selectedIds.isEmpty ? Color.white.opacity(0.08) : Color.cyan.opacity(0.15))
+                            .overlay(
+                                Capsule()
+                                    .stroke(Color.cyan.opacity(selectedIds.isEmpty ? 0.15 : 0.3), lineWidth: 1)
+                            )
+                    )
                 }
-                .foregroundColor(selectedIds.isEmpty ? .gray : .cyan)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
-                .background(
-                    Capsule()
-                        .fill(selectedIds.isEmpty ? Color.white.opacity(0.08) : Color.cyan.opacity(0.15))
-                        .overlay(
-                            Capsule()
-                                .stroke(Color.cyan.opacity(selectedIds.isEmpty ? 0.15 : 0.3), lineWidth: 1)
-                        )
-                )
+                .buttonStyle(.plain)
+                .disabled(selectedIds.isEmpty)
             }
-            .buttonStyle(.plain)
-            .disabled(selectedIds.isEmpty)
             
-            Text("生成一个组节点（暂不支持组内切换）")
+            if selectedIds.count > 1 {
+                groupDragToken
+            }
+            
+            Text("选中 ≥2 会出现拖拽组，拖到地图插入；快速追加放到末尾")
                 .font(.system(.caption2, design: .rounded))
                 .foregroundColor(.white.opacity(0.5))
         }
@@ -521,7 +586,7 @@ private struct LibraryTabView: View {
                 .foregroundColor(.white.opacity(0.7))
             
             ForEach(rows) { row in
-                LibraryRow(
+                let rowView = LibraryRow(
                     entry: row.entry,
                     template: row.template,
                     isSelecting: isSelecting,
@@ -533,7 +598,11 @@ private struct LibraryTabView: View {
                         appMode.enterCardEdit(cardTemplateId: row.id)
                     }
                 )
-                .gesture(cardDragGesture(for: row.template))
+                if isSelecting {
+                    rowView
+                } else {
+                    rowView.gesture(cardDragGesture(for: row.template))
+                }
             }
         }
     }
@@ -551,6 +620,11 @@ private struct LibraryTabView: View {
         } else {
             selectedIds.insert(id)
         }
+    }
+
+    private func exitSelection() {
+        selectedIds.removeAll()
+        isSelecting = false
     }
 
     private func addSelectedToGroup() {
@@ -589,8 +663,7 @@ private struct LibraryTabView: View {
         
         UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
         withAnimation(.spring(response: 0.25, dampingFraction: 0.85)) {
-            selectedIds.removeAll()
-            isSelecting = false
+            exitSelection()
         }
     }
     
@@ -604,13 +677,61 @@ private struct LibraryTabView: View {
     }
     
     private func cardDragGesture(for template: CardTemplate) -> some Gesture {
-        DragGesture(minimumDistance: 10, coordinateSpace: .global)
+        LongPressGesture(minimumDuration: 0.25)
+            .sequenced(before: DragGesture(minimumDistance: 0, coordinateSpace: .global))
             .onChanged { value in
                 guard !isSelecting else { return }
-                if appMode.draggingCardId == nil && !appMode.isDragging {
-                    appMode.enter(.dragging(DragPayload(type: .cardTemplate(template.id), source: .library)))
-                    if appMode.draggingCardId == template.id {
-                        dragCoordinator.startDrag(payload: DragPayload(type: .cardTemplate(template.id), source: .library))
+                switch value {
+                case .second(true, let drag?):
+                    if !appMode.isDragging {
+                        let payload = DragPayload(type: .cardTemplate(template.id), source: .library)
+                        appMode.enter(.dragging(payload))
+                        if appMode.isDragging {
+                            dragCoordinator.startDrag(payload: payload)
+                        } else {
+                            return
+                        }
+                    }
+                    dragCoordinator.dragLocation = drag.location
+                default:
+                    break
+                }
+            }
+            .onEnded { _ in }
+    }
+
+    private var groupDragToken: some View {
+        let memberIds = orderedSelection()
+        return HStack(spacing: 8) {
+            Image(systemName: "square.stack.3d.up.fill")
+                .font(.system(size: 12, weight: .bold))
+            Text("Drag Group · \(memberIds.count)")
+                .font(.system(.caption, design: .rounded))
+                .fontWeight(.semibold)
+        }
+        .foregroundColor(.white)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(
+            Capsule()
+                .fill(Color.cyan.opacity(0.35))
+                .overlay(
+                    Capsule()
+                        .stroke(Color.cyan.opacity(0.6), lineWidth: 1)
+                )
+        )
+        .gesture(groupDragGesture(memberIds: memberIds))
+    }
+
+    private func groupDragGesture(memberIds: [UUID]) -> some Gesture {
+        DragGesture(minimumDistance: 5, coordinateSpace: .global)
+            .onChanged { value in
+                guard !memberIds.isEmpty else { return }
+                if !appMode.isDragging {
+                    let payload = DragPayload(type: .focusGroup(memberIds), source: .library)
+                    appMode.enter(.dragging(payload))
+                    if appMode.isDragging {
+                        dragCoordinator.startDrag(payload: payload)
                     } else {
                         return
                     }
@@ -692,11 +813,9 @@ private struct LibraryRow: View {
         .onTapGesture {
             if isSelecting {
                 onToggle()
+            } else {
+                onEdit()
             }
-        }
-        .onLongPressGesture(minimumDuration: 0.5) {
-            guard !isSelecting else { return }
-            onEdit()
         }
     }
     
@@ -714,10 +833,14 @@ private struct LibraryRow: View {
     }
     
     private func formatDate(_ date: Date) -> String {
+        Self.dateFormatter.string(from: date)
+    }
+
+    private static let dateFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.dateFormat = "MMM d"
-        return formatter.string(from: date)
-    }
+        return formatter
+    }()
 }
 
 private struct DeckCard: View {

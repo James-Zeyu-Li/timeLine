@@ -9,7 +9,7 @@ final class RestPromptServiceTests: XCTestCase {
         let event = service.recordFocus(seconds: 1)
         XCTAssertNotNil(event)
         XCTAssertEqual(event?.thresholdSeconds, 100)
-        XCTAssertEqual(event?.focusedSeconds, 100, accuracy: 0.01)
+        XCTAssertEqual(event!.focusedSeconds, 100, accuracy: 0.01)
         XCTAssertNil(service.recordFocus(seconds: 10))
     }
 

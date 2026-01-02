@@ -1,9 +1,21 @@
 # Journey System Logic (Architecture V1)
 
-> **Last Updated**: 2025-12-25  
+> **Last Updated**: 2025-12-30  
 > Core models live in `TimeLineCore`.
 
 ---
+
+## 中文说明（核心概念）
+- **Timeline Map 是舞台**：UI 只是 `DaySession` 的投影；放置只通过 `TimelineStore.place*` 写入。
+- **Cards / Library / Decks 语义**：Cards 是模板仓库，先加入 Library；Library 是近期要做的任务池；Decks 是可复用的任务组合。
+- **放置路径**：Library/Deck → 生成 occurrence → 写入 `DaySession.nodes`。
+
+## 功能位置索引（简版）
+- **CardTemplate**：`TimeLineCore/Sources/TimeLineCore/CardTemplate.swift`
+- **LibraryEntry**：`TimeLineCore/Sources/TimeLineCore/LibraryEntry.swift`
+- **TimelineNode / DaySession**：`TimeLineCore/Sources/TimeLineCore/TimelineNode.swift` / `TimeLineCore/Sources/TimeLineCore/DaySession.swift`
+- **FocusGroup**：`TimeLineCore/Sources/TimeLineCore/FocusGroupPayload.swift` / `TimeLineCore/Sources/TimeLineCore/FocusGroupSessionCoordinator.swift`
+- **App 层放置**：`timeLine/timeLine/State/TimelineStore.swift`
 
 ## 1. Core Metaphor
 The app models a day as a linear **Journey** composed of **Timeline Nodes**.
@@ -38,7 +50,12 @@ Reusable task definition for creation and repeat spawning.
 - **Fields**: `title`, `defaultDuration`, `taskMode`, `fixedTime`, `repeatRule`, `category`, `style`, `icon`, `tags`, `energyColor`
 - **Repeat Rules**: daily/weekly/monthly for auto-spawn.
 - **Scheduling vs Mode**: `fixedTime/repeatRule` are scheduling semantics; `taskMode` is execution semantics (orthogonal, not a replacement).
-- **Usage**: TaskSheet edits and QuickEntry both produce `CardTemplate` directly.
+- **Usage**: TaskSheet edits and QuickEntry both produce `CardTemplate` directly; Cards tab仅负责加入 Library。
+
+### C-1. `LibraryEntry`
+Library 的最小持久化条目。
+- **Fields**: `templateId`, `addedAt`, `deadline?`
+- **Usage**: Library 作为“近期想做的任务池”，拖拽到地图生成 occurrence。
 
 ### D. `DaySession`
 Route manager and progression.
@@ -57,6 +74,11 @@ Card system lives in `TimeLineCore` for persistence.
 - `DeckTemplate`: app-layer deck bundle (stored in app target).
 - `EnergyColorToken`: token enum only (no UI color in core).
 App layer creates timeline occurrences via `TimelineStore.placeCardOccurrence` / `placeDeckBatch` (empty timeline uses `placeCardOccurrenceAtStart`; occurrences are `TimelineNode`, no CardInstance model).
+
+### F. Focus Group (Unknown Length)
+- **Payload**: `FocusGroupPayload` stores `memberTemplateIds` + `activeIndex`.
+- **Timing**: `FocusGroupSessionCoordinator` allocates seconds per member.
+- **Completion**: emits `SessionResult.completedExploration` with allocations + total focused seconds.
 
 ---
 

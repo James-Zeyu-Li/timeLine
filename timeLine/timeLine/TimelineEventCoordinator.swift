@@ -23,8 +23,10 @@ final class TimelineEventCoordinator: ObservableObject {
     private var focusedSecondsSinceRest: TimeInterval = 0
     private var hasSuggestedBonfireSinceRest = false
     private let restPromptService = RestPromptService()
+    private let reminderScheduler = ReminderScheduler()
     @Published private(set) var lastExplorationReport: FocusGroupFinishedReport?
     @Published private(set) var pendingRestSuggestion: RestSuggestionEvent?
+    @Published private(set) var pendingReminder: ReminderEvent?
     private var focusGroupSession: FocusGroupSessionCoordinator?
     private var focusGroupNodeId: UUID?
     private var pendingRestAfterSession = false
@@ -136,6 +138,17 @@ final class TimelineEventCoordinator: ObservableObject {
         if let event = restPromptService.recordFocus(seconds: seconds) {
             pendingRestSuggestion = event
         }
+    }
+
+    func checkReminders(at date: Date = Date()) {
+        guard pendingReminder == nil else { return }
+        let events = reminderScheduler.evaluate(nodes: daySession.nodes, at: date)
+        guard let next = events.sorted(by: { $0.remindAt < $1.remindAt }).first else { return }
+        pendingReminder = next
+    }
+
+    func clearReminder() {
+        pendingReminder = nil
     }
 
     private func recordExplorationReport(

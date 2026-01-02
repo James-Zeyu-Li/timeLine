@@ -15,7 +15,7 @@ A roguelike-inspired iOS focus app built with SwiftUI.
 | **Design** | Strict Mode (no pause), single-day timeline + Inbox for tomorrow |
 | **Tech** | Pure Swift (`TimeLineCore`) + SwiftUI |
 | **Persistence** | Local JSON + debounced save (500ms) |
-| **Interaction** | Tap to start, DeckOverlay drag-to-node, edit via sheet, floating Add/Settings |
+| **Interaction** | Tap to start, DeckOverlay bottom sheet (Cards/Library/Decks), drag from Library/Decks, edit via sheet, floating Add/Settings |
 
 ---
 
@@ -26,7 +26,7 @@ A roguelike-inspired iOS focus app built with SwiftUI.
 - **Template semantics**: `CardTemplate` + `DeckTemplate` are reusable; timeline placement creates occurrences (templates never consumed). `CardTemplate` carries taskMode/repeatRule/fixedTime. Inbox stores CardTemplate IDs in `AppState.inbox` with templates persisted in `AppState.cardTemplates`.
 - **Write path**: placement uses `TimelineStore.placeCardOccurrence / placeDeckBatch / placeFocusGroupOccurrence` (Inbox/QuickEntry create CardTemplate then place).
 - **App mode**: `AppModeManager` enforces overlay/drag/edit exclusivity.
-- **Drag system**: `DragDropCoordinator` handles global coords + hover targeting.
+- **Drag system**: `DragDropCoordinator` handles global coords + hover targeting; drop targets are upcoming (non-completed) nodes.
 - **Persistence + events**: `AppStateManager` saves; `TimelineEventCoordinator` advances on battle end.
 - **Exit rules**: Retreat offers Undo Start ≤60s (no record). Otherwise End & Record → incompleteExit. FocusGroupFlexible uses “End Exploring” and emits completedExploration (no Undo Start).
 - **Freeze tokens**: 3/day; Freeze suspends battle and returns to map, resume continues same task; logs duration.
@@ -36,7 +36,8 @@ A roguelike-inspired iOS focus app built with SwiftUI.
 - **RootView**: map layer, DeckOverlay, drag layer, edit sheets, floating Add/Settings + message.
 - **RogueMapView**: map route with node snapping, header, and banners.
 - **GroupFocusView**: focus group nodes open a switchable task list with total focused timer.
-- **DeckOverlay** + **CardFanView**: Cards/Decks tabs with fan layout; Cards tab supports selection mode to add templates into Library.
+- **DeckOverlay** + **CardFanView**: bottom sheet overlay with Cards/Library/Decks tabs; Cards add to Library (tap or multi-select).
+- **Library tab**: long-press drag a single task to map; Select mode shows Add to Group + drag token for group placement.
 - **QuickBuilderSheet**: fast template creator (no direct timeline writes), supports Task Mode selection（任务模式选择）.
 - **DeckDetailEditSheet / CardDetailEditSheet**: long-press edit for Decks and CardTemplates, includes Task Mode selection（任务模式选择）and Library toggle.
 - **RoutinePickerView**: Routine Decks list + preview sheet.
@@ -47,11 +48,12 @@ A roguelike-inspired iOS focus app built with SwiftUI.
 
 ### Interaction Flow
 - **+ Add → DeckOverlay** is the primary creation surface.
-- **Drag card/deck → node** creates occurrence(s) via `TimelineStore`; source remains reusable.
+- **Cards → Library** is required before placement; drag from Library or Decks to create occurrences via `TimelineStore`.
 - **Deck hover** shows “Insert N / Est. X”; drop inserts batch + Undo.
 - **Long press** opens template/deck edit sheets; map node long press opens TaskSheet for node edit.
-- **QuickBuilder create** returns to Cards tab with drag hint.
+- **QuickBuilder create** returns to Cards tab with add-to-Library hint.
 - **Empty map** accepts drop to create the first node.
+- **Drop zones**: only upcoming (non-completed) nodes accept drops.
 
 ### Key Types (Core)
 - `DaySession`, `TimelineNode`, `Boss`, `BattleEngine`, `AppState`
@@ -80,9 +82,9 @@ A roguelike-inspired iOS focus app built with SwiftUI.
 
 ### UI
 - **RogueMapView**: pinned header, event banners, pulse effects, node snapping
-- **DeckOverlay**: Cards / Decks tabs with fan display
-- **Library tab**: minimal Library list with selection + drag-to-map; Add from Cards opens picker; Add to Group creates a FocusGroupOccurrence at the end (or start if empty) and shows a “no group switching yet” hint
-- **CardFanView**: tap preview, long-press edit, drag to map node
+- **DeckOverlay**: Cards / Library / Decks tabs in a bottom sheet
+- **Library tab**: long-press drag to map; Select mode enables Add to Group and a draggable group token (drop to insert; quick append still places at end)
+- **CardFanView**: tap to add to Library; long-press edit
 - **QuickBuilderSheet**: Add Card button opens quick template creator (no direct timeline writes)
 - **Deck Edit**: long-press deck → rename + reorder + add/remove cards
 - **Routine Decks**: Decks tab top strip + See All picker
@@ -138,7 +140,7 @@ A roguelike-inspired iOS focus app built with SwiftUI.
 ## Task Mechanisms Status (v1 / vNext)
 
 ### 2.1 已知长度任务（主要已完成）
-- 模板卡创建（名称/时长/重复性），拖拽到时间线放置
+- 模板卡创建（名称/时长/重复性），从 Library/Decks 拖拽到时间线放置
 - 进入 Focus 模式执行（BattleEngine）
 - 待补：强制退出拦截 + “未专注完成”提示文案
 

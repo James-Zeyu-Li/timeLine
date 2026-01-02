@@ -224,7 +224,9 @@ final class TimelineStore: ObservableObject {
             maxHp: card.defaultDuration,
             style: card.style,
             category: card.category,
-            templateId: card.id
+            templateId: card.id,
+            remindAt: card.remindAt,
+            leadTimeMinutes: card.leadTimeMinutes
         )
         return TimelineNode(type: .battle(boss), isLocked: true)
     }
@@ -249,7 +251,12 @@ final class TimelineStore: ObservableObject {
         
         let totalDuration = max(60, templates.reduce(0) { $0 + $1.defaultDuration })
         let category = templates.first?.category ?? .work
-        let name = templates.count > 1 ? "Focus Group (\(templates.count))" : (templates.first?.title ?? "Focus Group")
+        let name: String
+        if templates.count > 1 {
+            name = templates.map(\.title).joined(separator: " + ")
+        } else {
+            name = templates.first?.title ?? "Focus Group"
+        }
         let payload = FocusGroupPayload(
             memberTemplateIds: templates.map(\.id),
             activeIndex: 0

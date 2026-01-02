@@ -3,6 +3,7 @@ import Foundation
 enum DragType: Equatable {
     case cardTemplate(UUID)
     case deck(UUID)
+    case focusGroup([UUID])
 }
 
 struct DragPayload: Equatable {
