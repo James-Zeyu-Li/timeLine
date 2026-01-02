@@ -4,6 +4,7 @@ import TimeLineCore
 struct QuickBuilderSheet: View {
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject var cardStore: CardTemplateStore
+    @EnvironmentObject var libraryStore: LibraryStore
     @EnvironmentObject var appMode: AppModeManager
     
     let onCreated: (() -> Void)?
@@ -29,11 +30,13 @@ struct QuickBuilderSheet: View {
         var title: String
         var category: TaskCategory
         var duration: QuickDuration
+        var taskMode: TaskMode
         
         static let `default` = QuickBuilderDraft(
             title: "Study",
             category: .study,
-            duration: .m30
+            duration: .m30,
+            taskMode: .focusStrictFixed
         )
     }
     
@@ -63,6 +66,7 @@ struct QuickBuilderSheet: View {
                             .onSubmit {
                                 handlePrimaryAction()
                             }
+                            .accessibilityIdentifier("quickBuilderTitleField")
                         
                         sectionTitle("Quick Picks")
                         flowChips(items: topics, tintFromCategory: true) { item in
@@ -89,6 +93,9 @@ struct QuickBuilderSheet: View {
                             option.label
                         }
                         
+                        sectionTitle("Task Mode")
+                        modeChips
+                        
                         Button(action: handlePrimaryAction) {
                             HStack {
                                 Spacer()
@@ -103,6 +110,7 @@ struct QuickBuilderSheet: View {
                         }
                         .buttonStyle(.plain)
                         .disabled(draft.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        .accessibilityIdentifier("quickBuilderCreateButton")
                     }
                     .padding(24)
                 }
@@ -133,9 +141,11 @@ struct QuickBuilderSheet: View {
             tags: [draft.category.rawValue],
             energyColor: energyToken(for: draft.category),
             category: draft.category,
-            style: style
+            style: style,
+            taskMode: draft.taskMode
         )
         cardStore.add(template)
+        libraryStore.add(templateId: template.id)
         onCreated?()
         appMode.enter(.deckOverlay(.cards))
         dismiss()
@@ -217,8 +227,61 @@ struct QuickBuilderSheet: View {
                     draft.title = template.title
                     draft.category = template.category
                     draft.duration = durationOption(for: template.defaultDuration)
+                    draft.taskMode = template.taskMode
                 }
             }
+        }
+    }
+    
+    private var modeChips: some View {
+        LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 3), spacing: 12) {
+            ForEach(taskModeOptions, id: \.rawValue) { mode in
+                ChipButton(
+                    title: taskModeLabel(mode),
+                    isSelected: draft.taskMode == mode,
+                    tint: taskModeTint(mode)
+                ) {
+                    draft.taskMode = mode
+                }
+                .accessibilityIdentifier(taskModeIdentifier(mode))
+            }
+        }
+    }
+    
+    private var taskModeOptions: [TaskMode] {
+        [.focusStrictFixed, .focusGroupFlexible, .reminderOnly]
+    }
+    
+    private func taskModeLabel(_ mode: TaskMode) -> String {
+        switch mode {
+        case .focusStrictFixed:
+            return "Focus Fixed"
+        case .focusGroupFlexible:
+            return "Focus Flex"
+        case .reminderOnly:
+            return "Reminder"
+        }
+    }
+    
+    private func taskModeTint(_ mode: TaskMode) -> Color {
+        switch mode {
+        case .focusStrictFixed:
+            return .cyan
+        case .focusGroupFlexible:
+            return .mint
+        case .reminderOnly:
+            return .orange
+        }
+    }
+    
+    private func taskModeIdentifier(_ mode: TaskMode) -> String {
+        switch mode {
+        case .focusStrictFixed:
+            return "quickBuilderTaskModeFocusFixed"
+        case .focusGroupFlexible:
+            return "quickBuilderTaskModeFocusFlex"
+        case .reminderOnly:
+            return "quickBuilderTaskModeReminder"
         }
     }
     
@@ -260,6 +323,7 @@ private struct ChipButton: View {
                 .cornerRadius(10)
         }
         .buttonStyle(.plain)
+        .accessibilityValue(isSelected ? "selected" : "unselected")
     }
 }
 

@@ -70,14 +70,21 @@ final class RetreatDialogTests: XCTestCase {
     }
 
     func testExitOptionsIncludeUndoWithinGrace() {
-        let options = BattleExitPolicy.options(elapsedSeconds: 60)
+        let options = BattleExitPolicy.options(elapsedSeconds: 60, taskMode: .focusStrictFixed)
         XCTAssertTrue(options.contains(.undoStart))
         XCTAssertTrue(options.contains(.endAndRecord))
         XCTAssertTrue(options.contains(.keepFocusing))
     }
 
     func testExitOptionsHideUndoAfterGrace() {
-        let options = BattleExitPolicy.options(elapsedSeconds: 61)
+        let options = BattleExitPolicy.options(elapsedSeconds: 61, taskMode: .focusStrictFixed)
+        XCTAssertFalse(options.contains(.undoStart))
+        XCTAssertTrue(options.contains(.endAndRecord))
+        XCTAssertTrue(options.contains(.keepFocusing))
+    }
+    
+    func testExitOptionsHideUndoForFocusGroupFlexible() {
+        let options = BattleExitPolicy.options(elapsedSeconds: 30, taskMode: .focusGroupFlexible)
         XCTAssertFalse(options.contains(.undoStart))
         XCTAssertTrue(options.contains(.endAndRecord))
         XCTAssertTrue(options.contains(.keepFocusing))
@@ -109,7 +116,7 @@ final class RetreatDialogTests: XCTestCase {
         XCTAssertNotNil(engine.currentBoss)
         
         // Undo Start (abort session)
-        controller.handle(.undoStart)
+        controller.handle(.undoStart, taskMode: .focusStrictFixed)
         
         // Should return to idle with no credit
         XCTAssertEqual(engine.state, .idle)
@@ -134,12 +141,34 @@ final class RetreatDialogTests: XCTestCase {
             .store(in: &cancellables)
         
         // End & Record (retreat)
-        controller.handle(.endAndRecord)
+        controller.handle(.endAndRecord, taskMode: .focusStrictFixed)
         
         // Should create incomplete exit record
         XCTAssertEqual(engine.state, .retreat)
         XCTAssertNotNil(sessionResult)
         XCTAssertEqual(sessionResult?.endReason, .incompleteExit)
+    }
+
+    func testEndAndRecordForFocusGroupFlexibleCreatesCompletedExploration() {
+        let boss = Boss(name: "Group Task", maxHp: 600)
+        let startTime = Date().addingTimeInterval(-120)
+        engine.startBattle(boss: boss, at: startTime)
+        let controller = BattleExitController(engine: engine, stateSaver: stateSaver)
+
+        var sessionResult: SessionResult?
+        var cancellables = Set<AnyCancellable>()
+
+        engine.onSessionComplete
+            .sink { result in
+                sessionResult = result
+            }
+            .store(in: &cancellables)
+
+        controller.handle(.endAndRecord, taskMode: .focusGroupFlexible)
+
+        XCTAssertEqual(engine.state, .retreat)
+        XCTAssertNotNil(sessionResult)
+        XCTAssertEqual(sessionResult?.endReason, .completedExploration)
     }
     
     func testKeepFocusingDoesNothing() {
@@ -153,7 +182,7 @@ final class RetreatDialogTests: XCTestCase {
         engine.tick(at: checkTime)
         
         // Simulate "Keep Focusing" (do nothing, just cancel dialog)
-        controller.handle(.keepFocusing)
+        controller.handle(.keepFocusing, taskMode: .focusStrictFixed)
         // State should remain fighting
         XCTAssertEqual(engine.state, .fighting)
         XCTAssertNotNil(engine.currentBoss)

@@ -4,6 +4,7 @@ import TimeLineCore
 enum BannerKind: Equatable {
     case distraction(wastedMinutes: Int)
     case incompleteExit(focusedSeconds: TimeInterval, remainingSeconds: TimeInterval?)
+    case explorationComplete(focusedSeconds: TimeInterval)
     case restComplete
     case bonfireSuggested(reason: String)
 }
@@ -35,6 +36,15 @@ struct InfoBanner: View {
                     Text("撤退（未完成）")
                         .font(.caption).bold().foregroundColor(.white)
                     Text(incompleteExitSubtitle(focusedSeconds: focusedSeconds, remainingSeconds: remainingSeconds))
+                        .font(.caption2).foregroundColor(.gray)
+                }
+            case .explorationComplete(let focusedSeconds):
+                Image(systemName: "sparkles")
+                    .foregroundColor(.green)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("探险结束")
+                        .font(.caption).bold().foregroundColor(.white)
+                    Text("已专注 \(formatDuration(focusedSeconds))")
                         .font(.caption2).foregroundColor(.gray)
                 }
             case .restComplete:

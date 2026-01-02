@@ -67,4 +67,40 @@ final class TimelineStorePlacementTests: XCTestCase {
         XCTAssertEqual(boss.templateId, template.id)
         XCTAssertTrue(stateManager.saveRequested)
     }
+    
+    func testPlaceFocusGroupOccurrence_InsertsNodeWithPayload() async {
+        let daySession = DaySession(nodes: [
+            TimelineNode(type: .treasure, isLocked: false)
+        ])
+        let stateManager = MockStateSaver()
+        let timelineStore = TimelineStore(daySession: daySession, stateManager: stateManager)
+        
+        let cardStore = CardTemplateStore()
+        let first = CardTemplate(title: "Draft", defaultDuration: 900)
+        let second = CardTemplate(title: "Review", defaultDuration: 600)
+        cardStore.add(first)
+        cardStore.add(second)
+        
+        let anchorId = daySession.nodes[0].id
+        let newNodeId = timelineStore.placeFocusGroupOccurrence(
+            memberTemplateIds: [first.id, second.id],
+            anchorNodeId: anchorId,
+            using: cardStore
+        )
+        
+        XCTAssertNotNil(newNodeId)
+        XCTAssertEqual(daySession.nodes.count, 2)
+        XCTAssertEqual(daySession.nodes[1].taskModeOverride, .focusGroupFlexible)
+        
+        guard case .battle(let boss) = daySession.nodes[1].type else {
+            XCTFail("Expected inserted node to be battle")
+            return
+        }
+        
+        XCTAssertNotNil(boss.focusGroupPayload)
+        XCTAssertEqual(boss.focusGroupPayload?.memberTemplateIds, [first.id, second.id])
+        XCTAssertEqual(boss.focusGroupPayload?.activeIndex, 0)
+        XCTAssertEqual(boss.maxHp, 1500, accuracy: 0.1)
+        XCTAssertTrue(stateManager.saveRequested)
+    }
 }

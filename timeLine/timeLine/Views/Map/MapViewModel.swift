@@ -22,6 +22,15 @@ class MapViewModel: ObservableObject {
         self.use24HourClock = use24HourClock
         self.allowsPulseClear = allowsPulseClear
     }
+
+    func stop() {
+        pulseClearTask?.cancel()
+        pulseClearTask = nil
+    }
+
+    deinit {
+        pulseClearTask?.cancel()
+    }
     
     func bind(
         engine: BattleEngine,
@@ -200,6 +209,13 @@ class MapViewModel: ObservableObject {
                     focusedSeconds: focusedSeconds,
                     remainingSeconds: remainingSeconds
                 ),
+                upNextTitle: resolved.title
+            )
+            pulseNextNodeId = resolved.nodeId
+            schedulePulseClear()
+        case .completedExploration(_, let focusedSeconds, _):
+            banner = BannerData(
+                kind: .explorationComplete(focusedSeconds: focusedSeconds),
                 upNextTitle: resolved.title
             )
             pulseNextNodeId = resolved.nodeId

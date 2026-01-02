@@ -7,6 +7,8 @@ struct CardFanView: View {
     let tab: DeckTab
 
     @EnvironmentObject var cardStore: CardTemplateStore
+    @EnvironmentObject var libraryStore: LibraryStore
+    @EnvironmentObject var stateManager: AppStateManager
     @EnvironmentObject var appMode: AppModeManager
     @EnvironmentObject var dragCoordinator: DragDropCoordinator
     
@@ -14,48 +16,59 @@ struct CardFanView: View {
     @State private var showQuickBuilder = false
     @State private var showDragHint = false
     @State private var dragHintTask: DispatchWorkItem?
+    @State private var isSelecting = false
+    @State private var selectedIds: Set<UUID> = []
     
     var body: some View {
         let cards = cardStore.orderedTemplates()
         let count = cards.count
         
         VStack(spacing: 12) {
-            addCardButton
+            headerRow
             
-            if showDragHint {
+            if !isSelecting, showDragHint {
                 Text("Drag onto a node to place")
                     .font(.system(.caption, design: .rounded))
                     .foregroundColor(.white.opacity(0.7))
                     .transition(.opacity)
             }
             
-            if let preview = previewCard {
+            if !isSelecting, let preview = previewCard {
                 CardPreviewPanel(template: preview)
                     .transition(.opacity.combined(with: .move(edge: .top)))
             }
             
-            ZStack {
-                ForEach(Array(cards.enumerated()), id: \.element.id) { index, card in
-                    CardView(template: card)
-                        .offset(fanOffset(index: index, total: count))
-                        .rotationEffect(fanRotation(index: index, total: count))
-                        .scaleEffect(raisedCardId == card.id ? 1.1 : 1.0)
-                        .zIndex(raisedCardId == card.id ? 100 : Double(index))
-                        .gesture(cardGesture(for: card))
-                        .onTapGesture {
-                            guard !appMode.isDragging else { return }
-                            withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
-                                raisedCardId = raisedCardId == card.id ? nil : card.id
+            if isSelecting {
+                CardLibrarySelectionView(
+                    templates: cards,
+                    selectedIds: $selectedIds,
+                    showLibraryStatus: true
+                )
+                addToLibraryButton
+            } else {
+                ZStack {
+                    ForEach(Array(cards.enumerated()), id: \.element.id) { index, card in
+                        CardView(template: card)
+                            .offset(fanOffset(index: index, total: count))
+                            .rotationEffect(fanRotation(index: index, total: count))
+                            .scaleEffect(raisedCardId == card.id ? 1.1 : 1.0)
+                            .zIndex(raisedCardId == card.id ? 100 : Double(index))
+                            .gesture(cardGesture(for: card))
+                            .onTapGesture {
+                                guard !appMode.isDragging else { return }
+                                withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
+                                    raisedCardId = raisedCardId == card.id ? nil : card.id
+                                }
                             }
-                        }
-                        .onLongPressGesture(minimumDuration: 0.5) {
-                            guard !appMode.isDragging else { return }
-                            appMode.enterCardEdit(cardTemplateId: card.id)
-                        }
-                        .animation(.spring(response: 0.3), value: raisedCardId)
+                            .onLongPressGesture(minimumDuration: 0.5) {
+                                guard !appMode.isDragging else { return }
+                                appMode.enterCardEdit(cardTemplateId: card.id)
+                            }
+                            .animation(.spring(response: 0.3), value: raisedCardId)
+                    }
                 }
+                .frame(height: 200)
             }
-            .frame(height: 200)
         }
         .sheet(isPresented: $showQuickBuilder) {
             QuickBuilderSheet(onCreated: {
@@ -66,9 +79,8 @@ struct CardFanView: View {
     
     // MARK: - Quick Builder Entry
     
-    private var addCardButton: some View {
+    private var headerRow: some View {
         HStack {
-            Spacer()
             Button {
                 showQuickBuilder = true
             } label: {
@@ -91,10 +103,62 @@ struct CardFanView: View {
                         )
                 )
             }
+            .accessibilityIdentifier("addCardButton")
             .buttonStyle(.plain)
+            
             Spacer()
+            
+            Button(isSelecting ? "Done" : "Select") {
+                withAnimation(.spring(response: 0.25, dampingFraction: 0.85)) {
+                    isSelecting.toggle()
+                    if !isSelecting {
+                        selectedIds.removeAll()
+                    }
+                }
+            }
+            .font(.system(.caption, design: .rounded))
+            .fontWeight(.semibold)
+            .foregroundColor(isSelecting ? .white : .cyan)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(
+                Capsule()
+                    .fill(isSelecting ? Color.white.opacity(0.15) : Color.cyan.opacity(0.15))
+                    .overlay(
+                        Capsule()
+                            .stroke(isSelecting ? Color.white.opacity(0.2) : Color.cyan.opacity(0.3), lineWidth: 1)
+                    )
+            )
         }
         .padding(.horizontal, 24)
+    }
+
+    private var addToLibraryButton: some View {
+        Button {
+            addSelectedToLibrary()
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "tray.and.arrow.down")
+                    .font(.system(size: 12, weight: .bold))
+                Text("Add to Library")
+                    .font(.system(.caption, design: .rounded))
+                    .fontWeight(.semibold)
+            }
+            .foregroundColor(selectedIds.isEmpty ? .gray : .cyan)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .background(
+                Capsule()
+                    .fill(selectedIds.isEmpty ? Color.white.opacity(0.08) : Color.cyan.opacity(0.15))
+                    .overlay(
+                        Capsule()
+                            .stroke(Color.cyan.opacity(selectedIds.isEmpty ? 0.15 : 0.3), lineWidth: 1)
+                    )
+            )
+        }
+        .buttonStyle(.plain)
+        .disabled(selectedIds.isEmpty)
+        .padding(.bottom, 8)
     }
     
     private func showDragHintMessage() {
@@ -109,6 +173,18 @@ struct CardFanView: View {
             showDragHint = true
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 2, execute: task)
+    }
+
+    private func addSelectedToLibrary() {
+        for id in selectedIds {
+            libraryStore.add(templateId: id)
+        }
+        stateManager.requestSave()
+        UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
+        withAnimation(.spring(response: 0.25, dampingFraction: 0.85)) {
+            selectedIds.removeAll()
+            isSelecting = false
+        }
     }
     
     // MARK: - Fan Layout
@@ -188,6 +264,8 @@ struct CardView: View {
                 .stroke(Color.white.opacity(0.2), lineWidth: 1)
         )
         .shadow(color: .black.opacity(0.3), radius: 8, x: 0, y: 4)
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier(cardAccessibilityId)
     }
     
     private var cardBackground: some View {
@@ -198,6 +276,11 @@ struct CardView: View {
         )
     }
     
+    private var cardAccessibilityId: String {
+        let compactTitle = template.title.replacingOccurrences(of: " ", with: "_")
+        return "cardView_\(compactTitle)"
+    }
+    
     private func formatDuration(_ seconds: TimeInterval) -> String {
         let minutes = Int(seconds / 60)
         return "\(minutes) min"
@@ -206,6 +289,9 @@ struct CardView: View {
 
 private struct CardPreviewPanel: View {
     let template: CardTemplate
+
+    @EnvironmentObject var libraryStore: LibraryStore
+    @EnvironmentObject var stateManager: AppStateManager
     
     var body: some View {
         HStack(spacing: 12) {
@@ -222,6 +308,29 @@ private struct CardPreviewPanel: View {
                     .foregroundColor(.gray)
             }
             Spacer()
+            Button {
+                toggleLibrary()
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: isInLibrary ? "bookmark.fill" : "bookmark")
+                        .font(.system(size: 12, weight: .bold))
+                    Text(isInLibrary ? "Saved" : "Save")
+                        .font(.system(.caption2, design: .rounded))
+                        .fontWeight(.semibold)
+                }
+                .foregroundColor(isInLibrary ? .cyan : .white)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 6)
+                .background(
+                    Capsule()
+                        .fill(isInLibrary ? Color.cyan.opacity(0.18) : Color.white.opacity(0.12))
+                        .overlay(
+                            Capsule()
+                                .stroke(isInLibrary ? Color.cyan.opacity(0.4) : Color.white.opacity(0.2), lineWidth: 1)
+                        )
+                )
+            }
+            .buttonStyle(.plain)
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
@@ -234,5 +343,19 @@ private struct CardPreviewPanel: View {
                 )
         )
         .padding(.horizontal, 24)
+    }
+
+    private var isInLibrary: Bool {
+        libraryStore.entry(for: template.id) != nil
+    }
+
+    private func toggleLibrary() {
+        if isInLibrary {
+            libraryStore.remove(templateId: template.id)
+        } else {
+            libraryStore.add(templateId: template.id)
+        }
+        stateManager.requestSave()
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
     }
 }

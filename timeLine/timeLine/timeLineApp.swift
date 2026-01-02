@@ -33,6 +33,7 @@ struct TimeLineApp: App {
     @StateObject private var engine = BattleEngine()
     @StateObject private var daySession: DaySession
     @StateObject private var cardStore: CardTemplateStore
+    @StateObject private var libraryStore: LibraryStore
     @StateObject private var deckStore = DeckStore()
     @StateObject private var appMode = AppModeManager()
     @StateObject private var stateManager: AppStateManager
@@ -45,9 +46,21 @@ struct TimeLineApp: App {
     @AppStorage("hasSeenOnboarding") private var hasSeenOnboarding = false
     
     init() {
-        // Try to load persistence
+        let env = ProcessInfo.processInfo.environment
+        let args = ProcessInfo.processInfo.arguments
+        let isUITesting = env["UITESTS"] == "1" || env["XCUI_TESTS"] == "1" || args.contains("-ui-testing")
+        let wantsEmptyTimeline = args.contains("-empty-timeline") || env["EMPTY_TIMELINE"] == "1"
+        if isUITesting {
+            // Ensure UI tests start from a consistent state.
+            PersistenceManager.shared.resetData()
+            UserDefaults.standard.set(true, forKey: "hasSeenOnboarding")
+        }
+        
+        // Try to load persistence (unless UI tests force an empty timeline)
         let initialDaySession: DaySession
-        if let state = PersistenceManager.shared.load() {
+        if wantsEmptyTimeline {
+            initialDaySession = DaySession(nodes: [])
+        } else if let state = PersistenceManager.shared.load() {
             initialDaySession = state.daySession
         } else {
             // Default Init
@@ -65,15 +78,18 @@ struct TimeLineApp: App {
         // Create shared objects first
         let engine = BattleEngine()
         let cardStore = CardTemplateStore()
+        let libraryStore = LibraryStore()
         
         _engine = StateObject(wrappedValue: engine)
         _cardStore = StateObject(wrappedValue: cardStore)
+        _libraryStore = StateObject(wrappedValue: libraryStore)
         
         // Create state manager
         let manager = AppStateManager(
             engine: engine,
             daySession: initialDaySession,
-            cardStore: cardStore
+            cardStore: cardStore,
+            libraryStore: libraryStore
         )
         _stateManager = StateObject(wrappedValue: manager)
         
@@ -93,6 +109,7 @@ struct TimeLineApp: App {
                     .environmentObject(engine)
                     .environmentObject(daySession)
                     .environmentObject(cardStore)
+                    .environmentObject(libraryStore)
                     .environmentObject(deckStore)
                     .environmentObject(appMode)
                     .environmentObject(stateManager)
@@ -132,6 +149,13 @@ struct TimeLineApp: App {
     }
     
     func restoreState() {
+        let env = ProcessInfo.processInfo.environment
+        let args = ProcessInfo.processInfo.arguments
+        if args.contains("-empty-timeline") || env["EMPTY_TIMELINE"] == "1" {
+            daySession.nodes = []
+            daySession.currentIndex = 0
+            return
+        }
         if let state = PersistenceManager.shared.load() {
             // Restore Engine State
             if let engineState = state.engineState {
@@ -140,6 +164,7 @@ struct TimeLineApp: App {
             
             cardStore.load(from: state.cardTemplates)
             cardStore.seedDefaultsIfNeeded()
+            libraryStore.load(from: state.libraryEntries)
             stateManager.spawnedKeys = state.spawnedKeys
             stateManager.inbox = state.inbox
             

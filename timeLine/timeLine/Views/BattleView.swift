@@ -7,6 +7,7 @@ struct BattleView: View {
     @EnvironmentObject var daySession: DaySession
     @EnvironmentObject var stateManager: AppStateManager
     @EnvironmentObject var cardStore: CardTemplateStore
+    @EnvironmentObject var coordinator: TimelineEventCoordinator
     // Note: daySession.advance() is now handled by TimelineEventCoordinator
     // which listens to engine.$state changes
     
@@ -14,6 +15,7 @@ struct BattleView: View {
     let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
     @State private var showExitOptions = false
+    @State private var lastFocusedSeconds: TimeInterval = 0
     
     var body: some View {
         GeometryReader { geometry in
@@ -315,32 +317,49 @@ struct BattleView: View {
         .background(Color.black.ignoresSafeArea())
         .onReceive(timer) { input in
             engine.tick(at: input)
+            let focused = currentFocusedSeconds
+            let delta = max(0, focused - lastFocusedSeconds)
+            if delta > 0 {
+                coordinator.recordFocusProgress(seconds: delta)
+                lastFocusedSeconds = focused
+            }
             // Note: Victory/retreat handling moved to TimelineEventCoordinator
         }
+        .onAppear {
+            lastFocusedSeconds = currentFocusedSeconds
+        }
+        .onChange(of: engine.currentBoss?.id) { _ in
+            lastFocusedSeconds = currentFocusedSeconds
+        }
         .confirmationDialog(
-            "Exit session?",
+            exitDialogTitle,
             isPresented: $showExitOptions,
             titleVisibility: .visible
         ) {
             if exitOptions.contains(.undoStart) {
                 Button("Undo Start") {
-                    exitController.handle(.undoStart)
+                    exitController.handle(.undoStart, taskMode: currentTaskMode)
                 }
             }
-            Button("End & Record") {
-                exitController.handle(.endAndRecord)
+            Button(endAndRecordLabel) {
+                exitController.handle(.endAndRecord, taskMode: currentTaskMode)
             }
             Button("Keep Focusing", role: .cancel) {
-                exitController.handle(.keepFocusing)
+                exitController.handle(.keepFocusing, taskMode: currentTaskMode)
             }
         } message: {
-            Text("Undo Start is only available within 60 seconds. Otherwise, exit will be recorded as incomplete.")
+            Text(exitDialogMessage)
         }
     }
     
     var progress: CGFloat {
         guard let boss = engine.currentBoss else { return 0 }
         return CGFloat(boss.currentHp / boss.maxHp)
+    }
+
+    private var currentFocusedSeconds: TimeInterval {
+        guard let boss = engine.currentBoss else { return 0 }
+        return max(0, boss.maxHp - boss.currentHp)
     }
 
     private var currentTaskMode: TaskMode {
@@ -351,7 +370,10 @@ struct BattleView: View {
     }
 
     private var exitOptions: [BattleExitOption] {
-        BattleExitPolicy.options(elapsedSeconds: engine.currentSessionElapsed())
+        BattleExitPolicy.options(
+            elapsedSeconds: engine.currentSessionElapsed(),
+            taskMode: currentTaskMode
+        )
     }
 
     private var exitController: BattleExitController {
@@ -361,6 +383,35 @@ struct BattleView: View {
     private var canFreeze: Bool {
         guard engine.state == .fighting, let boss = engine.currentBoss, boss.style == .focus else { return false }
         return engine.freezeTokensRemaining > 0
+    }
+    
+    private var exitDialogTitle: String {
+        switch currentTaskMode {
+        case .focusGroupFlexible:
+            return "End exploring?"
+        case .focusStrictFixed, .reminderOnly:
+            return "Exit session?"
+        }
+    }
+    
+    private var exitDialogMessage: String {
+        switch currentTaskMode {
+        case .focusGroupFlexible:
+            return "End exploring will record this session."
+        case .focusStrictFixed:
+            return "Undo Start is only available within 60 seconds. Otherwise, exit will be recorded as incomplete."
+        case .reminderOnly:
+            return "Exit will be recorded as incomplete."
+        }
+    }
+    
+    private var endAndRecordLabel: String {
+        switch currentTaskMode {
+        case .focusGroupFlexible:
+            return "End Exploring"
+        case .focusStrictFixed, .reminderOnly:
+            return "End & Record"
+        }
     }
 
     private func handleRetreatTap() {

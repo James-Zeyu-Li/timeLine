@@ -8,6 +8,7 @@ public struct AppState: Codable {
     public var engineState: BattleSnapshot?
     public var history: [DailyFunctionality] // Stats History
     public var cardTemplates: [CardTemplate]
+    public var libraryEntries: [LibraryEntry]
     public var inbox: [UUID]
     public var spawnedKeys: Set<String> // Ledger for de-duplication
     
@@ -18,6 +19,7 @@ public struct AppState: Codable {
         case engineState
         case history
         case cardTemplates
+        case libraryEntries
         case inbox
         case spawnedKeys
     }
@@ -28,6 +30,7 @@ public struct AppState: Codable {
         engineState: BattleSnapshot?,
         history: [DailyFunctionality],
         cardTemplates: [CardTemplate] = [],
+        libraryEntries: [LibraryEntry] = [],
         inbox: [UUID] = [],
         spawnedKeys: Set<String> = []
     ) {
@@ -36,6 +39,7 @@ public struct AppState: Codable {
         self.engineState = engineState
         self.history = history
         self.cardTemplates = cardTemplates
+        self.libraryEntries = libraryEntries
         self.inbox = inbox
         self.spawnedKeys = spawnedKeys
     }
@@ -49,6 +53,7 @@ public struct AppState: Codable {
         self.engineState = try container.decodeIfPresent(BattleSnapshot.self, forKey: .engineState)
         self.history = try container.decode(Array<DailyFunctionality>.self, forKey: .history)
         self.cardTemplates = try container.decodeIfPresent([CardTemplate].self, forKey: .cardTemplates) ?? []
+        self.libraryEntries = try container.decodeIfPresent([LibraryEntry].self, forKey: .libraryEntries) ?? []
         self.inbox = try container.decodeIfPresent([UUID].self, forKey: .inbox) ?? []
         self.spawnedKeys = try container.decodeIfPresent(Set<String>.self, forKey: .spawnedKeys) ?? []
     }
@@ -61,6 +66,7 @@ public struct AppState: Codable {
         try container.encodeIfPresent(engineState, forKey: .engineState)
         try container.encode(history, forKey: .history)
         try container.encode(cardTemplates, forKey: .cardTemplates)
+        try container.encode(libraryEntries, forKey: .libraryEntries)
         try container.encode(inbox, forKey: .inbox)
         try container.encode(spawnedKeys, forKey: .spawnedKeys)
     }

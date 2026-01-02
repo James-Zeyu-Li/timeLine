@@ -10,6 +10,7 @@ final class AppStateManager: ObservableObject, StateSaver {
     let engine: BattleEngine
     let daySession: DaySession
     let cardStore: CardTemplateStore
+    let libraryStore: LibraryStore
     
     // MARK: - Ledger
     @Published var spawnedKeys: Set<String> = []
@@ -23,11 +24,13 @@ final class AppStateManager: ObservableObject, StateSaver {
         engine: BattleEngine,
         daySession: DaySession,
         cardStore: CardTemplateStore,
+        libraryStore: LibraryStore,
         enablePersistence: Bool = true
     ) {
         self.engine = engine
         self.daySession = daySession
         self.cardStore = cardStore
+        self.libraryStore = libraryStore
         
         // Debounce saves by 500ms
         if enablePersistence {
@@ -74,6 +77,7 @@ final class AppStateManager: ObservableObject, StateSaver {
             engineState: snapshot,
             history: engine.history,
             cardTemplates: cardStore.orderedTemplates(),
+            libraryEntries: libraryStore.orderedEntries(),
             inbox: inbox,
             spawnedKeys: spawnedKeys
         )
@@ -95,6 +99,7 @@ final class AppStateManager: ObservableObject, StateSaver {
         
         cardStore.load(from: state.cardTemplates)
         cardStore.seedDefaultsIfNeeded()
+        libraryStore.load(from: state.libraryEntries)
         inbox = state.inbox
         self.spawnedKeys = state.spawnedKeys
         
@@ -133,6 +138,7 @@ final class AppStateManager: ObservableObject, StateSaver {
         
         cardStore.reset()
         cardStore.seedDefaultsIfNeeded()
+        libraryStore.reset()
         
         // Create demo journey for first-time experience
         let demoTasks = [

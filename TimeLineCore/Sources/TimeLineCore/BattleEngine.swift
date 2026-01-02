@@ -9,6 +9,7 @@ public enum SessionEndReason: String, Codable, Equatable {
     case victory
     case retreat
     case incompleteExit
+    case completedExploration
 }
 
 public struct SessionResult: Equatable {
@@ -17,6 +18,23 @@ public struct SessionResult: Equatable {
     public let wastedSeconds: TimeInterval
     public let endReason: SessionEndReason
     public let remainingSecondsAtExit: TimeInterval?
+    public let focusGroupSummary: FocusGroupSessionSummary?
+
+    public static func completedExploration(
+        bossName: String,
+        focusedSeconds: TimeInterval,
+        wastedSeconds: TimeInterval,
+        summary: FocusGroupSessionSummary?
+    ) -> SessionResult {
+        SessionResult(
+            bossName: bossName,
+            focusedSeconds: focusedSeconds,
+            wastedSeconds: wastedSeconds,
+            endReason: .completedExploration,
+            remainingSecondsAtExit: nil,
+            focusGroupSummary: summary
+        )
+    }
 }
 
 public class BattleEngine: ObservableObject {
@@ -90,6 +108,7 @@ public class BattleEngine: ObservableObject {
     private var hasFinalized = false
     private var endReasonOverride: SessionEndReason?
     private var remainingSecondsAtExit: TimeInterval?
+    private var focusGroupSummaryOverride: FocusGroupSessionSummary?
     
     public init() {}
     
@@ -105,6 +124,7 @@ public class BattleEngine: ObservableObject {
         self.hasFinalized = false
         self.endReasonOverride = nil
         self.remainingSecondsAtExit = nil
+        self.focusGroupSummaryOverride = nil
         self.freezeStartTime = nil
         print("[Engine] Battle Started: \(boss.name) at \(time)")
     }
@@ -173,6 +193,29 @@ public class BattleEngine: ObservableObject {
         finalizeSession()
     }
 
+    public func endExploration(summary: FocusGroupSessionSummary? = nil, at time: Date = Date()) {
+        if state == .fighting, let boss = currentBoss {
+            finalizeDistraction(at: time)
+            if boss.style == .focus, let remaining = remainingTime(at: time) {
+                var updatedBoss = boss
+                updatedBoss.currentHp = remaining
+                currentBoss = updatedBoss
+            }
+        }
+        let resolvedSummary = resolveExplorationSummary(
+            provided: summary,
+            at: time
+        )
+        endReasonOverride = .completedExploration
+        focusGroupSummaryOverride = resolvedSummary
+        remainingSecondsAtExit = nil
+        state = .retreat
+        startTime = nil
+        distractionStartTime = nil
+        print("[Engine] Exploration Ended")
+        finalizeSession()
+    }
+
     public func abortSession() {
         guard state == .fighting || state == .paused || state == .frozen else { return }
         state = .idle
@@ -187,6 +230,7 @@ public class BattleEngine: ObservableObject {
         hasFinalized = false
         endReasonOverride = nil
         remainingSecondsAtExit = nil
+        focusGroupSummaryOverride = nil
         print("[Engine] Session Aborted (no record)")
     }
 
@@ -374,13 +418,21 @@ public class BattleEngine: ObservableObject {
         // Emit session complete event BEFORE clearing boss
         let result: SessionResult
         let endReason = endReasonOverride ?? (state == .victory ? .victory : .retreat)
-        let remaining = remainingSecondsAtExit ?? (endReason == .victory ? nil : max(0, boss.currentHp))
+        let remaining: TimeInterval?
+        switch endReason {
+        case .victory, .completedExploration:
+            remaining = nil
+        case .retreat, .incompleteExit:
+            remaining = remainingSecondsAtExit ?? max(0, boss.currentHp)
+        }
+        let summary = endReason == .completedExploration ? focusGroupSummaryOverride : nil
         result = SessionResult(
             bossName: boss.name,
             focusedSeconds: focusedThisSession,
             wastedSeconds: wastedTime,
             endReason: endReason,
-            remainingSecondsAtExit: remaining
+            remainingSecondsAtExit: remaining,
+            focusGroupSummary: summary
         )
         sessionCompleteSubject.send(result)
         print("[Engine] Emitting SessionResult: \(result)")
@@ -400,6 +452,7 @@ public class BattleEngine: ObservableObject {
         self.currentBoss = nil 
         self.endReasonOverride = nil
         self.remainingSecondsAtExit = nil
+        self.focusGroupSummaryOverride = nil
         print("[Engine] Session Finalized. Added \(focusedThisSession)s to daily total. History now has \(history.count) days.")
     }
 
@@ -421,6 +474,29 @@ public class BattleEngine: ObservableObject {
         }
         let effectiveCombatTime = totalElapsed - currentWasted
         return max(0, boss.maxHp - effectiveCombatTime)
+    }
+
+    private func resolveExplorationSummary(
+        provided: FocusGroupSessionSummary?,
+        at time: Date
+    ) -> FocusGroupSessionSummary? {
+        if let provided = provided {
+            return provided
+        }
+        guard let boss = currentBoss, let payload = boss.focusGroupPayload else { return nil }
+        let focusedSeconds: TimeInterval
+        if boss.style == .passive {
+            focusedSeconds = state == .victory ? boss.maxHp : 0
+        } else {
+            focusedSeconds = max(0, boss.maxHp - boss.currentHp)
+        }
+        let startTime = time.addingTimeInterval(-focusedSeconds)
+        let coordinator = FocusGroupSessionCoordinator(
+            memberTemplateIds: payload.memberTemplateIds,
+            startTime: startTime,
+            activeIndex: payload.activeIndex
+        )
+        return coordinator.endExploration(at: time)
     }
     // MARK: - Persistence
     

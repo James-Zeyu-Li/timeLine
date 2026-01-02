@@ -5,6 +5,7 @@ import Combine
 
 enum DeckTab: String, CaseIterable {
     case cards
+    case library
     case decks
 }
 

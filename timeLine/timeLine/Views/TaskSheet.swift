@@ -5,6 +5,7 @@ import TimeLineCore
 struct TaskSheet: View {
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject var cardStore: CardTemplateStore
+    @EnvironmentObject var libraryStore: LibraryStore
     @Binding var templateToEdit: CardTemplate?
     
     // Node Editing Mode
@@ -93,6 +94,7 @@ struct TaskSheet: View {
                                     .background(Color(white: 0.1))
                                     .cornerRadius(12)
                                     .foregroundColor(.white)
+                                    .accessibilityIdentifier("taskSheetTitleField")
                             }
                             
                             VStack(alignment: .leading, spacing: 12) {
@@ -405,6 +407,7 @@ struct TaskSheet: View {
              onSave(template)
         } else {
              cardStore.add(template)
+             libraryStore.add(templateId: template.id)
         }
         dismiss()
     }

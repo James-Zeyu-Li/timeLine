@@ -15,9 +15,9 @@ struct BattleExitPolicy {
         return elapsed <= undoStartWindow
     }
     
-    static func options(elapsedSeconds: TimeInterval?) -> [BattleExitOption] {
+    static func options(elapsedSeconds: TimeInterval?, taskMode: TaskMode) -> [BattleExitOption] {
         var options: [BattleExitOption] = []
-        if allowsUndoStart(elapsedSeconds: elapsedSeconds) {
+        if taskMode != .focusGroupFlexible, allowsUndoStart(elapsedSeconds: elapsedSeconds) {
             options.append(.undoStart)
         }
         options.append(.endAndRecord)
@@ -31,13 +31,21 @@ struct BattleExitController {
     let engine: BattleEngine
     let stateSaver: StateSaver
     
-    func handle(_ option: BattleExitOption) {
+    func handle(
+        _ option: BattleExitOption,
+        taskMode: TaskMode,
+        focusGroupSummary: FocusGroupSessionSummary? = nil
+    ) {
         switch option {
         case .undoStart:
             engine.abortSession()
             stateSaver.requestSave()
         case .endAndRecord:
-            engine.retreat()
+            if taskMode == .focusGroupFlexible {
+                engine.endExploration(summary: focusGroupSummary)
+            } else {
+                engine.retreat()
+            }
         case .keepFocusing:
             break
         }

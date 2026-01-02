@@ -198,7 +198,9 @@ public class DaySession: ObservableObject, Codable {
                 maxHp: boss.maxHp,
                 style: boss.style,
                 category: boss.category,
-                templateId: boss.templateId
+                templateId: boss.templateId,
+                recommendedStart: boss.recommendedStart,
+                focusGroupPayload: boss.focusGroupPayload
             )
             newType = .battle(newBoss)
         }

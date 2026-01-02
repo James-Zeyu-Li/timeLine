@@ -1,4 +1,5 @@
 import Foundation
+import TimeLineCore
 
 // MARK: - Timeline UI Events
 /// Events emitted by TimelineEventCoordinator, consumed by UI for banners/transitions.
@@ -8,6 +9,7 @@ public enum TimelineUIEvent: Equatable {
     case victory(taskName: String, focusedMinutes: Int)
     case retreat(taskName: String, wastedMinutes: Int)
     case incompleteExit(taskName: String, focusedSeconds: TimeInterval, remainingSeconds: TimeInterval?)
+    case completedExploration(taskName: String, focusedSeconds: TimeInterval, summary: FocusGroupSessionSummary?)
     case bonfireComplete
     case bonfireSuggested(reason: String, bonfireId: UUID?)
 }

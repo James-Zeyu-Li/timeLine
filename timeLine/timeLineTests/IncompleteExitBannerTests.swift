@@ -6,7 +6,6 @@ import Combine
 final class IncompleteExitBannerTests: XCTestCase {
     override func setUpWithError() throws {
         try super.setUpWithError()
-        throw XCTSkip("Skipped: simulator crash (AddressSanitizer bad-free in libswift_Concurrency).")
     }
 
     func testCoordinatorEmitsIncompleteExitEvent() {
@@ -44,6 +43,7 @@ final class IncompleteExitBannerTests: XCTestCase {
         engine.retreat(at: retreatTime)
         
         wait(for: [expectation], timeout: 1.0)
+        coordinator.stop()
     }
     
     func testMapViewModelBuildsIncompleteExitBanner() {
@@ -76,5 +76,6 @@ final class IncompleteExitBannerTests: XCTestCase {
         }
         XCTAssertEqual(focusedSeconds, 120, accuracy: 0.1)
         XCTAssertEqual(remainingSeconds ?? 0, 480, accuracy: 0.1)
+        viewModel.stop()
     }
 }

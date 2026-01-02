@@ -116,6 +116,43 @@ final class TimelineStore: ObservableObject {
         batchHistory[batchId] = insertedIds
         return DeckBatchResult(batchId: batchId, insertedNodeIds: insertedIds)
     }
+
+    func placeFocusGroupOccurrence(
+        memberTemplateIds: [UUID],
+        anchorNodeId: UUID,
+        using cardStore: CardTemplateStore
+    ) -> UUID? {
+        placeFocusGroupOccurrence(
+            memberTemplateIds: memberTemplateIds,
+            anchorNodeId: anchorNodeId,
+            placement: .after,
+            using: cardStore
+        )
+    }
+    
+    func placeFocusGroupOccurrence(
+        memberTemplateIds: [UUID],
+        anchorNodeId: UUID,
+        placement: DropPlacement,
+        using cardStore: CardTemplateStore
+    ) -> UUID? {
+        guard let anchorIndex = daySession.nodes.firstIndex(where: { $0.id == anchorNodeId }) else { return nil }
+        guard let node = makeFocusGroupNode(memberTemplateIds: memberTemplateIds, using: cardStore) else { return nil }
+        let insertIndex = placement == .after ? anchorIndex + 1 : anchorIndex
+        daySession.nodes.insert(node, at: insertIndex)
+        stateManager.requestSave()
+        return node.id
+    }
+    
+    func placeFocusGroupOccurrenceAtStart(
+        memberTemplateIds: [UUID],
+        using cardStore: CardTemplateStore,
+        engine: BattleEngine
+    ) -> UUID? {
+        guard let node = makeFocusGroupNode(memberTemplateIds: memberTemplateIds, using: cardStore) else { return nil }
+        appendNodes([node], engine: engine)
+        return node.id
+    }
     
     func undoLastBatch(batchId: UUID) {
         guard let insertedNodeIds = batchHistory.removeValue(forKey: batchId) else { return }
@@ -201,6 +238,53 @@ final class TimelineStore: ObservableObject {
             nodes.append(makeNode(from: card))
         }
         return nodes
+    }
+
+    private func makeFocusGroupNode(
+        memberTemplateIds: [UUID],
+        using cardStore: CardTemplateStore
+    ) -> TimelineNode? {
+        let templates = resolveTemplates(memberTemplateIds, using: cardStore)
+        guard !templates.isEmpty else { return nil }
+        
+        let totalDuration = max(60, templates.reduce(0) { $0 + $1.defaultDuration })
+        let category = templates.first?.category ?? .work
+        let name = templates.count > 1 ? "Focus Group (\(templates.count))" : (templates.first?.title ?? "Focus Group")
+        let payload = FocusGroupPayload(
+            memberTemplateIds: templates.map(\.id),
+            activeIndex: 0
+        )
+        let boss = Boss(
+            name: name,
+            maxHp: totalDuration,
+            style: .focus,
+            category: category,
+            templateId: nil,
+            recommendedStart: nil,
+            focusGroupPayload: payload
+        )
+        
+        return TimelineNode(
+            type: .battle(boss),
+            isLocked: true,
+            taskModeOverride: .focusGroupFlexible
+        )
+    }
+    
+    private func resolveTemplates(
+        _ ids: [UUID],
+        using cardStore: CardTemplateStore
+    ) -> [CardTemplate] {
+        var seen: Set<UUID> = []
+        var templates: [CardTemplate] = []
+        
+        for id in ids {
+            guard !seen.contains(id), let template = cardStore.get(id: id) else { continue }
+            seen.insert(id)
+            templates.append(template)
+        }
+        
+        return templates
     }
 
 }

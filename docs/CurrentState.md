@@ -1,6 +1,6 @@
 # Current Project State: TimeLineApp
 
-> **Last Updated**: 2025-12-26 (DeckOverlay + template-driven placement + floating controls)  
+> **Last Updated**: 2025-12-30 (稳定性与测试修复已同步)  
 > **Status**: V1 Core Complete + UI Semantics Expanded
 
 ---
@@ -24,21 +24,23 @@ A roguelike-inspired iOS focus app built with SwiftUI.
 ### Core Functionality
 - **Timeline engine**: `DaySession` manages nodes, progression, and lock states; `BattleEngine` handles focus timing and outcomes.
 - **Template semantics**: `CardTemplate` + `DeckTemplate` are reusable; timeline placement creates occurrences (templates never consumed). `CardTemplate` carries taskMode/repeatRule/fixedTime. Inbox stores CardTemplate IDs in `AppState.inbox` with templates persisted in `AppState.cardTemplates`.
-- **Write path**: placement uses `TimelineStore.placeCardOccurrence / placeDeckBatch` (Inbox/QuickEntry create CardTemplate then place).
+- **Write path**: placement uses `TimelineStore.placeCardOccurrence / placeDeckBatch / placeFocusGroupOccurrence` (Inbox/QuickEntry create CardTemplate then place).
 - **App mode**: `AppModeManager` enforces overlay/drag/edit exclusivity.
 - **Drag system**: `DragDropCoordinator` handles global coords + hover targeting.
 - **Persistence + events**: `AppStateManager` saves; `TimelineEventCoordinator` advances on battle end.
-- **Exit rules**: Retreat offers Undo Start ≤60s (no record). Otherwise End & Record → incompleteExit.
+- **Exit rules**: Retreat offers Undo Start ≤60s (no record). Otherwise End & Record → incompleteExit. FocusGroupFlexible uses “End Exploring” and emits completedExploration (no Undo Start).
 - **Freeze tokens**: 3/day; Freeze suspends battle and returns to map, resume continues same task; logs duration.
 - **Routine decks**: `RoutineTemplate` converts into Decks; no direct DaySession append in UI.
 
 ### UI Surfaces
 - **RootView**: map layer, DeckOverlay, drag layer, edit sheets, floating Add/Settings + message.
 - **RogueMapView**: map route with node snapping, header, and banners.
-- **DeckOverlay** + **CardFanView**: Cards/Decks tabs with fan layout.
-- **QuickBuilderSheet**: fast template creator (no direct timeline writes).
-- **DeckDetailEditSheet / CardDetailEditSheet**: long-press edit for Decks and CardTemplates.
+- **GroupFocusView**: focus group nodes open a switchable task list with total focused timer.
+- **DeckOverlay** + **CardFanView**: Cards/Decks tabs with fan layout; Cards tab supports selection mode to add templates into Library.
+- **QuickBuilderSheet**: fast template creator (no direct timeline writes), supports Task Mode selection（任务模式选择）.
+- **DeckDetailEditSheet / CardDetailEditSheet**: long-press edit for Decks and CardTemplates, includes Task Mode selection（任务模式选择）and Library toggle.
 - **RoutinePickerView**: Routine Decks list + preview sheet.
+- **Exploration report sheet**: completedExploration triggers a finished report (per-task times).
 - **Drag ghost + Undo**: deck hover preview + 2s undo toast.
 - **Empty drop zone**: drag-to-drop creates first node.
 - **SettingsView**: time format toggle.
@@ -47,7 +49,7 @@ A roguelike-inspired iOS focus app built with SwiftUI.
 - **+ Add → DeckOverlay** is the primary creation surface.
 - **Drag card/deck → node** creates occurrence(s) via `TimelineStore`; source remains reusable.
 - **Deck hover** shows “Insert N / Est. X”; drop inserts batch + Undo.
-- **Long press** opens template/deck edit sheets.
+- **Long press** opens template/deck edit sheets; map node long press opens TaskSheet for node edit.
 - **QuickBuilder create** returns to Cards tab with drag hint.
 - **Empty map** accepts drop to create the first node.
 
@@ -55,6 +57,8 @@ A roguelike-inspired iOS focus app built with SwiftUI.
 - `DaySession`, `TimelineNode`, `Boss`, `BattleEngine`, `AppState`
 - `RepeatRule`, `TaskCategory`, `BossStyle`
 - `CardTemplate`, `TaskMode`, `EnergyColorToken`, `RoutineTemplate`
+- `FocusGroupPayload`
+- `FocusGroupSessionCoordinator`
 
 ### Key Types (App Layer)
 - `AppModeManager`, `DragDropCoordinator`, `TimelineStore`
@@ -64,7 +68,7 @@ A roguelike-inspired iOS focus app built with SwiftUI.
 
 ### Core Logic (`TimeLineCore`)
 - **BattleEngine**: timer, wasted time, immunity, reconciliation, idempotent finalization
-- **SessionResult Publisher**: victory/retreat/incompleteExit events (atomic, data-rich, includes remainingSecondsAtExit)
+- **SessionResult Publisher**: victory/retreat/incompleteExit/completedExploration events (atomic, data-rich, includes remainingSecondsAtExit)
 - **DaySession**: append/move/delete, lock-state recalculation, reset to first upcoming
 - **RouteGenerator**: bonfire auto-insertion every N battles
 - **DefaultCardTemplates**: stable UUID defaults for card templates
@@ -77,6 +81,7 @@ A roguelike-inspired iOS focus app built with SwiftUI.
 ### UI
 - **RogueMapView**: pinned header, event banners, pulse effects, node snapping
 - **DeckOverlay**: Cards / Decks tabs with fan display
+- **Library tab**: minimal Library list with selection + drag-to-map; Add from Cards opens picker; Add to Group creates a FocusGroupOccurrence at the end (or start if empty) and shows a “no group switching yet” hint
 - **CardFanView**: tap preview, long-press edit, drag to map node
 - **QuickBuilderSheet**: Add Card button opens quick template creator (no direct timeline writes)
 - **Deck Edit**: long-press deck → rename + reorder + add/remove cards
@@ -94,12 +99,13 @@ A roguelike-inspired iOS focus app built with SwiftUI.
 
 ### Event System
 - **TimelineEventCoordinator**: unified advancement + bonfire suggestion
-- **Banner Types**: distraction, incomplete exit, rest complete, bonfire suggested
+- **Banner Types**: distraction, incomplete exit, exploration complete, rest complete, bonfire suggested, rest prompt (50m focused, actionable)
 
 ### App State & Stores
 - **AppModeManager**: single overlay state machine + transition guards
 - **CardTemplateStore / DeckStore**: template and deck sources for DeckOverlay
-- **TimelineStore.placeCardOccurrence / placeDeckBatch**: single placement write path
+- **LibraryStore**: minimal library entries (templateId + addedAt + deadline), grouped by deadline or repeatRule
+- **TimelineStore.placeCardOccurrence / placeDeckBatch / placeFocusGroupOccurrence**: single placement write path
 - **DragDropCoordinator**: global drag tracking + hover detection + deck summary
 
 ---
@@ -120,6 +126,15 @@ A roguelike-inspired iOS focus app built with SwiftUI.
 
 ---
 
+## Stability & Testing（稳定性与测试）
+
+- **ASan/TSan 崩溃修复**：`TimelineEventCoordinator.stop()` 与 `MapViewModel.stop()` 显式清理异步任务/订阅，避免 deinit 期间的 bad-free。  
+- **测试默认运行**：`IncompleteExitBannerTests` 不再需要环境 gate。  
+- **测试环境变量**：`timeLine-ci` scheme 的 TestAction 加 `MallocNanoZone=0`，减少模拟器 nano zone 警告。  
+- **全量验证**：ASan + TSan + UI Tests 均通过（iPhone 17 Pro 模拟器）。  
+
+---
+
 ## Task Mechanisms Status (v1 / vNext)
 
 ### 2.1 已知长度任务（主要已完成）
@@ -129,7 +144,7 @@ A roguelike-inspired iOS focus app built with SwiftUI.
 
 ### 2.2 未知长度任务库 + 同一节点多任务（未实现，需新增机制）
 - 需要：任务库/Backlog、FocusGroupOccurrence、Focus 内切换与计时分账
-- 退出语义需改为“完成今日探险”
+- 退出语义：completedExploration（End Exploring）已落地，并生成 finished report
 
 ### 2.3 Reminder-only 任务（未实现，可行）
 - 需要：remindAt/leadTime 字段 + 时间线倒计时 + in-app 提示

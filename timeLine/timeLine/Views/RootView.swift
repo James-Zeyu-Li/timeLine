@@ -8,6 +8,7 @@ struct RootView: View {
     @EnvironmentObject var cardStore: CardTemplateStore
     @EnvironmentObject var deckStore: DeckStore
     @EnvironmentObject var appMode: AppModeManager
+    @EnvironmentObject var coordinator: TimelineEventCoordinator
     
     @StateObject private var dragCoordinator = DragDropCoordinator()
     
@@ -78,6 +79,21 @@ struct RootView: View {
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
+        .overlay(alignment: .bottom) {
+            if shouldShowRestSuggestion, let event = coordinator.pendingRestSuggestion {
+                RestSuggestionBanner(
+                    event: event,
+                    onRest: {
+                        coordinator.acceptRestSuggestion()
+                    },
+                    onContinue: {
+                        coordinator.declineRestSuggestion()
+                    }
+                )
+                .padding(.bottom, showDeckToast ? 96 : 24)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
         .overlay(alignment: .bottomTrailing) {
             if showsFloatingControls {
                 GeometryReader { proxy in
@@ -96,6 +112,9 @@ struct RootView: View {
         .sheet(isPresented: $showSettings) {
             SettingsView()
         }
+        .sheet(item: explorationReportBinding) { report in
+            FocusGroupReportSheet(report: report)
+        }
         .task {
             cardStore.seedDefaultsIfNeeded()
             deckStore.seedDefaultsIfNeeded(using: cardStore)
@@ -112,8 +131,13 @@ struct RootView: View {
             .transition(.opacity)
             
         case .fighting, .paused:
-            BattleView()
-                .transition(.opacity)
+            if shouldShowGroupFocus {
+                GroupFocusView()
+                    .transition(.opacity)
+            } else {
+                BattleView()
+                    .transition(.opacity)
+            }
             
         case .resting:
             BonfireView()
@@ -187,6 +211,25 @@ struct RootView: View {
                 }
             }
         )
+    }
+
+    private var explorationReportBinding: Binding<FocusGroupFinishedReport?> {
+        Binding(
+            get: { coordinator.lastExplorationReport },
+            set: { _ in coordinator.clearExplorationReport() }
+        )
+    }
+
+    private var shouldShowRestSuggestion: Bool {
+        guard coordinator.pendingRestSuggestion != nil else { return false }
+        return engine.state != .resting
+    }
+
+    private var shouldShowGroupFocus: Bool {
+        guard let node = daySession.currentNode else { return false }
+        return node.effectiveTaskMode { id in
+            cardStore.get(id: id)
+        } == .focusGroupFlexible
     }
     
     // MARK: - Drop Handling
@@ -404,6 +447,7 @@ private struct FloatingControlsView: View {
                                 )
                         )
                 }
+                .accessibilityIdentifier("floatingAddButton")
                 .buttonStyle(.plain)
                 
                 Button(action: onSettings) {
@@ -442,6 +486,9 @@ struct CardDetailEditSheet: View {
     let cardTemplateId: UUID
     
     @EnvironmentObject var cardStore: CardTemplateStore
+    @EnvironmentObject var libraryStore: LibraryStore
+    @EnvironmentObject var daySession: DaySession
+    @EnvironmentObject var stateManager: AppStateManager
     @EnvironmentObject var appMode: AppModeManager
 
     @State private var draft: CardTemplate?
@@ -463,12 +510,28 @@ struct CardDetailEditSheet: View {
                         Section("Title") {
                             TextField("Card title", text: titleBinding)
                                 .textInputAutocapitalization(.sentences)
+                                .accessibilityIdentifier("cardDetailTitleField")
                         }
                         
                         Section("Duration") {
                             Stepper(value: durationMinutesBinding, in: 5...240, step: 5) {
                                 Text("\(Int(durationMinutesBinding.wrappedValue)) min")
                             }
+                        }
+                        
+                        Section("Task Mode") {
+                            Picker("Task Mode", selection: taskModeBinding) {
+                                ForEach(taskModeOptions, id: \.rawValue) { mode in
+                                    Text(taskModeLabel(mode)).tag(mode)
+                                }
+                            }
+                            .pickerStyle(.segmented)
+                            .accessibilityIdentifier("cardDetailTaskModePicker")
+                            .accessibilityValue(taskModeLabel(taskModeBinding.wrappedValue))
+                        }
+                        
+                        Section("Library") {
+                            Toggle("Add to Library", isOn: libraryBinding)
                         }
                     }
                 } else {
@@ -520,6 +583,46 @@ struct CardDetailEditSheet: View {
         )
     }
     
+    private var taskModeBinding: Binding<TaskMode> {
+        Binding(
+            get: { draft?.taskMode ?? .focusStrictFixed },
+            set: { newValue in
+                guard var current = draft else { return }
+                current.taskMode = newValue
+                draft = current
+            }
+        )
+    }
+    
+    private var taskModeOptions: [TaskMode] {
+        [.focusStrictFixed, .focusGroupFlexible, .reminderOnly]
+    }
+
+    private var libraryBinding: Binding<Bool> {
+        Binding(
+            get: { libraryStore.entry(for: cardTemplateId) != nil },
+            set: { isOn in
+                if isOn {
+                    libraryStore.add(templateId: cardTemplateId)
+                } else {
+                    libraryStore.remove(templateId: cardTemplateId)
+                }
+                stateManager.requestSave()
+            }
+        )
+    }
+    
+    private func taskModeLabel(_ mode: TaskMode) -> String {
+        switch mode {
+        case .focusStrictFixed:
+            return "Focus Fixed"
+        case .focusGroupFlexible:
+            return "Focus Flex"
+        case .reminderOnly:
+            return "Reminder"
+        }
+    }
+    
     private var isSaveDisabled: Bool {
         let trimmed = draft?.title.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         return trimmed.isEmpty
@@ -537,5 +640,82 @@ struct CardDetailEditSheet: View {
     private func saveChanges() {
         guard let draft else { return }
         cardStore.update(draft)
+        updateOccurrences(for: draft)
+    }
+    
+    private func updateOccurrences(for template: CardTemplate) {
+        let timelineStore = TimelineStore(daySession: daySession, stateManager: stateManager)
+        for node in daySession.nodes where !node.isCompleted {
+            guard case .battle(let boss) = node.type,
+                  boss.templateId == template.id else { continue }
+            timelineStore.updateNode(id: node.id, payload: template)
+        }
+    }
+}
+
+struct FocusGroupReportSheet: View {
+    @EnvironmentObject var cardStore: CardTemplateStore
+    @Environment(\.dismiss) private var dismiss
+    let report: FocusGroupFinishedReport
+
+    private var visibleEntries: [FocusGroupReportEntry] {
+        report.entries.filter { $0.focusedSeconds > 0 }
+    }
+
+    var body: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Exploration Report")
+                        .font(.headline)
+                    Text(report.taskName)
+                        .font(.title2)
+                        .fontWeight(.bold)
+                    Text("Total \(TimeFormatter.formatDuration(report.totalFocusedSeconds))")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+
+                Divider()
+
+                if visibleEntries.isEmpty {
+                    Text("No focused time recorded.")
+                        .foregroundColor(.secondary)
+                        .padding(.top, 8)
+                } else {
+                    ForEach(visibleEntries, id: \.templateId) { entry in
+                        HStack {
+                            Text(templateTitle(for: entry.templateId))
+                                .foregroundColor(.primary)
+                            Spacer()
+                            Text(TimeFormatter.formatDuration(entry.focusedSeconds))
+                                .foregroundColor(PixelTheme.accent)
+                        }
+                        .padding(.vertical, 6)
+                    }
+                }
+
+                Spacer()
+            }
+            .padding(20)
+            .background(
+                RoundedRectangle(cornerRadius: PixelTheme.cornerLarge)
+                    .fill(Color(white: 0.08))
+            )
+            .padding(16)
+            .navigationTitle("Finished")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+
+    private func templateTitle(for id: UUID) -> String {
+        cardStore.get(id: id)?.title ?? "Task"
     }
 }

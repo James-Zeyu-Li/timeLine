@@ -18,6 +18,9 @@ struct RogueMapView: View {
     @State private var showStats = false
     @State private var nodeAnchors: [UUID: CGFloat] = [:]
     @State private var viewportHeight: CGFloat = 0
+    @State private var showNodeEdit = false
+    @State private var editingNodeTemplate: CardTemplate?
+    @State private var editingNodeId: UUID?
     
     private let bottomFocusPadding: CGFloat = 140
     private let bottomSheetInset: CGFloat = 96
@@ -32,6 +35,17 @@ struct RogueMapView: View {
             }
             .sheet(isPresented: $showStats) {
                 StatsView()
+            }
+            .sheet(isPresented: $showNodeEdit) {
+                TaskSheet(
+                    templateToEdit: $editingNodeTemplate,
+                    isEditingNode: true,
+                    onSaveNode: { template in
+                        guard let nodeId = editingNodeId else { return }
+                        let timelineStore = TimelineStore(daySession: daySession, stateManager: stateManager)
+                        timelineStore.updateNode(id: nodeId, payload: template)
+                    }
+                )
             }
         }
     }
@@ -138,7 +152,8 @@ struct RogueMapView: View {
                     isFinal: isFinal,
                     isPulsing: viewModel.pulseNextNodeId == node.id,
                     timeInfo: timeInfo,
-                    onTap: { handleTap(on: node) }
+                    onTap: { handleTap(on: node) },
+                    onLongPress: { handleLongPress(on: node) }
                 )
                 .id(node.id)
             }
@@ -215,6 +230,29 @@ struct RogueMapView: View {
         }
     }
     
+    private func handleLongPress(on node: TimelineNode) {
+        guard case .battle(let boss) = node.type else { return }
+        if let templateId = boss.templateId, let template = cardStore.get(id: templateId) {
+            editingNodeTemplate = template
+        } else {
+            editingNodeTemplate = CardTemplate(
+                id: boss.templateId ?? UUID(),
+                title: boss.name,
+                icon: "bolt.fill",
+                defaultDuration: boss.maxHp,
+                tags: [],
+                energyColor: .focus,
+                category: boss.category,
+                style: boss.style,
+                taskMode: node.effectiveTaskMode { id in
+                    cardStore.get(id: id)
+                }
+            )
+        }
+        editingNodeId = node.id
+        showNodeEdit = true
+    }
+    
     private func timeInfo(for node: TimelineNode) -> MapTimeInfo? {
         guard let estimate = viewModel.estimatedStartTime(for: node, upcomingNodes: upcomingNodes) else { return nil }
         
@@ -265,9 +303,12 @@ private struct MapNodeRow: View {
     let isPulsing: Bool
     let timeInfo: MapTimeInfo?
     let onTap: () -> Void
+    let onLongPress: () -> Void
     
     @EnvironmentObject var appMode: AppModeManager
     @EnvironmentObject var dragCoordinator: DragDropCoordinator
+    
+    @State private var preventTap = false
     
     var body: some View {
         ZStack {
@@ -285,7 +326,13 @@ private struct MapNodeRow: View {
                     .offset(x: alignment == .left ? -120 : 120, y: -24)
             }
             
-            Button(action: onTap) {
+            Button(action: {
+                if preventTap {
+                    preventTap = false
+                    return
+                }
+                onTap()
+            }) {
                 HStack(spacing: 12) {
                     iconBadge
                     VStack(alignment: .leading, spacing: 4) {
@@ -345,7 +392,16 @@ private struct MapNodeRow: View {
                 .animation(.spring(response: 0.4, dampingFraction: 0.85), value: cardScale)
             }
             .buttonStyle(PlainButtonStyle())
+            .accessibilityIdentifier(nodeAccessibilityId)
             .offset(x: alignment == .left ? -70 : 70)
+            .simultaneousGesture(
+                LongPressGesture(minimumDuration: 0.5)
+                    .onEnded { _ in
+                        guard canEditNode, !appMode.isDragging else { return }
+                        preventTap = true
+                        onLongPress()
+                    }
+            )
         }
         .frame(height: 120)
         .background(
@@ -373,6 +429,18 @@ private struct MapNodeRow: View {
             return "Treasure"
         }
     }
+    
+    private var nodeAccessibilityId: String {
+        switch node.type {
+        case .battle(let boss):
+            let compact = boss.name.replacingOccurrences(of: " ", with: "_")
+            return "mapNode_\(compact)"
+        case .bonfire:
+            return "mapNode_Bonfire_\(node.id.uuidString.prefix(6))"
+        case .treasure:
+            return "mapNode_Treasure_\(node.id.uuidString.prefix(6))"
+        }
+    }
 
     private var cardWidth: CGFloat {
         if isCurrent { return 240 }
@@ -388,6 +456,13 @@ private struct MapNodeRow: View {
     
     private var showHeroMarker: Bool {
         isNext && !isCurrent && !node.isCompleted
+    }
+    
+    private var canEditNode: Bool {
+        if case .battle = node.type {
+            return true
+        }
+        return false
     }
 
     private var terrainType: PixelTerrainType {
@@ -508,6 +583,7 @@ private struct MapNodeRow: View {
             }
         }
     }
+    
     
     private var deckGhostOverlay: some View {
         Group {
