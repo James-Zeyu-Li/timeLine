@@ -422,29 +422,62 @@ private struct LibraryTabView: View {
     @State private var selectedIds: Set<UUID> = []
     @State private var showCardPicker = false
     @State private var wasDragging = false
+    @State private var showExpired = true
+    @State private var showExpiredBanner = false
     
     var body: some View {
-        let grouped = libraryStore.groupedEntries(using: cardStore)
-        let pinned = rows(for: grouped.pinned)
-        let others = rows(for: grouped.others)
+        let buckets = libraryStore.bucketedEntries(using: cardStore)
+        let reminders = rows(for: buckets.reminders)
+        let deadline1 = rows(for: buckets.deadline1)
+        let deadline3 = rows(for: buckets.deadline3)
+        let deadline5 = rows(for: buckets.deadline5)
+        let deadline7 = rows(for: buckets.deadline7)
+        let later = rows(for: buckets.later)
+        let expired = rows(for: buckets.expired)
         
         VStack(spacing: 12) {
             header
             
-            if pinned.isEmpty && others.isEmpty {
+            if reminders.isEmpty && deadline1.isEmpty && deadline3.isEmpty && deadline5.isEmpty && deadline7.isEmpty && later.isEmpty && expired.isEmpty {
                 emptyState
             } else {
-                ScrollView {
-                    VStack(spacing: 16) {
-                        if !pinned.isEmpty {
-                            section(title: "Pinned / Active", rows: pinned)
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        VStack(spacing: 16) {
+                            if showExpiredBanner {
+                                expiredBanner(onView: {
+                                    withAnimation(.spring(response: 0.25, dampingFraction: 0.9)) {
+                                        showExpired = true
+                                        proxy.scrollTo("expiredSection", anchor: .top)
+                                    }
+                                    showExpiredBanner = false
+                                })
+                            }
+
+                            if !reminders.isEmpty {
+                                section(title: "Reminders", rows: reminders)
+                            }
+                            if !deadline1.isEmpty {
+                                section(title: "1 Day", rows: deadline1)
+                            }
+                            if !deadline3.isEmpty {
+                                section(title: "3 Days", rows: deadline3)
+                            }
+                            if !deadline5.isEmpty {
+                                section(title: "5 Days", rows: deadline5)
+                            }
+                            if !deadline7.isEmpty {
+                                section(title: "7 Days", rows: deadline7)
+                            }
+                            if !later.isEmpty {
+                                section(title: "Later", rows: later)
+                            }
+                            expiredSection(rows: expired)
+                                .id("expiredSection")
                         }
-                        if !others.isEmpty {
-                            section(title: "Everything Else", rows: others)
-                        }
+                        .padding(.horizontal, 20)
+                        .padding(.bottom, isSelecting ? 70 : 20)
                     }
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, isSelecting ? 70 : 20)
                 }
             }
             
@@ -465,6 +498,12 @@ private struct LibraryTabView: View {
                 if isSelecting {
                     exitSelection()
                 }
+            }
+        }
+        .onAppear {
+            let expiredCount = libraryStore.refreshDeadlineStatuses(using: cardStore)
+            if expiredCount > 0 {
+                showExpiredBanner = true
             }
         }
     }
@@ -586,24 +625,88 @@ private struct LibraryTabView: View {
                 .foregroundColor(.white.opacity(0.7))
             
             ForEach(rows) { row in
-                let rowView = LibraryRow(
-                    entry: row.entry,
-                    template: row.template,
-                    isSelecting: isSelecting,
-                    isSelected: selectedIds.contains(row.id),
-                    onToggle: {
-                        toggleSelection(row.id)
-                    },
-                    onEdit: {
-                        appMode.enterCardEdit(cardTemplateId: row.id)
-                    }
-                )
-                if isSelecting {
-                    rowView
+                rowView(for: row)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func expiredSection(rows: [LibraryRowData]) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Button {
+                withAnimation(.spring(response: 0.25, dampingFraction: 0.9)) {
+                    showExpired.toggle()
+                }
+            } label: {
+                HStack {
+                    Text("Expired · \(rows.count)")
+                        .font(.system(.caption, design: .rounded))
+                        .fontWeight(.semibold)
+                    Spacer()
+                    Image(systemName: showExpired ? "chevron.down" : "chevron.right")
+                        .font(.system(size: 12, weight: .semibold))
+                }
+                .foregroundColor(.white.opacity(0.7))
+            }
+            .buttonStyle(.plain)
+
+            if showExpired {
+                if rows.isEmpty {
+                    Text("No expired tasks")
+                        .font(.system(.caption2, design: .rounded))
+                        .foregroundColor(.white.opacity(0.5))
+                        .padding(.leading, 8)
                 } else {
-                    rowView.gesture(cardDragGesture(for: row.template))
+                    ForEach(rows) { row in
+                        rowView(for: row)
+                    }
                 }
             }
+        }
+    }
+
+    private func expiredBanner(onView: @escaping () -> Void) -> some View {
+        HStack(spacing: 12) {
+            Text("一个任务已枯萎，已移至 Expired。")
+                .font(.system(.caption, design: .rounded))
+                .foregroundColor(.white)
+            Spacer()
+            Button("View") {
+                onView()
+            }
+            .font(.system(.caption, design: .rounded))
+            .foregroundColor(.cyan)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(Color.white.opacity(0.08))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                )
+        )
+    }
+
+    @ViewBuilder
+    private func rowView(for row: LibraryRowData) -> some View {
+        let rowView = LibraryRow(
+            entry: row.entry,
+            template: row.template,
+            isSelecting: isSelecting,
+            isSelected: selectedIds.contains(row.id),
+            onToggle: {
+                toggleSelection(row.id)
+            },
+            onEdit: {
+                appMode.enterCardEdit(cardTemplateId: row.id)
+            }
+        )
+        if isSelecting {
+            rowView
+        } else {
+            rowView.gesture(cardDragGesture(for: row.template))
         }
     }
     
@@ -760,6 +863,10 @@ private struct LibraryRow: View {
     let onEdit: () -> Void
     
     var body: some View {
+        let isReminder = template.taskMode == .reminderOnly || template.remindAt != nil
+        let deadlineText = deadlineLabel(now: Date())
+        let reminderText = reminderLabel(now: Date())
+        let isExpired = entry.deadlineStatus == .expired
         HStack(spacing: 12) {
             if isSelecting {
                 Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
@@ -779,19 +886,25 @@ private struct LibraryRow: View {
                 Text(template.title)
                     .font(.system(.subheadline, design: .rounded))
                     .fontWeight(.semibold)
-                    .foregroundColor(.white)
+                    .foregroundColor(isExpired ? .gray : .white)
                     .lineLimit(1)
                 HStack(spacing: 8) {
-                    Text("\(Int(template.defaultDuration / 60)) min")
-                        .font(.system(.caption2, design: .rounded))
-                        .foregroundColor(.white.opacity(0.6))
-                    if template.repeatRule != .none {
+                    if !isReminder {
+                        Text("\(Int(template.defaultDuration / 60)) min")
+                            .font(.system(.caption2, design: .rounded))
+                            .foregroundColor(.white.opacity(0.6))
+                    }
+                    if !isReminder && template.repeatRule != .none {
                         Text(repeatLabel(for: template.repeatRule))
                             .font(.system(.caption2, design: .rounded))
                             .foregroundColor(.cyan)
                     }
-                    if let deadline = entry.deadline {
-                        Text(formatDate(deadline))
+                    if let deadlineText {
+                        Text(deadlineText)
+                            .font(.system(.caption2, design: .rounded))
+                            .foregroundColor(isExpired ? .gray : .orange)
+                    } else if let reminderText {
+                        Text(reminderText)
                             .font(.system(.caption2, design: .rounded))
                             .foregroundColor(.orange)
                     }
@@ -832,13 +945,31 @@ private struct LibraryRow: View {
         }
     }
     
-    private func formatDate(_ date: Date) -> String {
-        Self.dateFormatter.string(from: date)
+    private func deadlineLabel(now: Date) -> String? {
+        guard template.taskMode != .reminderOnly else { return nil }
+        guard let windowDays = template.deadlineWindowDays,
+              let deadlineAt = Calendar.current.date(byAdding: .day, value: windowDays, to: entry.addedAt) else {
+            return nil
+        }
+        if entry.deadlineStatus == .expired {
+            return "expired"
+        }
+        return CountdownFormatter.formatRelative(seconds: deadlineAt.timeIntervalSince(now)) ?? "expired"
     }
 
-    private static let dateFormatter: DateFormatter = {
+    private func reminderLabel(now: Date) -> String? {
+        guard template.taskMode == .reminderOnly || template.remindAt != nil else { return nil }
+        guard let remindAt = template.remindAt else { return "reminder" }
+        let timeLabel = Self.reminderTimeFormatter.string(from: remindAt)
+        if let remaining = CountdownFormatter.formatRelative(seconds: remindAt.timeIntervalSince(now)) {
+            return "at \(timeLabel) · \(remaining)"
+        }
+        return "at \(timeLabel)"
+    }
+
+    private static let reminderTimeFormatter: DateFormatter = {
         let formatter = DateFormatter()
-        formatter.dateFormat = "MMM d"
+        formatter.dateFormat = "HH:mm"
         return formatter
     }()
 }

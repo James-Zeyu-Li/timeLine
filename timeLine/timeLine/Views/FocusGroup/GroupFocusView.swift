@@ -16,6 +16,7 @@ struct GroupFocusView: View {
     @State private var members: [GroupMember] = []
     @State private var nodeId: UUID?
     @State private var lastFocusedSeconds: TimeInterval = 0
+    @State private var nextReminder: ReminderPreview?
 
     var body: some View {
         ZStack {
@@ -55,10 +56,12 @@ struct GroupFocusView: View {
         .onAppear {
             syncSession()
             lastFocusedSeconds = currentFocusedSeconds
+            updateNextReminder(at: Date())
         }
-        .onChange(of: daySession.currentNode?.id) { _ in
+        .onChange(of: daySession.currentNode?.id) { _, _ in
             syncSession()
             lastFocusedSeconds = currentFocusedSeconds
+            updateNextReminder(at: Date())
         }
         .onReceive(timer) { input in
             engine.tick(at: input)
@@ -68,6 +71,7 @@ struct GroupFocusView: View {
                 coordinator.recordFocusProgress(seconds: delta)
                 lastFocusedSeconds = focused
             }
+            updateNextReminder(at: input)
         }
         .confirmationDialog(
             "完成今日探险？",
@@ -96,6 +100,11 @@ struct GroupFocusView: View {
             Text("Switch tasks anytime")
                 .font(.system(.caption, design: .rounded))
                 .foregroundColor(.white.opacity(0.6))
+            if let reminderText = nextReminderText {
+                Text(reminderText)
+                    .font(.system(.caption, design: .rounded))
+                    .foregroundColor(.cyan.opacity(0.8))
+            }
         }
         .padding(.top, 20)
     }
@@ -155,6 +164,20 @@ struct GroupFocusView: View {
     private func endExploration() {
         let summary = coordinator.endFocusGroupSession(at: Date())
         engine.endExploration(summary: summary, at: Date())
+    }
+
+    private var nextReminderText: String? {
+        guard let nextReminder else { return nil }
+        guard let remaining = CountdownFormatter.formatRemaining(seconds: nextReminder.remainingSeconds) else { return nil }
+        return "距离 \(nextReminder.taskName) 还有 \(remaining)"
+    }
+
+    private func updateNextReminder(at date: Date) {
+        guard coordinator.pendingReminder == nil else {
+            nextReminder = nil
+            return
+        }
+        nextReminder = ReminderScheduler.nextUpcoming(nodes: daySession.nodes, at: date)
     }
 }
 

@@ -7,6 +7,7 @@ public struct ReminderEvent: Equatable {
     public let leadTimeMinutes: Int
     public let remainingSeconds: TimeInterval
     public let isOverdue: Bool
+    public let templateId: UUID?
 
     public init(
         nodeId: UUID,
@@ -14,7 +15,8 @@ public struct ReminderEvent: Equatable {
         remindAt: Date,
         leadTimeMinutes: Int,
         remainingSeconds: TimeInterval,
-        isOverdue: Bool
+        isOverdue: Bool,
+        templateId: UUID?
     ) {
         self.nodeId = nodeId
         self.taskName = taskName
@@ -22,7 +24,17 @@ public struct ReminderEvent: Equatable {
         self.leadTimeMinutes = leadTimeMinutes
         self.remainingSeconds = remainingSeconds
         self.isOverdue = isOverdue
+        self.templateId = templateId
     }
+}
+
+public struct ReminderPreview: Equatable {
+    public let nodeId: UUID
+    public let taskName: String
+    public let remindAt: Date
+    public let leadTimeMinutes: Int
+    public let remainingSeconds: TimeInterval
+    public let templateId: UUID?
 }
 
 public final class ReminderScheduler {
@@ -55,11 +67,31 @@ public final class ReminderScheduler {
                     remindAt: remindAt,
                     leadTimeMinutes: leadMinutes,
                     remainingSeconds: remaining,
-                    isOverdue: remaining < 0
+                    isOverdue: remaining < 0,
+                    templateId: boss.templateId
                 )
             )
         }
         return events
+    }
+
+    public static func nextUpcoming(nodes: [TimelineNode], at date: Date = Date()) -> ReminderPreview? {
+        let upcoming = nodes.compactMap { node -> ReminderPreview? in
+            guard !node.isCompleted else { return nil }
+            guard case .battle(let boss) = node.type else { return nil }
+            guard let remindAt = boss.remindAt else { return nil }
+            let remaining = remindAt.timeIntervalSince(date)
+            guard remaining > 0 else { return nil }
+            return ReminderPreview(
+                nodeId: node.id,
+                taskName: boss.name,
+                remindAt: remindAt,
+                leadTimeMinutes: max(0, boss.leadTimeMinutes),
+                remainingSeconds: remaining,
+                templateId: boss.templateId
+            )
+        }
+        return upcoming.min(by: { $0.remindAt < $1.remindAt })
     }
 
     public func reset(for nodeId: UUID) {

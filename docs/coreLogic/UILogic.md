@@ -15,14 +15,16 @@
 | **`AppModeManager`** | Single overlay state machine | `enter(_:)`, `exitDrag()`, `exitCardEdit()` |
 | **`CardTemplateStore`** | Template cards for DeckOverlay | `add()`, `update()`, `orderedTemplates()` |
 | **`DeckStore`** | Deck bundles | `add()`, `update()`, `orderedDecks()` |
-| **`TimelineStore`** | Single placement write path | `placeCardOccurrence()`, `placeDeckBatch()`, `placeCardOccurrenceAtStart()` |
+| **`TimelineStore`** | Single placement write path | `placeCardOccurrence()`, `placeDeckBatch()`, `placeCardOccurrenceAtStart()`, `placeCardOccurrenceByTime()` |
 | **`DragDropCoordinator`** | Drag location + hover | `startDrag(payload:)`, `updatePosition()`, `drop()` |
+| **`ReminderScheduler`** | In-app reminder trigger | `evaluate(nodes:at:)` |
 
 ---
 
 ## 功能位置索引（中文）
 
 ### 卡片 / Library / Deck
+- **TaskBehavior**：`TimeLineCore/Sources/TimeLineCore/TaskBehavior.swift`
 - **CardTemplate 模型**：`TimeLineCore/Sources/TimeLineCore/CardTemplate.swift`
 - **CardTemplateStore / LibraryStore**：`timeLine/timeLine/State/CardTemplateStore.swift`
 - **LibraryEntry**：`TimeLineCore/Sources/TimeLineCore/LibraryEntry.swift`
@@ -46,6 +48,8 @@
 - **完成/报告协调**：`timeLine/timeLine/TimelineEventCoordinator.swift`
 - **RestPrompt 逻辑**：`TimeLineCore/Sources/TimeLineCore/RestPromptService.swift`
 - **RestPrompt UI**：`timeLine/timeLine/Views/Shared/RestSuggestionBanner.swift`
+- **Reminder 触发**：`TimeLineCore/Sources/TimeLineCore/ReminderScheduler.swift`
+- **Reminder UI**：`timeLine/timeLine/Views/Shared/ReminderBanner.swift`
 
 ---
 
@@ -62,6 +66,7 @@ Layer orchestration and drag routing.
 | **Empty Drop** | `handleEmptyDropFallback()` | empty timeline → create first node |
 | **Floating Controls** | `RootView` overlay | Add + Settings floating buttons |
 | **Card Edit** | `.sheet` | `cardEdit` presented as modal sheet |
+| **Reminder Banner** | `RootView` overlay | `pendingReminder` → 完成 / 稍后（标题可跳转详情） |
 
 ### `DeckOverlay.swift`
 Primary creation surface.
@@ -70,8 +75,9 @@ Primary creation surface.
 |---|---|---|
 | **Tabs** | `DeckTab` | Cards / Library / Decks (Create tab removed; Add Card opens QuickBuilder) |
 | **Fan** | `CardFanView` | tap to add to Library, long press → edit |
-| **Library** | `LibraryTabView` | long-press drag to map; select → Add to Group or drag group token |
+| **Library** | `LibraryTabView` | long-press drag to map; select → Add to Group or drag group token; sections: Reminders + 1/3/5/7 Days + Later + Expired |
 | **QuickBuilder** | `QuickBuilderSheet` | Add Card opens template creator; returns to Cards with add-to-Library hint |
+| **Reminder Create** | `QuickBuilderSheet` | if `remindAt` set, auto-inserts by time |
 | **Routine Decks** | Decks tab | small row of routine decks + See All |
 | **Close** | background tap / swipe | `exitToHome()` |
 | **Sheet** | `DeckOverlay` | bottom sheet (map remains visible) |
@@ -90,7 +96,7 @@ Map route UI + drop target feedback.
 
 | Gesture | Action | Notes |
 |---|---|---|
-| **Tap** | Start task | Starts battle or rest |
+| **Tap** | Start task | Reminder task tap completes immediately; battle/rest otherwise |
 | **Drag Library/Deck** | Place on node | Empty map creates first node |
 | **Drag Group Token** | Place group occurrence | Select ≥2 in Library |
 | **Scroll Drag** | Map snap | Drag ends → snaps to nearest node |
@@ -104,8 +110,10 @@ Map route UI + drop target feedback.
 | **Distraction** | Retreat with wasted time | "Wasted +X min" |
 | **Rest Complete** | Bonfire ends | "Up next: Task (Xm)" |
 | **Bonfire Suggested** | After streak/long focus | "前面有个篝火，要不要歇一会？" |
+| **Reminder** | remindAt - leadTime | "提醒：任务名" + 完成 / 稍后（标题可进入详情） |
 
 Banners auto-dismiss after ~1.8s. Next actionable node pulses with cyan glow.
+Focus session views (BattleView / GroupFocusView) show the next reminder countdown when one exists.
 
 ---
 

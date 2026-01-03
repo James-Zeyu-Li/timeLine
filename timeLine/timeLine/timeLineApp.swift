@@ -34,6 +34,7 @@ struct TimeLineApp: App {
     @StateObject private var daySession: DaySession
     @StateObject private var cardStore: CardTemplateStore
     @StateObject private var libraryStore: LibraryStore
+    @StateObject private var focusListStore = FocusListStore()
     @StateObject private var deckStore = DeckStore()
     @StateObject private var appMode = AppModeManager()
     @StateObject private var stateManager: AppStateManager
@@ -110,6 +111,7 @@ struct TimeLineApp: App {
                     .environmentObject(daySession)
                     .environmentObject(cardStore)
                     .environmentObject(libraryStore)
+                    .environmentObject(focusListStore)
                     .environmentObject(deckStore)
                     .environmentObject(appMode)
                     .environmentObject(stateManager)
@@ -172,7 +174,10 @@ struct TimeLineApp: App {
             if !Calendar.current.isDateInToday(state.lastSeenAt) {
                 // IT'S A NEW DAY
                 print("[TimeLineApp] New Day Detected! Resetting session.")
-                
+
+                // Ephemeral Cleanup: remove unsaved ad-hoc templates from last day
+                cleanupEphemeralTemplates()
+
                 // 1. Capture yesterday's stats
                 if let history = state.history.last, Calendar.current.isDate(history.date, inSameDayAs: state.lastSeenAt) {
                     yesterdayFocusTime = history.totalFocusedTime
@@ -225,6 +230,16 @@ struct TimeLineApp: App {
                 daySession.currentIndex = state.daySession.currentIndex
             }
         }
+    }
+
+    private func cleanupEphemeralTemplates() {
+        let toRemove = cardStore.orderedTemplates().filter { $0.isEphemeral }
+        guard !toRemove.isEmpty else { return }
+        for template in toRemove {
+            cardStore.remove(id: template.id)
+            libraryStore.remove(templateId: template.id)
+        }
+        print("[TimeLineApp] Ephemeral cleanup removed \(toRemove.count) templates.")
     }
     
     func checkForNewDay() {

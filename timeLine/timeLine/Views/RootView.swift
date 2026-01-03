@@ -1,4 +1,5 @@
 import SwiftUI
+import Combine
 import TimeLineCore
 
 struct RootView: View {
@@ -17,6 +18,7 @@ struct RootView: View {
     @State private var showDeckToast = false
     @State private var deckPlacementCooldownUntil: Date?
     @State private var showSettings = false
+    @State private var reminderTimer = Timer.publish(every: 30, on: .main, in: .common).autoconnect()
     
     var body: some View {
         ZStack {
@@ -84,7 +86,22 @@ struct RootView: View {
             }
         }
         .overlay(alignment: .bottom) {
-            if shouldShowRestSuggestion, let event = coordinator.pendingRestSuggestion {
+            if shouldShowReminder, let event = coordinator.pendingReminder {
+                ReminderBanner(
+                    event: event,
+                    onComplete: {
+                        coordinator.completeReminder(nodeId: event.nodeId)
+                    },
+                    onSnooze: {
+                        coordinator.snoozeReminder(nodeId: event.nodeId)
+                    },
+                    onOpen: {
+                        openReminderDetails(event)
+                    }
+                )
+                .padding(.bottom, showDeckToast ? 96 : 24)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            } else if shouldShowRestSuggestion, let event = coordinator.pendingRestSuggestion {
                 RestSuggestionBanner(
                     event: event,
                     onRest: {
@@ -122,6 +139,9 @@ struct RootView: View {
         .task {
             cardStore.seedDefaultsIfNeeded()
             deckStore.seedDefaultsIfNeeded(using: cardStore)
+        }
+        .onReceive(reminderTimer) { input in
+            coordinator.checkReminders(at: input)
         }
     }
     
@@ -228,7 +248,12 @@ struct RootView: View {
 
     private var shouldShowRestSuggestion: Bool {
         guard coordinator.pendingRestSuggestion != nil else { return false }
+        guard coordinator.pendingReminder == nil else { return false }
         return engine.state != .resting
+    }
+
+    private var shouldShowReminder: Bool {
+        coordinator.pendingReminder != nil
     }
 
     private var shouldShowGroupFocus: Bool {
@@ -236,6 +261,18 @@ struct RootView: View {
         return node.effectiveTaskMode { id in
             cardStore.get(id: id)
         } == .focusGroupFlexible
+    }
+
+    private func openReminderDetails(_ event: ReminderEvent) {
+        guard let templateId = event.templateId else { return }
+        let returnMode: AppMode
+        switch appMode.mode {
+        case .deckOverlay(let tab):
+            returnMode = .deckOverlay(tab)
+        default:
+            returnMode = .homeCollapsed
+        }
+        appMode.enter(.cardEdit(cardTemplateId: templateId, returnMode: returnMode))
     }
     
     private var droppableNodeIds: Set<UUID> {
@@ -256,12 +293,22 @@ struct RootView: View {
         case .placeCard(let cardTemplateId, let anchorNodeId, let placement):
             // Create TimelineStore with current session
             let timelineStore = TimelineStore(daySession: daySession, stateManager: stateManager)
-            _ = timelineStore.placeCardOccurrence(
-                cardTemplateId: cardTemplateId,
-                anchorNodeId: anchorNodeId,
-                placement: placement,
-                using: cardStore
-            )
+            if let card = cardStore.get(id: cardTemplateId),
+               let remindAt = card.remindAt {
+                _ = timelineStore.placeCardOccurrenceByTime(
+                    cardTemplateId: cardTemplateId,
+                    remindAt: remindAt,
+                    using: cardStore,
+                    engine: engine
+                )
+            } else {
+                _ = timelineStore.placeCardOccurrence(
+                    cardTemplateId: cardTemplateId,
+                    anchorNodeId: anchorNodeId,
+                    placement: placement,
+                    using: cardStore
+                )
+            }
             
             UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
             success = true
@@ -561,9 +608,11 @@ struct CardDetailEditSheet: View {
                                 .accessibilityIdentifier("cardDetailTitleField")
                         }
                         
-                        Section("Duration") {
-                            Stepper(value: durationMinutesBinding, in: 5...240, step: 5) {
-                                Text("\(Int(durationMinutesBinding.wrappedValue)) min")
+                        if taskModeBinding.wrappedValue != .reminderOnly {
+                            Section("Duration") {
+                                Stepper(value: durationMinutesBinding, in: 5...240, step: 5) {
+                                    Text("\(Int(durationMinutesBinding.wrappedValue)) min")
+                                }
                             }
                         }
                         
@@ -576,6 +625,34 @@ struct CardDetailEditSheet: View {
                             .pickerStyle(.segmented)
                             .accessibilityIdentifier("cardDetailTaskModePicker")
                             .accessibilityValue(taskModeLabel(taskModeBinding.wrappedValue))
+                        }
+
+                        if taskModeBinding.wrappedValue == .reminderOnly {
+                            Section("Remind At") {
+                                DatePicker(
+                                    "Time",
+                                    selection: reminderDateBinding,
+                                    displayedComponents: [.date, .hourAndMinute]
+                                )
+                            }
+                            
+                            Section("Lead Time") {
+                                Picker("Lead Time", selection: leadTimeBinding) {
+                                    ForEach(leadTimeOptions, id: \.self) { minutes in
+                                        Text(leadTimeLabel(minutes)).tag(minutes)
+                                    }
+                                }
+                                .pickerStyle(.segmented)
+                            }
+                        } else {
+                            Section("Complete Within") {
+                                Picker("Complete Within", selection: deadlineWindowBinding) {
+                                    ForEach(deadlineOptions, id: \.self) { option in
+                                        Text(deadlineLabel(option)).tag(option)
+                                    }
+                                }
+                                .pickerStyle(.segmented)
+                            }
                         }
                         
                         Section("Library") {
@@ -637,6 +714,15 @@ struct CardDetailEditSheet: View {
             set: { newValue in
                 guard var current = draft else { return }
                 current.taskMode = newValue
+                if newValue == .reminderOnly {
+                    if current.remindAt == nil {
+                        current.remindAt = Date().addingTimeInterval(3600)
+                    }
+                    current.deadlineWindowDays = nil
+                } else {
+                    current.remindAt = nil
+                    current.leadTimeMinutes = 0
+                }
                 draft = current
             }
         )
@@ -644,6 +730,47 @@ struct CardDetailEditSheet: View {
     
     private var taskModeOptions: [TaskMode] {
         [.focusStrictFixed, .focusGroupFlexible, .reminderOnly]
+    }
+
+    private var leadTimeOptions: [Int] {
+        [0, 5, 10, 30, 60]
+    }
+
+    private var reminderDateBinding: Binding<Date> {
+        Binding(
+            get: { draft?.remindAt ?? Date().addingTimeInterval(3600) },
+            set: { newValue in
+                guard var current = draft else { return }
+                current.remindAt = newValue
+                draft = current
+            }
+        )
+    }
+
+    private var leadTimeBinding: Binding<Int> {
+        Binding(
+            get: { draft?.leadTimeMinutes ?? 0 },
+            set: { newValue in
+                guard var current = draft else { return }
+                current.leadTimeMinutes = newValue
+                draft = current
+            }
+        )
+    }
+
+    private var deadlineOptions: [Int?] {
+        [nil, 1, 3, 5, 7]
+    }
+
+    private var deadlineWindowBinding: Binding<Int?> {
+        Binding(
+            get: { draft?.deadlineWindowDays },
+            set: { newValue in
+                guard var current = draft else { return }
+                current.deadlineWindowDays = newValue
+                draft = current
+            }
+        )
     }
 
     private var libraryBinding: Binding<Bool> {
@@ -669,6 +796,18 @@ struct CardDetailEditSheet: View {
         case .reminderOnly:
             return "Reminder"
         }
+    }
+
+    private func leadTimeLabel(_ minutes: Int) -> String {
+        if minutes == 0 {
+            return "On Time"
+        }
+        return "\(minutes)m early"
+    }
+
+    private func deadlineLabel(_ option: Int?) -> String {
+        guard let option else { return "Off" }
+        return "\(option)d"
     }
     
     private var isSaveDisabled: Bool {
@@ -703,6 +842,8 @@ struct CardDetailEditSheet: View {
 
 struct FocusGroupReportSheet: View {
     @EnvironmentObject var cardStore: CardTemplateStore
+    @EnvironmentObject var libraryStore: LibraryStore
+    @EnvironmentObject var stateManager: AppStateManager
     @Environment(\.dismiss) private var dismiss
     let report: FocusGroupFinishedReport
 
@@ -732,12 +873,23 @@ struct FocusGroupReportSheet: View {
                         .padding(.top, 8)
                 } else {
                     ForEach(visibleEntries, id: \.templateId) { entry in
-                        HStack {
-                            Text(templateTitle(for: entry.templateId))
-                                .foregroundColor(.primary)
-                            Spacer()
-                            Text(TimeFormatter.formatDuration(entry.focusedSeconds))
-                                .foregroundColor(PixelTheme.accent)
+                        let template = cardStore.get(id: entry.templateId)
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack {
+                                Text(template?.title ?? "Task")
+                                    .foregroundColor(.primary)
+                                Spacer()
+                                Text(TimeFormatter.formatDuration(entry.focusedSeconds))
+                                    .foregroundColor(PixelTheme.accent)
+                            }
+                            if let template, template.isEphemeral {
+                                Button("Save as Template") {
+                                    saveEphemeralTemplate(template)
+                                }
+                                .font(.system(.caption, design: .rounded))
+                                .fontWeight(.semibold)
+                                .foregroundColor(.cyan)
+                            }
                         }
                         .padding(.vertical, 6)
                     }
@@ -763,7 +915,11 @@ struct FocusGroupReportSheet: View {
         }
     }
 
-    private func templateTitle(for id: UUID) -> String {
-        cardStore.get(id: id)?.title ?? "Task"
+    private func saveEphemeralTemplate(_ template: CardTemplate) {
+        var updated = template
+        updated.isEphemeral = false
+        cardStore.update(updated)
+        libraryStore.add(templateId: updated.id)
+        stateManager.requestSave()
     }
 }

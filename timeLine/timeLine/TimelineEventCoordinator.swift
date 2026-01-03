@@ -68,6 +68,11 @@ final class TimelineEventCoordinator: ObservableObject {
         lastProcessedNodeId = currentNodeId
         
         print("[Coordinator] Received: \(result)")
+
+        if let reminder = pendingReminder, reminder.nodeId == currentNodeId {
+            pendingReminder = nil
+            reminderScheduler.reset(for: reminder.nodeId)
+        }
         
         // Advance to next node
         let advanceSuccess = safeAdvance()
@@ -134,7 +139,7 @@ final class TimelineEventCoordinator: ObservableObject {
     }
 
     func recordFocusProgress(seconds: TimeInterval) {
-        guard pendingRestSuggestion == nil else { return }
+        guard pendingRestSuggestion == nil, pendingReminder == nil else { return }
         if let event = restPromptService.recordFocus(seconds: seconds) {
             pendingRestSuggestion = event
         }
@@ -149,6 +154,25 @@ final class TimelineEventCoordinator: ObservableObject {
 
     func clearReminder() {
         pendingReminder = nil
+    }
+
+    func completeReminder(nodeId: UUID) {
+        daySession.completeNode(id: nodeId)
+        pendingReminder = nil
+        reminderScheduler.reset(for: nodeId)
+        stateManager.requestSave()
+    }
+
+    func snoozeReminder(nodeId: UUID, minutes: Int = 10, at date: Date = Date()) {
+        guard let index = daySession.nodes.firstIndex(where: { $0.id == nodeId }) else { return }
+        guard case .battle(var boss) = daySession.nodes[index].type else { return }
+        let lead = max(0, boss.leadTimeMinutes)
+        let totalMinutes = minutes + lead
+        boss.remindAt = date.addingTimeInterval(TimeInterval(totalMinutes * 60))
+        daySession.nodes[index].type = .battle(boss)
+        pendingReminder = nil
+        reminderScheduler.reset(for: nodeId)
+        stateManager.requestSave()
     }
 
     private func recordExplorationReport(

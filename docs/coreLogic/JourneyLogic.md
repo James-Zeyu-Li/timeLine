@@ -9,6 +9,7 @@
 - **Timeline Map 是舞台**：UI 只是 `DaySession` 的投影；放置只通过 `TimelineStore.place*` 写入。
 - **Cards / Library / Decks 语义**：Cards 是模板仓库，先加入 Library；Library 是近期要做的任务池；Decks 是可复用的任务组合。
 - **放置路径**：Library/Deck → 生成 occurrence → 写入 `DaySession.nodes`。
+- **提醒行为统一**：`TaskBehavior` 只有 `.battle` / `.reminder`，不再区分旧的 reminderOnly/passive。
 
 ## 功能位置索引（简版）
 - **CardTemplate**：`TimeLineCore/Sources/TimeLineCore/CardTemplate.swift`
@@ -39,22 +40,28 @@ A single step in the route.
 - **State**:
   - `isCompleted`
   - `isLocked`
+- **Behavior**:
+  - `TaskBehavior`（`.battle` / `.reminder`）
+  - reminder 判断：`remindAt` / legacy `taskMode.reminderOnly` / `BossStyle.passive`
 
 ### B. `Boss` (Task)
 Represents a focused task.
 - **Fields**: `id`, `name`, `maxHp`, `currentHp`, `style`, `category`
 - **Recommended Start**: `recommendedStart: DateComponents?` (for UI hints)
+- **Reminder Fields**: `remindAt`, `leadTimeMinutes`
 
 ### C. `CardTemplate`
 Reusable task definition for creation and repeat spawning.
-- **Fields**: `title`, `defaultDuration`, `taskMode`, `fixedTime`, `repeatRule`, `category`, `style`, `icon`, `tags`, `energyColor`
+- **Fields**: `title`, `defaultDuration`, `taskMode`, `fixedTime`, `repeatRule`, `deadlineWindowDays`, `remindAt`, `leadTimeMinutes`, `isEphemeral`, `category`, `style`, `icon`, `tags`, `energyColor`
 - **Repeat Rules**: daily/weekly/monthly for auto-spawn.
-- **Scheduling vs Mode**: `fixedTime/repeatRule` are scheduling semantics; `taskMode` is execution semantics (orthogonal, not a replacement).
+- **Scheduling vs Mode**: `fixedTime/repeatRule/deadlineWindowDays` are scheduling semantics; `taskMode` is execution semantics (orthogonal, not a replacement).
 - **Usage**: TaskSheet edits and QuickEntry both produce `CardTemplate` directly; Cards tab仅负责加入 Library。
+- **Reminder**: `remindAt` / `leadTimeMinutes` 仅用于提醒触发（不进入 BattleView）。
 
 ### C-1. `LibraryEntry`
 Library 的最小持久化条目。
-- **Fields**: `templateId`, `addedAt`, `deadline?`
+- **Fields**: `templateId`, `addedAt`, `deadlineStatus`
+- **Derived**: `deadlineAt = addedAt + deadlineWindowDays`（由 UI/Store 计算，不强制落库）
 - **Usage**: Library 作为“近期想做的任务池”，拖拽到地图生成 occurrence。
 
 ### D. `DaySession`
@@ -88,6 +95,11 @@ App layer creates timeline occurrences via `TimelineStore.placeCardOccurrence` /
 Strict-mode focus timer.
 - Wall-clock timing; wasted time tracking.
 - Emits `SessionResult` on victory/retreat.
+
+### `ReminderScheduler`
+In-app reminder trigger.
+- Evaluates `remindAt - leadTimeMinutes`.
+- Emits `ReminderEvent` (UI handles banner; no BattleEngine).
 
 ### `StatsAggregator`
 Aggregates daily history and heatmap intensity.

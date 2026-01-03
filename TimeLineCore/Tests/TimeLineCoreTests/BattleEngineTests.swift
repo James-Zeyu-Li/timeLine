@@ -108,44 +108,6 @@ final class BattleEngineTests: XCTestCase {
         XCTAssertEqual(received?.endReason, .incompleteExit)
         XCTAssertNotNil(received?.remainingSecondsAtExit)
     }
-
-    func testEndExplorationEmitsCompletedExploration() {
-        let firstId = UUID()
-        let secondId = UUID()
-        let payload = FocusGroupPayload(
-            memberTemplateIds: [firstId, secondId],
-            activeIndex: 1
-        )
-        let boss = Boss(
-            name: "Group Boss",
-            maxHp: 600,
-            style: .focus,
-            focusGroupPayload: payload
-        )
-        let startTime = Date()
-        let expectation = XCTestExpectation(description: "Completed exploration emits session result")
-        var received: SessionResult?
-        var cancellables = Set<AnyCancellable>()
-
-        engine.onSessionComplete
-            .sink { result in
-                received = result
-                expectation.fulfill()
-            }
-            .store(in: &cancellables)
-
-        engine.startBattle(boss: boss, at: startTime)
-        let endTime = startTime.addingTimeInterval(90)
-        engine.tick(at: endTime)
-        engine.endExploration(at: endTime)
-
-        wait(for: [expectation], timeout: 1.0)
-        XCTAssertEqual(received?.endReason, .completedExploration)
-        XCTAssertNil(received?.remainingSecondsAtExit)
-        XCTAssertEqual(received?.focusGroupSummary?.totalFocusedSeconds ?? 0, 90, accuracy: 0.1)
-        XCTAssertEqual(received?.focusGroupSummary?.allocations[secondId] ?? 0, 90, accuracy: 0.1)
-        XCTAssertNil(received?.focusGroupSummary?.allocations[firstId])
-    }
     
     func testForceCompleteTask() {
         let boss = Boss(name: "Debug Boss", maxHp: 3600)

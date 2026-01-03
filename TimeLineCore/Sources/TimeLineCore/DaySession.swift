@@ -56,6 +56,13 @@ public class DaySession: ObservableObject, Codable {
             nodes[currentIndex].isLocked = false
         }
     }
+
+    public func completeNode(id: UUID) {
+        guard let index = nodes.firstIndex(where: { $0.id == id }) else { return }
+        guard !nodes[index].isCompleted else { return }
+        nodes[index].isCompleted = true
+        resetCurrentToFirstUpcoming()
+    }
     
     /// Move node from one position to another (for drag-to-reorder).
     /// Allows moving any node, including the current selected node.

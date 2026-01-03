@@ -6,6 +6,9 @@ struct QuickBuilderSheet: View {
     @EnvironmentObject var cardStore: CardTemplateStore
     @EnvironmentObject var libraryStore: LibraryStore
     @EnvironmentObject var appMode: AppModeManager
+    @EnvironmentObject var daySession: DaySession
+    @EnvironmentObject var stateManager: AppStateManager
+    @EnvironmentObject var engine: BattleEngine
     
     let onCreated: (() -> Void)?
     
@@ -31,14 +34,28 @@ struct QuickBuilderSheet: View {
         var category: TaskCategory
         var duration: QuickDuration
         var taskMode: TaskMode
+        var reminderTime: Date
+        var leadTimeMinutes: Int
+        var deadlineWindowDays: Int?
         
         static let `default` = QuickBuilderDraft(
             title: "Study",
             category: .study,
             duration: .m30,
-            taskMode: .focusStrictFixed
+            taskMode: .focusStrictFixed,
+            reminderTime: Date().addingTimeInterval(3600), // Default: 1 hour from now
+            leadTimeMinutes: 0,
+            deadlineWindowDays: nil
         )
     }
+
+    private let deadlineOptions: [(String, Int?)] = [
+        ("Off", nil),
+        ("1d", 1),
+        ("3d", 3),
+        ("5d", 5),
+        ("7d", 7)
+    ]
     
     var body: some View {
         NavigationStack {
@@ -76,25 +93,62 @@ struct QuickBuilderSheet: View {
                             draft.title == item.0
                         }
                         
+                        sectionTitle("Task Mode")
+                        modeChips
+                        
                         if !recentTemplates.isEmpty {
                             sectionTitle("Recent Cards")
                             recentChips
                         }
-                        
-                        sectionTitle("Duration")
-                        chipRow(
-                            items: QuickDuration.allCases,
-                            tint: .green
-                        ) { option in
-                            draft.duration = option
-                        } isSelected: { option in
-                            draft.duration == option
-                        } label: { option in
-                            option.label
+
+                        if draft.taskMode == .reminderOnly {
+                            sectionTitle("Remind At")
+                            reminderTimePicker
+                            
+                            sectionTitle("Lead Time")
+                            leadTimeChips
                         }
-                        
-                        sectionTitle("Task Mode")
-                        modeChips
+
+                        if draft.taskMode != .reminderOnly {
+                            sectionTitle("Duration")
+                            chipRow(
+                                items: QuickDuration.allCases,
+                                tint: .green
+                            ) { option in
+                                draft.duration = option
+                            } isSelected: { option in
+                                draft.duration == option
+                            } label: { option in
+                                option.label
+                            }
+
+                            sectionTitle("Complete Within")
+                            HStack(spacing: 8) {
+                                ForEach(deadlineOptions, id: \.0) { option in
+                                    Button(action: {
+                                        draft.deadlineWindowDays = option.1
+                                    }) {
+                                        Text(option.0)
+                                            .font(.system(.caption, design: .rounded))
+                                            .fontWeight(draft.deadlineWindowDays == option.1 ? .bold : .medium)
+                                            .foregroundColor(draft.deadlineWindowDays == option.1 ? .white : .gray)
+                                            .padding(.horizontal, 10)
+                                            .padding(.vertical, 8)
+                                            .background(
+                                                draft.deadlineWindowDays == option.1 ?
+                                                    Color.orange.opacity(0.35) :
+                                                    Color(white: 0.1)
+                                            )
+                                            .cornerRadius(8)
+                                            .overlay(
+                                                RoundedRectangle(cornerRadius: 8)
+                                                    .stroke(draft.deadlineWindowDays == option.1 ? Color.orange : Color(white: 0.2), lineWidth: 1)
+                                            )
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                        }
                         
                         Button(action: handlePrimaryAction) {
                             HStack {
@@ -133,7 +187,8 @@ struct QuickBuilderSheet: View {
         let trimmed = draft.title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
         
-        let style: BossStyle = draft.category == .rest ? .passive : .focus
+        let style: BossStyle = draft.taskMode == .reminderOnly ? .passive : .focus
+        let remindAt: Date? = draft.taskMode == .reminderOnly ? draft.reminderTime : nil
         let template = CardTemplate(
             title: trimmed,
             icon: draft.category.icon,
@@ -142,10 +197,36 @@ struct QuickBuilderSheet: View {
             energyColor: energyToken(for: draft.category),
             category: draft.category,
             style: style,
-            taskMode: draft.taskMode
+            taskMode: draft.taskMode,
+            remindAt: remindAt,
+            leadTimeMinutes: draft.leadTimeMinutes,
+            deadlineWindowDays: draft.taskMode == .reminderOnly ? nil : draft.deadlineWindowDays
         )
         cardStore.add(template)
         libraryStore.add(templateId: template.id)
+        let timelineStore = TimelineStore(daySession: daySession, stateManager: stateManager)
+        if let remindAt = template.remindAt {
+            _ = timelineStore.placeCardOccurrenceByTime(
+                cardTemplateId: template.id,
+                remindAt: remindAt,
+                using: cardStore,
+                engine: engine
+            )
+        } else {
+            if let lastNode = daySession.nodes.last {
+                _ = timelineStore.placeCardOccurrence(
+                    cardTemplateId: template.id,
+                    anchorNodeId: lastNode.id,
+                    using: cardStore
+                )
+            } else {
+                _ = timelineStore.placeCardOccurrenceAtStart(
+                    cardTemplateId: template.id,
+                    using: cardStore,
+                    engine: engine
+                )
+            }
+        }
         onCreated?()
         appMode.enter(.deckOverlay(.cards))
         dismiss()
@@ -248,6 +329,47 @@ struct QuickBuilderSheet: View {
         }
     }
     
+    private var reminderTimePicker: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            DatePicker(
+                "Time",
+                selection: $draft.reminderTime,
+                displayedComponents: [.date, .hourAndMinute]
+            )
+            .datePickerStyle(.compact)
+            .labelsHidden()
+            .tint(.orange)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color.white.opacity(0.06))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(Color.orange.opacity(0.3), lineWidth: 1)
+                    )
+            )
+            
+            Text("Reminder will appear at this time")
+                .font(.system(.caption, design: .rounded))
+                .foregroundColor(.white.opacity(0.5))
+        }
+    }
+
+    private var leadTimeChips: some View {
+        LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 3), spacing: 12) {
+            ForEach([0, 5, 10, 30, 60], id: \.self) { minutes in
+                ChipButton(
+                    title: leadTimeLabel(minutes),
+                    isSelected: draft.leadTimeMinutes == minutes,
+                    tint: .orange
+                ) {
+                    draft.leadTimeMinutes = minutes
+                }
+            }
+        }
+    }
+    
     private var taskModeOptions: [TaskMode] {
         [.focusStrictFixed, .focusGroupFlexible, .reminderOnly]
     }
@@ -283,6 +405,13 @@ struct QuickBuilderSheet: View {
         case .reminderOnly:
             return "quickBuilderTaskModeReminder"
         }
+    }
+
+    private func leadTimeLabel(_ minutes: Int) -> String {
+        if minutes == 0 {
+            return "On Time"
+        }
+        return "\(minutes)m early"
     }
     
     private func durationOption(for seconds: TimeInterval) -> QuickDuration {

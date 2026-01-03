@@ -27,26 +27,34 @@ struct TaskSheet: View {
     private struct TaskDraft: Equatable {
         var title: String
         var selectedCategory: TaskCategory
-        var selectedStyle: BossStyle
+        var taskMode: TaskMode
         var duration: TimeInterval
+        var reminderTime: Date
+        var leadTimeMinutes: Int
         var repeatType: RepeatType
         var selectedWeekdays: Set<Int>
+        var deadlineWindowDays: Int?
         
         static let `default` = TaskDraft(
             title: "",
             selectedCategory: .work,
-            selectedStyle: .focus,
+            taskMode: .focusStrictFixed,
             duration: 1800,
+            reminderTime: Date().addingTimeInterval(3600),
+            leadTimeMinutes: 0,
             repeatType: .none,
-            selectedWeekdays: []
+            selectedWeekdays: [],
+            deadlineWindowDays: nil
         )
         
         static func fromTemplate(_ template: CardTemplate) -> TaskDraft {
             var draft = TaskDraft.default
             draft.title = template.title
             draft.selectedCategory = template.category
-            draft.selectedStyle = template.style
+            draft.taskMode = template.taskMode
             draft.duration = template.defaultDuration
+            draft.reminderTime = template.remindAt ?? draft.reminderTime
+            draft.leadTimeMinutes = template.leadTimeMinutes
             switch template.repeatRule {
             case .none:
                 draft.repeatType = .none
@@ -61,6 +69,7 @@ struct TaskSheet: View {
                 draft.repeatType = .monthly
                 draft.selectedWeekdays = days
             }
+            draft.deadlineWindowDays = template.deadlineWindowDays
             return draft
         }
     }
@@ -71,6 +80,8 @@ struct TaskSheet: View {
         ("45m", 2700),
         ("1h", 3600), ("90m", 5400), ("2h", 7200)
     ]
+    let leadTimePresets: [Int] = [0, 5, 10, 30, 60]
+    let deadlineOptions: [Int?] = [nil, 1, 3, 5, 7]
     
     var body: some View {
         NavigationView {
@@ -143,76 +154,103 @@ struct TaskSheet: View {
                             }
                         }
                         
-                        // 执行模式选择
+                        // Task Mode
                         VStack(alignment: .leading, spacing: 12) {
-                            Text("Execution Mode")
+                            Text("Task Mode")
                                 .font(.system(.headline, design: .rounded))
                                 .fontWeight(.semibold)
                                 .foregroundColor(.white)
                             
-                            HStack(spacing: 12) {
-                                Button(action: { draft.selectedStyle = .focus }) {
-                                    VStack(spacing: 8) {
-                                        Image(systemName: "bolt.fill")
-                                            .font(.system(size: 24))
-                                            .foregroundColor(draft.selectedStyle == .focus ? .white : .yellow)
-                                        
-                                        Text("Focus")
+                            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 3), spacing: 12) {
+                                ForEach(taskModeOptions, id: \.rawValue) { mode in
+                                    Button(action: {
+                                        draft.taskMode = mode
+                                    }) {
+                                        Text(taskModeLabel(mode))
                                             .font(.system(.subheadline, design: .rounded))
-                                            .fontWeight(.semibold)
-                                        
-                                        Text("Timer-based")
-                                            .font(.system(.caption2))
-                                            .foregroundColor(.gray)
+                                            .fontWeight(draft.taskMode == mode ? .bold : .medium)
+                                            .foregroundColor(draft.taskMode == mode ? .white : .gray)
+                                            .frame(maxWidth: .infinity, minHeight: 44)
+                                            .background(
+                                                draft.taskMode == mode
+                                                ? taskModeTint(mode).opacity(0.35)
+                                                : Color(white: 0.1)
+                                            )
+                                            .overlay(
+                                                RoundedRectangle(cornerRadius: 10)
+                                                    .stroke(
+                                                        draft.taskMode == mode ? taskModeTint(mode) : Color(white: 0.2),
+                                                        lineWidth: draft.taskMode == mode ? 2 : 1
+                                                    )
+                                            )
+                                            .cornerRadius(10)
                                     }
-                                    .frame(maxWidth: .infinity)
-                                    .padding(16)
-                                    .background(
-                                        draft.selectedStyle == .focus ?
-                                            LinearGradient(colors: [.yellow.opacity(0.3), .orange.opacity(0.2)], startPoint: .top, endPoint: .bottom) :
-                                            LinearGradient(colors: [Color(white: 0.1)], startPoint: .top, endPoint: .bottom)
-                                    )
-                                    .cornerRadius(12)
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 12)
-                                            .stroke(draft.selectedStyle == .focus ? .yellow : Color(white: 0.2), lineWidth: 2)
-                                    )
+                                    .buttonStyle(.plain)
                                 }
-                                .foregroundColor(draft.selectedStyle == .focus ? .white : .gray)
-                                
-                                Button(action: { draft.selectedStyle = .passive }) {
-                                    VStack(spacing: 8) {
-                                        Image(systemName: "checkmark.circle.fill")
-                                            .font(.system(size: 24))
-                                            .foregroundColor(draft.selectedStyle == .passive ? .white : .cyan)
-                                        
-                                        Text("Passive")
-                                            .font(.system(.subheadline, design: .rounded))
-                                            .fontWeight(.semibold)
-                                        
-                                        Text("Checkbox")
-                                            .font(.system(.caption2))
-                                            .foregroundColor(.gray)
-                                    }
-                                    .frame(maxWidth: .infinity)
-                                    .padding(16)
-                                    .background(
-                                        draft.selectedStyle == .passive ?
-                                            LinearGradient(colors: [.cyan.opacity(0.3), .blue.opacity(0.2)], startPoint: .top, endPoint: .bottom) :
-                                            LinearGradient(colors: [Color(white: 0.1)], startPoint: .top, endPoint: .bottom)
-                                    )
-                                    .cornerRadius(12)
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 12)
-                                            .stroke(draft.selectedStyle == .passive ? .cyan : Color(white: 0.2), lineWidth: 2)
-                                    )
-                                }
-                                .foregroundColor(draft.selectedStyle == .passive ? .white : .gray)
                             }
                         }
                         
-                        // 时长选择（仅专注模式）
-                        if draft.selectedStyle == .focus {
+                        if draft.taskMode == .reminderOnly {
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text("Remind At")
+                                    .font(.system(.headline, design: .rounded))
+                                    .fontWeight(.semibold)
+                                    .foregroundColor(.white)
+                                
+                                DatePicker(
+                                    "Time",
+                                    selection: $draft.reminderTime,
+                                    displayedComponents: [.date, .hourAndMinute]
+                                )
+                                .datePickerStyle(.compact)
+                                .labelsHidden()
+                                .tint(.orange)
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 10)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .fill(Color.white.opacity(0.06))
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 12)
+                                                .stroke(Color.orange.opacity(0.3), lineWidth: 1)
+                                        )
+                                )
+                            }
+
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text("Lead Time")
+                                    .font(.system(.headline, design: .rounded))
+                                    .fontWeight(.semibold)
+                                    .foregroundColor(.white)
+                                
+                                LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 3), spacing: 12) {
+                                    ForEach(leadTimePresets, id: \.self) { minutes in
+                                        Button(action: {
+                                            draft.leadTimeMinutes = minutes
+                                        }) {
+                                            Text(leadTimeLabel(minutes))
+                                                .font(.system(.subheadline, design: .rounded))
+                                                .fontWeight(draft.leadTimeMinutes == minutes ? .bold : .medium)
+                                                .foregroundColor(draft.leadTimeMinutes == minutes ? .white : .gray)
+                                                .frame(height: 44)
+                                                .frame(maxWidth: .infinity)
+                                                .background(
+                                                    draft.leadTimeMinutes == minutes ?
+                                                        LinearGradient(colors: [.orange, .orange.opacity(0.7)], startPoint: .top, endPoint: .bottom) :
+                                                        LinearGradient(colors: [Color(white: 0.1)], startPoint: .top, endPoint: .bottom)
+                                                )
+                                                .cornerRadius(8)
+                                                .overlay(
+                                                    RoundedRectangle(cornerRadius: 8)
+                                                        .stroke(draft.leadTimeMinutes == minutes ? .orange : Color(white: 0.2), lineWidth: 1)
+                                                )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        if draft.taskMode != .reminderOnly {
                             VStack(alignment: .leading, spacing: 12) {
                                 Text("Duration")
                                     .font(.system(.headline, design: .rounded))
@@ -244,10 +282,43 @@ struct TaskSheet: View {
                                     }
                                 }
                             }
+
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text("Complete Within")
+                                    .font(.system(.headline, design: .rounded))
+                                    .fontWeight(.semibold)
+                                    .foregroundColor(.white)
+                                
+                                HStack(spacing: 8) {
+                                    ForEach(deadlineOptions, id: \.self) { option in
+                                        Button(action: {
+                                            draft.deadlineWindowDays = option
+                                        }) {
+                                            Text(deadlineLabel(option))
+                                                .font(.system(.caption, design: .rounded))
+                                                .fontWeight(draft.deadlineWindowDays == option ? .bold : .medium)
+                                                .foregroundColor(draft.deadlineWindowDays == option ? .white : .gray)
+                                                .padding(.horizontal, 10)
+                                                .padding(.vertical, 8)
+                                                .background(
+                                                    draft.deadlineWindowDays == option ?
+                                                        Color.orange.opacity(0.35) :
+                                                        Color(white: 0.1)
+                                                )
+                                                .cornerRadius(8)
+                                                .overlay(
+                                                    RoundedRectangle(cornerRadius: 8)
+                                                        .stroke(draft.deadlineWindowDays == option ? Color.orange : Color(white: 0.2), lineWidth: 1)
+                                                )
+                                        }
+                                        .buttonStyle(.plain)
+                                    }
+                                }
+                            }
                         }
                         
                         // 重复设置（非节点编辑模式）
-                        if !isEditingNode {
+                        if !isEditingNode && draft.taskMode != .reminderOnly {
                             VStack(alignment: .leading, spacing: 16) {
                                 Text("Repeat Schedule")
                                     .font(.system(.headline, design: .rounded))
@@ -381,15 +452,19 @@ struct TaskSheet: View {
     }
     
     func saveTemplate() {
-        var rule: RepeatRule = .none
-        switch draft.repeatType {
-        case .none: rule = .none
-        case .daily: rule = .daily
-        case .weekly: rule = .weekly(days: draft.selectedWeekdays)
-        case .monthly: rule = .monthly(days: draft.selectedWeekdays)
-        }
-        
         let id = templateToEdit?.id ?? UUID()
+        let isReminder = draft.taskMode == .reminderOnly
+        let rule: RepeatRule
+        if isReminder {
+            rule = .none
+        } else {
+            switch draft.repeatType {
+            case .none: rule = .none
+            case .daily: rule = .daily
+            case .weekly: rule = .weekly(days: draft.selectedWeekdays)
+            case .monthly: rule = .monthly(days: draft.selectedWeekdays)
+            }
+        }
         let template = CardTemplate(
             id: id,
             title: draft.title,
@@ -398,9 +473,13 @@ struct TaskSheet: View {
             tags: [],
             energyColor: energyToken(for: draft.selectedCategory),
             category: draft.selectedCategory,
-            style: draft.selectedStyle,
+            style: isReminder ? .passive : .focus,
+            taskMode: draft.taskMode,
             fixedTime: nil,
-            repeatRule: rule
+            repeatRule: rule,
+            remindAt: isReminder ? draft.reminderTime : nil,
+            leadTimeMinutes: draft.leadTimeMinutes,
+            deadlineWindowDays: isReminder ? nil : draft.deadlineWindowDays
         )
         
         if isEditingNode, let onSave = onSaveNode {
@@ -423,5 +502,43 @@ struct TaskSheet: View {
         case .other:
             return .creative
         }
+    }
+
+    private var taskModeOptions: [TaskMode] {
+        [.focusStrictFixed, .focusGroupFlexible, .reminderOnly]
+    }
+    
+    private func taskModeLabel(_ mode: TaskMode) -> String {
+        switch mode {
+        case .focusStrictFixed:
+            return "Focus Fixed"
+        case .focusGroupFlexible:
+            return "Focus Flex"
+        case .reminderOnly:
+            return "Reminder"
+        }
+    }
+    
+    private func taskModeTint(_ mode: TaskMode) -> Color {
+        switch mode {
+        case .focusStrictFixed:
+            return .cyan
+        case .focusGroupFlexible:
+            return .mint
+        case .reminderOnly:
+            return .orange
+        }
+    }
+
+    private func leadTimeLabel(_ minutes: Int) -> String {
+        if minutes == 0 {
+            return "On Time"
+        }
+        return "\(minutes)m early"
+    }
+
+    private func deadlineLabel(_ option: Int?) -> String {
+        guard let option else { return "Off" }
+        return "\(option)d"
     }
 }

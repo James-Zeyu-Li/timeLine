@@ -120,6 +120,70 @@ final class timeLineUITests: XCTestCase {
     }
 
     @MainActor
+    func testInFocusReminderCountdown() throws {
+        let app = XCUIApplication()
+        app.launchArguments.append(contentsOf: ["-ui-testing", "-empty-timeline"])
+        app.launchEnvironment["EMPTY_TIMELINE"] = "1"
+        app.launch()
+        
+        // 1. Add Battle Task
+        let addButton = app.buttons["floatingAddButton"]
+        XCTAssertTrue(addButton.waitForExistence(timeout: 2))
+        addButton.tap()
+        
+        let addCardButton = app.buttons["addCardButton"]
+        XCTAssertTrue(addCardButton.waitForExistence(timeout: 2))
+        addCardButton.tap()
+        
+        let titleField = app.textFields["quickBuilderTitleField"]
+        XCTAssertTrue(titleField.waitForExistence(timeout: 2))
+        titleField.tap()
+        titleField.typeText("FocusTask")
+        
+        let createButton = app.buttons["quickBuilderCreateButton"]
+        createButton.tap()
+        
+        // Wait for sheet to dismiss
+        XCTAssertTrue(titleField.waitForNonExistence(timeout: 5))
+        
+        XCTAssertTrue(app.buttons["mapNode_FocusTask"].waitForExistence(timeout: 5))
+        
+        // 2. Add Reminder Task (Upcoming)
+        addButton.tap()
+        addCardButton.tap()
+        
+        XCTAssertTrue(titleField.waitForExistence(timeout: 2))
+        titleField.tap()
+        titleField.typeText("ReminderTask")
+        
+        app.swipeUp()
+        
+        let reminderChip = app.buttons["quickBuilderTaskModeReminder"]
+        XCTAssertTrue(reminderChip.waitForExistence(timeout: 2))
+        reminderChip.tap()
+        
+        createButton.tap()
+        
+        // 3. Start Battle Task
+        let focusNode = app.descendants(matching: .any)["mapNode_FocusTask"]
+        XCTAssertTrue(focusNode.waitForExistence(timeout: 4))
+        
+        // Use coordinate tap for reliability
+        app.swipeRight() 
+        let coordinate = focusNode.coordinate(withNormalizedOffset: CGVector(dx: 0.7, dy: 0.5))
+        coordinate.tap()
+        
+        // 4. Verify Battle View and Countdown
+        let sessionLabel = app.staticTexts["FOCUS SESSION"]
+        XCTAssertTrue(sessionLabel.waitForExistence(timeout: 4))
+        
+        // "距离 ReminderTask 还有"
+        let predicate = NSPredicate(format: "label CONTAINS '距离 ReminderTask 还有'")
+        let countdownLabel = app.staticTexts.element(matching: predicate)
+        XCTAssertTrue(countdownLabel.waitForExistence(timeout: 4))
+    }
+
+    @MainActor
     func testGroupFocusShowsCompletedExplorationLabel() throws {
         let app = XCUIApplication()
         app.launchArguments.append(contentsOf: ["-ui-testing", "-empty-timeline"])

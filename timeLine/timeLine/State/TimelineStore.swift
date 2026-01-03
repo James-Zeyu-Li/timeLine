@@ -100,6 +100,24 @@ final class TimelineStore: ObservableObject {
         appendNodes([node], engine: engine)
         return node.id
     }
+
+    func placeCardOccurrenceByTime(
+        cardTemplateId: UUID,
+        remindAt: Date,
+        using cardStore: CardTemplateStore,
+        engine: BattleEngine
+    ) -> UUID? {
+        guard let card = cardStore.get(id: cardTemplateId) else { return nil }
+        let node = makeNode(from: card)
+        if daySession.nodes.isEmpty {
+            appendNodes([node], engine: engine)
+            return node.id
+        }
+        let insertIndex = reminderInsertIndex(remindAt: remindAt, engine: engine, excluding: nil)
+        daySession.nodes.insert(node, at: insertIndex)
+        stateManager.requestSave()
+        return node.id
+    }
     
     func placeDeckBatchAtStart(
         deckId: UUID,
@@ -206,6 +224,16 @@ final class TimelineStore: ObservableObject {
         daySession.moveNode(from: source, to: destination)
         stateManager.requestSave()
     }
+
+    func updateNodeByTime(id: UUID, payload: CardTemplate, engine: BattleEngine) {
+        updateNode(id: id, payload: payload)
+        guard let remindAt = payload.remindAt else { return }
+        guard let currentIndex = daySession.nodes.firstIndex(where: { $0.id == id }) else { return }
+        let targetIndex = reminderInsertIndex(remindAt: remindAt, engine: engine, excluding: id)
+        guard targetIndex != currentIndex else { return }
+        daySession.moveNode(from: IndexSet(integer: currentIndex), to: targetIndex)
+        stateManager.requestSave()
+    }
     
     func finalizeReorder(isSessionActive: Bool, activeNodeId: UUID?) {
         if isSessionActive, let activeNodeId,
@@ -229,6 +257,42 @@ final class TimelineStore: ObservableObject {
             leadTimeMinutes: card.leadTimeMinutes
         )
         return TimelineNode(type: .battle(boss), isLocked: true)
+    }
+
+    private func reminderInsertIndex(remindAt: Date, engine: BattleEngine, excluding excludedId: UUID?) -> Int {
+        let allNodes = daySession.nodes.filter { $0.id != excludedId }
+        let upcoming = allNodes.filter { !$0.isCompleted }
+        guard !upcoming.isEmpty else { return allNodes.count }
+        let now = Date()
+        let currentId = daySession.currentNode?.id
+        var secondsAhead: TimeInterval = 0
+
+        for index in upcoming.indices {
+            if index > 0 {
+                let previous = upcoming[index - 1]
+                if previous.id == currentId, let remaining = engine.remainingTime {
+                    secondsAhead += remaining
+                } else {
+                    secondsAhead += duration(for: previous)
+                }
+            }
+            let startDate = now.addingTimeInterval(secondsAhead)
+            if startDate >= remindAt, let anchorIndex = allNodes.firstIndex(where: { $0.id == upcoming[index].id }) {
+                return anchorIndex
+            }
+        }
+        return allNodes.count
+    }
+
+    private func duration(for node: TimelineNode) -> TimeInterval {
+        switch node.type {
+        case .battle(let boss):
+            return boss.maxHp
+        case .bonfire(let duration):
+            return duration
+        case .treasure:
+            return 0
+        }
     }
     
     private func makeNodes(for deck: DeckTemplate, using cardStore: CardTemplateStore) -> [TimelineNode]? {

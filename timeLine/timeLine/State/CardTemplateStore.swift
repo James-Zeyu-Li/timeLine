@@ -53,13 +53,19 @@ final class CardTemplateStore: ObservableObject {
 final class LibraryStore: ObservableObject {
     @Published private(set) var entries: [UUID: LibraryEntry] = [:]
     @Published private(set) var order: [UUID] = []
+
+    struct Buckets {
+        var deadline1: [LibraryEntry] = []
+        var deadline3: [LibraryEntry] = []
+        var deadline5: [LibraryEntry] = []
+        var deadline7: [LibraryEntry] = []
+        var later: [LibraryEntry] = []
+        var expired: [LibraryEntry] = []
+        var reminders: [LibraryEntry] = []
+    }
     
-    func add(templateId: UUID, deadline: Date? = nil, addedAt: Date = Date()) {
-        if var existing = entries[templateId] {
-            if let deadline {
-                existing.deadline = deadline
-                entries[templateId] = existing
-            }
+    func add(templateId: UUID, addedAt: Date = Date()) {
+        if entries[templateId] != nil {
             if !order.contains(templateId) {
                 order.insert(templateId, at: 0)
             }
@@ -69,7 +75,7 @@ final class LibraryStore: ObservableObject {
         let entry = LibraryEntry(
             templateId: templateId,
             addedAt: addedAt,
-            deadline: deadline
+            deadlineStatus: .active
         )
         entries[templateId] = entry
         order.insert(templateId, at: 0)
@@ -95,22 +101,70 @@ final class LibraryStore: ObservableObject {
         order.compactMap { entries[$0] }
     }
     
-    func groupedEntries(using cardStore: CardTemplateStore) -> (pinned: [LibraryEntry], others: [LibraryEntry]) {
+    func bucketedEntries(
+        using cardStore: CardTemplateStore,
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> Buckets {
         let ordered = orderedEntries()
-        var pinned: [LibraryEntry] = []
-        var others: [LibraryEntry] = []
-        
+        var buckets = Buckets()
+        var deadlineAtById: [UUID: Date] = [:]
+        var remindAtById: [UUID: Date] = [:]
+
         for entry in ordered {
-            let hasDeadline = entry.deadline != nil
-            let hasRepeat = (cardStore.get(id: entry.templateId)?.repeatRule ?? .none) != .none
-            if hasDeadline || hasRepeat {
-                pinned.append(entry)
+            guard let template = cardStore.get(id: entry.templateId) else { continue }
+
+            if template.taskMode == .reminderOnly || template.remindAt != nil {
+                if let remindAt = template.remindAt {
+                    remindAtById[entry.templateId] = remindAt
+                }
+                buckets.reminders.append(entry)
+                continue
+            }
+
+            if entry.deadlineStatus == .expired {
+                buckets.expired.append(entry)
+                continue
+            }
+
+            if let windowDays = template.deadlineWindowDays,
+               let deadlineAt = deadlineAt(for: entry, windowDays: windowDays, calendar: calendar) {
+                deadlineAtById[entry.templateId] = deadlineAt
+                if now >= deadlineAt {
+                    buckets.expired.append(entry)
+                    continue
+                }
+                switch windowDays {
+                case 1:
+                    buckets.deadline1.append(entry)
+                case 3:
+                    buckets.deadline3.append(entry)
+                case 5:
+                    buckets.deadline5.append(entry)
+                case 7:
+                    buckets.deadline7.append(entry)
+                default:
+                    buckets.later.append(entry)
+                }
             } else {
-                others.append(entry)
+                buckets.later.append(entry)
             }
         }
-        
-        return (pinned, others)
+
+        sortDeadlineBucket(&buckets.deadline1, using: deadlineAtById)
+        sortDeadlineBucket(&buckets.deadline3, using: deadlineAtById)
+        sortDeadlineBucket(&buckets.deadline5, using: deadlineAtById)
+        sortDeadlineBucket(&buckets.deadline7, using: deadlineAtById)
+        buckets.reminders.sort { lhs, rhs in
+            let lhsDate = remindAtById[lhs.templateId] ?? .distantFuture
+            let rhsDate = remindAtById[rhs.templateId] ?? .distantFuture
+            if lhsDate != rhsDate {
+                return lhsDate < rhsDate
+            }
+            return lhs.addedAt < rhs.addedAt
+        }
+
+        return buckets
     }
     
     func load(from entries: [LibraryEntry]) {
@@ -121,5 +175,47 @@ final class LibraryStore: ObservableObject {
     func reset() {
         entries.removeAll()
         order.removeAll()
+    }
+
+    private func deadlineAt(for entry: LibraryEntry, windowDays: Int, calendar: Calendar) -> Date? {
+        guard windowDays > 0 else { return nil }
+        return calendar.date(byAdding: .day, value: windowDays, to: entry.addedAt)
+    }
+
+    private func sortDeadlineBucket(_ bucket: inout [LibraryEntry], using deadlineAtById: [UUID: Date]) {
+        bucket.sort { lhs, rhs in
+            let lhsDate = deadlineAtById[lhs.templateId] ?? lhs.addedAt
+            let rhsDate = deadlineAtById[rhs.templateId] ?? rhs.addedAt
+            if lhsDate != rhsDate {
+                return lhsDate < rhsDate
+            }
+            return lhs.addedAt < rhs.addedAt
+        }
+    }
+
+    func refreshDeadlineStatuses(
+        using cardStore: CardTemplateStore,
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> Int {
+        var newlyExpired = 0
+        for (id, entry) in entries {
+            guard entry.deadlineStatus == .active else { continue }
+            guard let template = cardStore.get(id: entry.templateId) else { continue }
+            if template.taskMode == .reminderOnly || template.remindAt != nil {
+                continue
+            }
+            guard let windowDays = template.deadlineWindowDays,
+                  let deadlineAt = deadlineAt(for: entry, windowDays: windowDays, calendar: calendar) else {
+                continue
+            }
+            if now >= deadlineAt {
+                var updated = entry
+                updated.deadlineStatus = .expired
+                entries[id] = updated
+                newlyExpired += 1
+            }
+        }
+        return newlyExpired
     }
 }

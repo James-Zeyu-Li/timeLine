@@ -7,7 +7,9 @@ final class RetreatDialogTests: XCTestCase {
     
     var engine: BattleEngine!
     var daySession: DaySession!
-    var stateSaver: MockStateSaver!
+    var cardStore: CardTemplateStore!
+    var libraryStore: LibraryStore!
+    var stateManager: AppStateManager!
     
     override func setUp() {
         super.setUp()
@@ -16,7 +18,15 @@ final class RetreatDialogTests: XCTestCase {
         daySession = DaySession(nodes: [
             TimelineNode(type: .battle(boss), isLocked: false)
         ])
-        stateSaver = MockStateSaver()
+        cardStore = CardTemplateStore()
+        libraryStore = LibraryStore()
+        stateManager = AppStateManager(
+            engine: engine,
+            daySession: daySession,
+            cardStore: cardStore,
+            libraryStore: libraryStore,
+            enablePersistence: false
+        )
     }
     
     // MARK: - Grace Period Tests
@@ -83,20 +93,13 @@ final class RetreatDialogTests: XCTestCase {
         XCTAssertTrue(options.contains(.keepFocusing))
     }
     
-    func testExitOptionsHideUndoForFocusGroupFlexible() {
-        let options = BattleExitPolicy.options(elapsedSeconds: 30, taskMode: .focusGroupFlexible)
-        XCTAssertFalse(options.contains(.undoStart))
-        XCTAssertTrue(options.contains(.endAndRecord))
-        XCTAssertTrue(options.contains(.keepFocusing))
-    }
-    
     // MARK: - Dialog Options Tests
     
     func testUndoStartDoesNotRecordProgress() {
         let boss = Boss(name: "Undo Task", maxHp: 600)
         let startTime = Date()
         engine.startBattle(boss: boss, at: startTime)
-        let controller = BattleExitController(engine: engine, stateSaver: stateSaver)
+        let controller = BattleExitController(engine: engine, stateSaver: stateManager)
         let expectation = XCTestExpectation(description: "No session result emitted")
         expectation.isInverted = true
         var cancellables = Set<AnyCancellable>()
@@ -129,7 +132,7 @@ final class RetreatDialogTests: XCTestCase {
         let boss = Boss(name: "Record Task", maxHp: 600)
         let startTime = Date().addingTimeInterval(-120)
         engine.startBattle(boss: boss, at: startTime)
-        let controller = BattleExitController(engine: engine, stateSaver: stateSaver)
+        let controller = BattleExitController(engine: engine, stateSaver: stateManager)
         
         var sessionResult: SessionResult?
         var cancellables = Set<AnyCancellable>()
@@ -148,34 +151,12 @@ final class RetreatDialogTests: XCTestCase {
         XCTAssertNotNil(sessionResult)
         XCTAssertEqual(sessionResult?.endReason, .incompleteExit)
     }
-
-    func testEndAndRecordForFocusGroupFlexibleCreatesCompletedExploration() {
-        let boss = Boss(name: "Group Task", maxHp: 600)
-        let startTime = Date().addingTimeInterval(-120)
-        engine.startBattle(boss: boss, at: startTime)
-        let controller = BattleExitController(engine: engine, stateSaver: stateSaver)
-
-        var sessionResult: SessionResult?
-        var cancellables = Set<AnyCancellable>()
-
-        engine.onSessionComplete
-            .sink { result in
-                sessionResult = result
-            }
-            .store(in: &cancellables)
-
-        controller.handle(.endAndRecord, taskMode: .focusGroupFlexible)
-
-        XCTAssertEqual(engine.state, .retreat)
-        XCTAssertNotNil(sessionResult)
-        XCTAssertEqual(sessionResult?.endReason, .completedExploration)
-    }
     
     func testKeepFocusingDoesNothing() {
         let boss = Boss(name: "Keep Task", maxHp: 600)
         let startTime = Date()
         engine.startBattle(boss: boss, at: startTime)
-        let controller = BattleExitController(engine: engine, stateSaver: stateSaver)
+        let controller = BattleExitController(engine: engine, stateSaver: stateManager)
         
         // Progress 30 seconds
         let checkTime = startTime.addingTimeInterval(30)

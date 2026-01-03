@@ -26,6 +26,8 @@ public struct CardTemplate: Identifiable, Codable, Equatable {
     public var repeatRule: RepeatRule
     public var remindAt: Date?
     public var leadTimeMinutes: Int
+    public var isEphemeral: Bool
+    public var deadlineWindowDays: Int?
 
     private enum CodingKeys: String, CodingKey {
         case id
@@ -41,6 +43,8 @@ public struct CardTemplate: Identifiable, Codable, Equatable {
         case repeatRule
         case remindAt
         case leadTimeMinutes
+        case isEphemeral
+        case deadlineWindowDays
     }
     
     public init(
@@ -56,7 +60,9 @@ public struct CardTemplate: Identifiable, Codable, Equatable {
         fixedTime: DateComponents? = nil,
         repeatRule: RepeatRule = .none,
         remindAt: Date? = nil,
-        leadTimeMinutes: Int = 0
+        leadTimeMinutes: Int = 0,
+        isEphemeral: Bool = false,
+        deadlineWindowDays: Int? = nil
     ) {
         self.id = id
         self.title = title
@@ -71,6 +77,8 @@ public struct CardTemplate: Identifiable, Codable, Equatable {
         self.repeatRule = repeatRule
         self.remindAt = remindAt
         self.leadTimeMinutes = leadTimeMinutes
+        self.isEphemeral = isEphemeral
+        self.deadlineWindowDays = deadlineWindowDays
     }
     
     public init(from decoder: Decoder) throws {
@@ -88,5 +96,7 @@ public struct CardTemplate: Identifiable, Codable, Equatable {
         self.repeatRule = try container.decodeIfPresent(RepeatRule.self, forKey: .repeatRule) ?? .none
         self.remindAt = try container.decodeIfPresent(Date.self, forKey: .remindAt)
         self.leadTimeMinutes = try container.decodeIfPresent(Int.self, forKey: .leadTimeMinutes) ?? 0
+        self.isEphemeral = try container.decodeIfPresent(Bool.self, forKey: .isEphemeral) ?? false
+        self.deadlineWindowDays = try container.decodeIfPresent(Int.self, forKey: .deadlineWindowDays)
     }
 }

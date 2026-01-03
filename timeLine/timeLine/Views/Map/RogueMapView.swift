@@ -21,6 +21,7 @@ struct RogueMapView: View {
     @State private var showNodeEdit = false
     @State private var editingNodeTemplate: CardTemplate?
     @State private var editingNodeId: UUID?
+    @State private var showFocusList = false
     
     private let bottomFocusPadding: CGFloat = 140
     private let bottomSheetInset: CGFloat = 96
@@ -32,6 +33,12 @@ struct RogueMapView: View {
             ZStack {
                 // Background: Map content
                 mapContent(proxy: proxy)
+                
+                VStack {
+                    Spacer()
+                    focusListButton
+                }
+                .padding(.bottom, 18)
             }
             .sheet(isPresented: $showStats) {
                 StatsView()
@@ -43,9 +50,17 @@ struct RogueMapView: View {
                     onSaveNode: { template in
                         guard let nodeId = editingNodeId else { return }
                         let timelineStore = TimelineStore(daySession: daySession, stateManager: stateManager)
-                        timelineStore.updateNode(id: nodeId, payload: template)
+                        if template.remindAt != nil {
+                            timelineStore.updateNodeByTime(id: nodeId, payload: template, engine: engine)
+                        } else {
+                            timelineStore.updateNode(id: nodeId, payload: template)
+                        }
                     }
                 )
+            }
+            .sheet(isPresented: $showFocusList) {
+                FocusListSheet()
+                    .presentationDetents([.medium, .large])
             }
         }
     }
@@ -127,6 +142,34 @@ struct RogueMapView: View {
             }
         }
     }
+
+    private var focusListButton: some View {
+        Button(action: {
+            showFocusList = true
+        }) {
+            HStack(spacing: 8) {
+                Image(systemName: "square.stack.3d.up.fill")
+                    .font(.system(size: 12, weight: .bold))
+                Text("Focus List")
+                    .font(.system(.caption, design: .rounded))
+                    .fontWeight(.semibold)
+            }
+            .foregroundColor(.white)
+            .padding(.horizontal, 18)
+            .padding(.vertical, 10)
+            .background(
+                Capsule()
+                    .fill(Color.cyan.opacity(0.2))
+                    .overlay(
+                        Capsule()
+                            .stroke(Color.cyan.opacity(0.4), lineWidth: 1)
+                    )
+            )
+            .shadow(color: Color.cyan.opacity(0.4), radius: 8, x: 0, y: 4)
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("focusListButton")
+    }
     
     private var mapTrack: some View {
         let nodes = Array(daySession.nodes.enumerated().reversed())
@@ -185,6 +228,22 @@ struct RogueMapView: View {
     }
     
     private func handleTap(on node: TimelineNode) {
+        guard !node.isCompleted else {
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            return
+        }
+
+        if case .battle = node.type {
+            let behavior = node.effectiveTaskBehavior { id in
+                cardStore.get(id: id)
+            }
+            if behavior == .reminder {
+                coordinator.completeReminder(nodeId: node.id)
+                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                return
+            }
+        }
+
         let isFirstUpcoming = upcomingNodes.first?.id == node.id
         if !isSessionActive && isFirstUpcoming {
             // Allow start even if lock state is stale.
@@ -193,10 +252,6 @@ struct RogueMapView: View {
                 UIImpactFeedbackGenerator(style: .light).impactOccurred()
                 return
             }
-        }
-        guard !node.isCompleted else {
-            UIImpactFeedbackGenerator(style: .light).impactOccurred()
-            return
         }
         
         switch node.type {
@@ -246,7 +301,9 @@ struct RogueMapView: View {
                 style: boss.style,
                 taskMode: node.effectiveTaskMode { id in
                     cardStore.get(id: id)
-                }
+                },
+                remindAt: boss.remindAt,
+                leadTimeMinutes: boss.leadTimeMinutes
             )
         }
         editingNodeId = node.id
@@ -254,18 +311,14 @@ struct RogueMapView: View {
     }
     
     private func timeInfo(for node: TimelineNode) -> MapTimeInfo? {
-        guard let estimate = viewModel.estimatedStartTime(for: node, upcomingNodes: upcomingNodes) else { return nil }
-        
-        // Check if there is a recommended start time to flag it
-        var isRecommended = false
-        if case .battle(let boss) = node.type, boss.recommendedStart != nil {
-            isRecommended = true
+        if case .battle(let boss) = node.type, boss.recommendedStart != nil, boss.remindAt == nil {
+            return MapTimeInfo(absolute: nil, relative: nil, isRecommended: true)
         }
-        
+        guard let estimate = viewModel.estimatedStartTime(for: node, upcomingNodes: upcomingNodes) else { return nil }
         return MapTimeInfo(
             absolute: estimate.absolute,
             relative: estimate.relative,
-            isRecommended: isRecommended
+            isRecommended: false
         )
     }
     
@@ -317,7 +370,7 @@ private struct MapNodeRow: View {
                 .frame(maxHeight: .infinity)
             
             PixelTerrainTile(type: terrainType)
-                .frame(width: 150, height: 72)
+                .frame(width: terrainWidth, height: terrainHeight)
                 .opacity(0.35)
                 .offset(y: 18)
             
@@ -344,9 +397,11 @@ private struct MapNodeRow: View {
                         
                         if let timeInfo {
                             HStack(spacing: 6) {
-                                Text(timeInfo.absolute)
-                                    .font(.system(.caption2, design: .monospaced))
-                                    .foregroundColor(PixelTheme.accent)
+                                if let absolute = timeInfo.absolute {
+                                    Text(absolute)
+                                        .font(.system(.caption2, design: .monospaced))
+                                        .foregroundColor(PixelTheme.accent)
+                                }
                                 if let relative = timeInfo.relative {
                                     Text(relative)
                                         .font(.system(.caption2, design: .rounded))
@@ -382,7 +437,7 @@ private struct MapNodeRow: View {
                 }
                 .padding(.horizontal, 14)
                 .padding(.vertical, 12)
-                .frame(width: cardWidth)
+                .frame(width: cardWidth, height: cardHeight)
                 .background(cardBackground)
                 .overlay(cardBorder)
                 .overlay(dropTargetOverlay)
@@ -393,7 +448,7 @@ private struct MapNodeRow: View {
             }
             .buttonStyle(PlainButtonStyle())
             .accessibilityIdentifier(nodeAccessibilityId)
-            .offset(x: alignment == .left ? -70 : 70)
+            .offset(x: alignment == .left ? -cardOffsetX : cardOffsetX)
             .simultaneousGesture(
                 LongPressGesture(minimumDuration: 0.5)
                     .onEnded { _ in
@@ -443,15 +498,33 @@ private struct MapNodeRow: View {
     }
 
     private var cardWidth: CGFloat {
-        if isCurrent { return 240 }
-        if isNext { return 290 }
-        return 210
+        let screenWidth = UIScreen.main.bounds.width
+        let target = screenWidth * 0.75
+        return min(max(target, 240), 320)
+    }
+
+    private var cardHeight: CGFloat {
+        76
+    }
+
+    private var terrainWidth: CGFloat {
+        max(140, cardWidth - 16)
+    }
+
+    private var terrainHeight: CGFloat {
+        cardHeight - 4
+    }
+
+    private var cardOffsetX: CGFloat {
+        let screenWidth = UIScreen.main.bounds.width
+        let halfCard = cardWidth / 2
+        let center = screenWidth / 2
+        let offset = center - halfCard - MapLayout.horizontalInset
+        return max(0, offset)
     }
 
     private var cardScale: CGFloat {
-        if isCurrent { return 1.06 }
-        if isNext { return 1.18 }
-        return 1.0
+        1.0
     }
     
     private var showHeroMarker: Bool {
@@ -629,7 +702,7 @@ private enum MapNodeAlignment {
 }
 
 private struct MapTimeInfo {
-    let absolute: String
+    let absolute: String?
     let relative: String?
     let isRecommended: Bool
 }

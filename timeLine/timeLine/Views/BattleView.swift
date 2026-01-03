@@ -16,6 +16,7 @@ struct BattleView: View {
 
     @State private var showExitOptions = false
     @State private var lastFocusedSeconds: TimeInterval = 0
+    @State private var nextReminder: ReminderPreview?
     
     var body: some View {
         GeometryReader { geometry in
@@ -134,6 +135,12 @@ struct BattleView: View {
                                             .fontWeight(.bold)
                                             .foregroundColor(.white)
                                             .multilineTextAlignment(.center)
+
+                                        if let reminderText = nextReminderText {
+                                            Text(reminderText)
+                                                .font(.system(.caption, design: .rounded))
+                                                .foregroundColor(.cyan.opacity(0.8))
+                                        }
                                     }
                                     
                                     // 主计时器区域
@@ -323,13 +330,16 @@ struct BattleView: View {
                 coordinator.recordFocusProgress(seconds: delta)
                 lastFocusedSeconds = focused
             }
+            updateNextReminder(at: input)
             // Note: Victory/retreat handling moved to TimelineEventCoordinator
         }
         .onAppear {
             lastFocusedSeconds = currentFocusedSeconds
+            updateNextReminder(at: Date())
         }
-        .onChange(of: engine.currentBoss?.id) { _ in
+        .onChange(of: engine.currentBoss?.id) { _, _ in
             lastFocusedSeconds = currentFocusedSeconds
+            updateNextReminder(at: Date())
         }
         .confirmationDialog(
             exitDialogTitle,
@@ -430,5 +440,19 @@ struct BattleView: View {
         } else {
             UIImpactFeedbackGenerator(style: .light).impactOccurred()
         }
+    }
+
+    private var nextReminderText: String? {
+        guard let nextReminder else { return nil }
+        guard let remaining = CountdownFormatter.formatRemaining(seconds: nextReminder.remainingSeconds) else { return nil }
+        return "距离 \(nextReminder.taskName) 还有 \(remaining)"
+    }
+
+    private func updateNextReminder(at date: Date) {
+        guard coordinator.pendingReminder == nil else {
+            nextReminder = nil
+            return
+        }
+        nextReminder = ReminderScheduler.nextUpcoming(nodes: daySession.nodes, at: date)
     }
 }

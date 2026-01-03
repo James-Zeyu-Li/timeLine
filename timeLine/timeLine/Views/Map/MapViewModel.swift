@@ -68,7 +68,14 @@ class MapViewModel: ObservableObject {
         guard let daySession, let stateManager, let cardStore, let engine else { return }
         let timelineStore = TimelineStore(daySession: daySession, stateManager: stateManager)
         
-        if let anchorId = daySession.nodes.last?.id {
+        if let remindAt = item.remindAt {
+            _ = timelineStore.placeCardOccurrenceByTime(
+                cardTemplateId: item.id,
+                remindAt: remindAt,
+                using: cardStore,
+                engine: engine
+            )
+        } else if let anchorId = daySession.nodes.last?.id {
             _ = timelineStore.placeCardOccurrence(
                 cardTemplateId: item.id,
                 anchorNodeId: anchorId,
@@ -102,6 +109,13 @@ class MapViewModel: ObservableObject {
     // MARK: - Time Calculations
     func estimatedStartTime(for node: TimelineNode, upcomingNodes: [TimelineNode]) -> (absolute: String, relative: String?)? {
         guard let daySession else { return nil }
+        if case .battle(let boss) = node.type,
+           let remindAt = boss.remindAt {
+            let absolute = TimeFormatter.formatClock(remindAt, use24Hour: use24HourClock)
+            let delta = remindAt.timeIntervalSince(Date())
+            let relative = formatRelativeTime(delta)
+            return (absolute, relative)
+        }
         if let recommended = recommendedStartDate(for: node) {
             let absolute = TimeFormatter.formatClock(recommended, use24Hour: use24HourClock)
             let delta = recommended.timeIntervalSince(Date())
@@ -179,17 +193,7 @@ class MapViewModel: ObservableObject {
     }
     
     private func formatRelativeTime(_ secondsAhead: TimeInterval) -> String? {
-        let remaining = Int(secondsAhead)
-        if remaining <= 0 { return nil }
-        let minutes = remaining / 60
-        let seconds = remaining % 60
-        if minutes > 0 {
-            return "in \(minutes)m"
-        }
-        if seconds > 0 {
-            return "in \(seconds)s"
-        }
-        return nil
+        CountdownFormatter.formatRelative(seconds: secondsAhead)
     }
     
     // MARK: - Event Handling
