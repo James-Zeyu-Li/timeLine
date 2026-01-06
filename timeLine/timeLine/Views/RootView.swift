@@ -18,6 +18,7 @@ struct RootView: View {
     @State private var showDeckToast = false
     @State private var deckPlacementCooldownUntil: Date?
     @State private var showSettings = false
+    @State private var showFocusList = false
     @State private var reminderTimer = Timer.publish(every: 30, on: .main, in: .common).autoconnect()
     
     var body: some View {
@@ -118,9 +119,10 @@ struct RootView: View {
         .overlay(alignment: .bottomTrailing) {
             if showsFloatingControls {
                 GeometryReader { proxy in
-                    FloatingControlsView(
+                    DualEntryControlsView(
                         message: "Ready when you are",
-                        onAdd: { appMode.enter(.deckOverlay(.cards)) },
+                        onStrict: { appMode.enter(.deckOverlay(.cards)) },
+                        onTodo: { showFocusList = true },
                         onSettings: { showSettings = true }
                     )
                     .padding(.trailing, 16)
@@ -132,6 +134,10 @@ struct RootView: View {
         }
         .sheet(isPresented: $showSettings) {
             SettingsView()
+        }
+        .sheet(isPresented: $showFocusList) {
+            TodoSheet()
+                .presentationDetents([.medium, .large])
         }
         .sheet(item: explorationReportBinding) { report in
             FocusGroupReportSheet(report: report)
@@ -173,11 +179,11 @@ struct RootView: View {
     private var deckLayer: some View {
         switch appMode.mode {
         case .deckOverlay(let tab):
-            DeckOverlay(tab: tab, isDimmed: false)
+            StrictSheet(tab: tab, isDimmed: false)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
         case .dragging(let payload):
             // Keep deck visible but dimmed during drag
-            DeckOverlay(tab: payload.source, isDimmed: true)
+            StrictSheet(tab: payload.source, isDimmed: true)
                 .allowsHitTesting(false)
         default:
             EmptyView()
@@ -505,9 +511,10 @@ private struct EmptyDropZoneView: View {
     }
 }
 
-private struct FloatingControlsView: View {
+private struct DualEntryControlsView: View {
     let message: String
-    let onAdd: () -> Void
+    let onStrict: () -> Void
+    let onTodo: () -> Void
     let onSettings: () -> Void
     
     var body: some View {
@@ -528,28 +535,57 @@ private struct FloatingControlsView: View {
                 )
             
             HStack(spacing: 10) {
-                Button(action: onAdd) {
-                    Image(systemName: "plus")
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundColor(.white)
-                        .frame(width: 44, height: 44)
-                        .background(
-                            Circle()
-                                .fill(Color.cyan.opacity(0.85))
-                                .overlay(
-                                    Circle()
-                                        .stroke(Color.white.opacity(0.2), lineWidth: 1)
-                                )
-                        )
+                Button(action: onStrict) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "square.stack.3d.up.fill")
+                            .font(.system(size: 12, weight: .bold))
+                        Text("Strict")
+                            .font(.system(.caption, design: .rounded))
+                            .fontWeight(.semibold)
+                    }
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .background(
+                        Capsule()
+                            .fill(Color.purple.opacity(0.85))
+                            .overlay(
+                                Capsule()
+                                    .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                            )
+                    )
                 }
-                .accessibilityIdentifier("floatingAddButton")
+                .accessibilityIdentifier("strictEntryButton")
                 .buttonStyle(.plain)
-                
+
+                Button(action: onTodo) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "checklist")
+                            .font(.system(size: 12, weight: .bold))
+                        Text("Todo")
+                            .font(.system(.caption, design: .rounded))
+                            .fontWeight(.semibold)
+                    }
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .background(
+                        Capsule()
+                            .fill(Color.cyan.opacity(0.85))
+                            .overlay(
+                                Capsule()
+                                    .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                            )
+                    )
+                }
+                .accessibilityIdentifier("todoEntryButton")
+                .buttonStyle(.plain)
+
                 Button(action: onSettings) {
                     Image(systemName: "gearshape.fill")
                         .font(.system(size: 14, weight: .bold))
                         .foregroundColor(.white)
-                        .frame(width: 44, height: 44)
+                        .frame(width: 40, height: 40)
                         .background(
                             Circle()
                                 .fill(Color.white.opacity(0.12))
@@ -559,9 +595,25 @@ private struct FloatingControlsView: View {
                                 )
                         )
                 }
+                .accessibilityIdentifier("settingsButton")
                 .buttonStyle(.plain)
             }
         }
+    }
+}
+
+private struct StrictSheet: View {
+    let tab: DeckTab
+    let isDimmed: Bool
+
+    var body: some View {
+        DeckOverlay(tab: tab, isDimmed: isDimmed, allowedTabs: [.cards, .decks])
+    }
+}
+
+private struct TodoSheet: View {
+    var body: some View {
+        FocusListSheet()
     }
 }
 

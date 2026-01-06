@@ -6,9 +6,11 @@ struct FocusListSheet: View {
     @EnvironmentObject var engine: BattleEngine
     @EnvironmentObject var stateManager: AppStateManager
     @EnvironmentObject var cardStore: CardTemplateStore
+    @EnvironmentObject var libraryStore: LibraryStore
     @Environment(\.dismiss) private var dismiss
 
     @State private var rows: [FocusRow] = [FocusRow()]
+    @State private var selectedLibraryIds: Set<UUID> = []
     @State private var errorMessage: String?
     @State private var showActiveBattleConfirm = false
     @State private var durationPickerTarget: RowPickerTarget?
@@ -115,9 +117,10 @@ struct FocusListSheet: View {
 
     private var statusLine: some View {
         let validCount = validRows.count
-        guard validCount > 0 else { return AnyView(EmptyView()) }
+        let libraryCount = selectedLibraryIds.count
+        guard validCount > 0 || libraryCount > 0 else { return AnyView(EmptyView()) }
         let missingCount = missingDurationCount
-        let summary = "Valid \(validCount) · Missing duration \(missingCount)"
+        let summary = "Rows \(validCount) · Missing duration \(missingCount) · Library \(libraryCount)"
         return AnyView(
             HStack {
                 Text(summary)
@@ -130,50 +133,69 @@ struct FocusListSheet: View {
 
     private var rowsList: some View {
         List {
-            ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
-                FocusRowView(
-                    title: titleBinding(for: row),
-                    parsedDuration: parsedDurationLabel(for: row),
-                    durationTitle: durationButtonTitle(for: row),
-                    finishByTitle: finishByTitle(for: row),
-                    onDurationTap: { durationPickerTarget = RowPickerTarget(id: row.id) },
-                    onFinishTap: { openFinishPicker(for: row.id) },
-                    onSubmit: { handleSubmit(for: row.id) },
-                    focusedRowId: $focusedRowId,
-                    rowId: row.id,
-                    rowIndex: index
-                )
-                .listRowInsets(EdgeInsets(top: 6, leading: 0, bottom: 6, trailing: 0))
+            Section {
+                ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
+                    FocusRowView(
+                        title: titleBinding(for: row),
+                        parsedDuration: parsedDurationLabel(for: row),
+                        durationTitle: durationButtonTitle(for: row),
+                        finishByTitle: finishByTitle(for: row),
+                        onDurationTap: { durationPickerTarget = RowPickerTarget(id: row.id) },
+                        onFinishTap: { openFinishPicker(for: row.id) },
+                        onSubmit: { handleSubmit(for: row.id) },
+                        focusedRowId: $focusedRowId,
+                        rowId: row.id,
+                        rowIndex: index
+                    )
+                    .listRowInsets(EdgeInsets(top: 6, leading: 0, bottom: 6, trailing: 0))
+                    .listRowSeparator(.hidden)
+                    .listRowBackground(Color.clear)
+                    .swipeActions(edge: .trailing) {
+                        Button(role: .destructive) {
+                            deleteRow(row.id)
+                        } label: {
+                            Label("Delete", systemImage: "trash")
+                        }
+                    }
+                }
+
+                Button {
+                    addRowAndFocus()
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "plus")
+                        Text("Add task")
+                            .font(.system(.subheadline, design: .rounded))
+                    }
+                    .foregroundColor(.cyan)
+                    .padding(.vertical, 4)
+                }
+                .accessibilityIdentifier("focusListAddRow")
+                .listRowInsets(EdgeInsets(top: 8, leading: 0, bottom: 8, trailing: 0))
                 .listRowSeparator(.hidden)
                 .listRowBackground(Color.clear)
-                .swipeActions(edge: .trailing) {
-                    Button(role: .destructive) {
-                        deleteRow(row.id)
-                    } label: {
-                        Label("Delete", systemImage: "trash")
+            }
+
+            ForEach(librarySections, id: \.title) { section in
+                if !section.rows.isEmpty {
+                    Section(section.title) {
+                        ForEach(section.rows) { row in
+                            LibraryRowView(
+                                data: row,
+                                isSelected: selectedLibraryIds.contains(row.id),
+                                onToggle: { toggleLibrarySelection(row.id, isExpired: row.entry.deadlineStatus == .expired) }
+                            )
+                            .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
+                            .listRowSeparator(.hidden)
+                            .listRowBackground(Color.clear)
+                        }
                     }
                 }
             }
-
-            Button {
-                addRowAndFocus()
-            } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: "plus")
-                    Text("Add task")
-                        .font(.system(.subheadline, design: .rounded))
-                }
-                .foregroundColor(.cyan)
-                .padding(.vertical, 4)
-            }
-            .accessibilityIdentifier("focusListAddRow")
-            .listRowInsets(EdgeInsets(top: 8, leading: 0, bottom: 8, trailing: 0))
-            .listRowSeparator(.hidden)
-            .listRowBackground(Color.clear)
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
-        .frame(minHeight: 200, maxHeight: 280)
+        .frame(minHeight: 260, maxHeight: 520)
         .background(
             RoundedRectangle(cornerRadius: 12)
                 .fill(Color.white.opacity(0.04))
@@ -224,11 +246,11 @@ struct FocusListSheet: View {
     }
 
     private var canStart: Bool {
-        !validRows.isEmpty
+        !validRows.isEmpty || !selectedLibraryIds.isEmpty
     }
 
     private var startButtonTitle: String {
-        validRows.count > 1 ? "Start Group Focus" : "Start Focus"
+        totalSelectionCount > 1 ? "Start Group Focus" : "Start Focus"
     }
 
     private var isActiveBattle: Bool {
@@ -383,12 +405,14 @@ struct FocusListSheet: View {
 
     private func startFocus() {
         let activeRows = validRows
-        guard !activeRows.isEmpty else {
+        let libraryIds = selectedLibraryIds.filter { cardStore.get(id: $0) != nil }
+        guard !activeRows.isEmpty || !libraryIds.isEmpty else {
             errorMessage = "没有可创建的任务，请检查输入格式。"
             return
         }
 
-        let memberIds = materializeTemplates(from: activeRows)
+        let generatedIds = materializeTemplates(from: activeRows)
+        let memberIds = libraryIds + generatedIds
         guard !memberIds.isEmpty else {
             errorMessage = "部分任务解析失败，请检查输入格式。"
             return
@@ -437,6 +461,7 @@ struct FocusListSheet: View {
         }
 
         rows = [FocusRow()]
+        selectedLibraryIds.removeAll()
         focusedRowId = rows.first?.id
         dismiss()
     }
@@ -508,6 +533,76 @@ struct FocusListSheet: View {
             rows[index].title = cleanedTitle
             rows[index].durationFromInput = false
         }
+    }
+
+    private var totalSelectionCount: Int {
+        validRows.count + selectedLibraryIds.count
+    }
+
+    private func toggleLibrarySelection(_ id: UUID, isExpired: Bool) {
+        guard !isExpired else { return }
+        if selectedLibraryIds.contains(id) {
+            selectedLibraryIds.remove(id)
+        } else {
+            selectedLibraryIds.insert(id)
+        }
+    }
+
+    private var librarySections: [(title: String, rows: [LibraryRowData])] {
+        let buckets = libraryStore.bucketedEntries(using: cardStore)
+        let today = libraryRows(for: buckets.deadline1)
+        let next3 = libraryRows(for: buckets.deadline3)
+        let thisWeek = libraryRows(for: mergeThisWeek(buckets.deadline5, buckets.deadline7))
+        let later = libraryRows(for: buckets.later)
+        let expired = libraryRows(for: buckets.expired)
+        return [
+            ("Today", today),
+            ("Next 3 Days", next3),
+            ("This Week", thisWeek),
+            ("Later / No deadline", later),
+            ("Expired", expired)
+        ]
+    }
+
+    private func libraryRows(for entries: [LibraryEntry]) -> [LibraryRowData] {
+        entries.compactMap { entry in
+            guard let template = cardStore.get(id: entry.templateId) else { return nil }
+            if template.taskMode == .reminderOnly || template.remindAt != nil {
+                return nil
+            }
+            return LibraryRowData(entry: entry, template: template)
+        }
+        .sorted { lhs, rhs in
+            let lhsDate = resolvedDeadlineAt(entry: lhs.entry, template: lhs.template) ?? lhs.entry.addedAt
+            let rhsDate = resolvedDeadlineAt(entry: rhs.entry, template: rhs.template) ?? rhs.entry.addedAt
+            if lhsDate != rhsDate {
+                return lhsDate < rhsDate
+            }
+            return lhs.entry.addedAt < rhs.entry.addedAt
+        }
+    }
+
+    private func mergeThisWeek(_ entries: [LibraryEntry]...) -> [LibraryEntry] {
+        let combined = entries.flatMap { $0 }
+        return combined.sorted { lhs, rhs in
+            let lhsTemplate = cardStore.get(id: lhs.templateId)
+            let rhsTemplate = cardStore.get(id: rhs.templateId)
+            let lhsDate = resolvedDeadlineAt(entry: lhs, template: lhsTemplate) ?? lhs.addedAt
+            let rhsDate = resolvedDeadlineAt(entry: rhs, template: rhsTemplate) ?? rhs.addedAt
+            if lhsDate != rhsDate {
+                return lhsDate < rhsDate
+            }
+            return lhs.addedAt < rhs.addedAt
+        }
+    }
+
+    private func resolvedDeadlineAt(entry: LibraryEntry, template: CardTemplate?) -> Date? {
+        guard let template else { return nil }
+        if let deadlineAt = template.deadlineAt {
+            return deadlineAt
+        }
+        guard let windowDays = template.deadlineWindowDays, windowDays > 0 else { return nil }
+        return Calendar.current.date(byAdding: .day, value: windowDays, to: entry.addedAt)
     }
 
     private func stripDurationTokens(from text: String) -> String {
@@ -634,6 +729,104 @@ private struct FocusRowView: View {
             RoundedRectangle(cornerRadius: 12)
                 .fill(Color.white.opacity(0.06))
         )
+    }
+}
+
+private struct LibraryRowData: Identifiable {
+    let entry: LibraryEntry
+    let template: CardTemplate
+
+    var id: UUID {
+        template.id
+    }
+}
+
+private struct LibraryRowView: View {
+    let data: LibraryRowData
+    let isSelected: Bool
+    let onToggle: () -> Void
+
+    var body: some View {
+        let now = Date()
+        let isExpired = data.entry.deadlineStatus == .expired
+        let titleColor: Color = isExpired ? .gray : .white
+        let deadlineText = deadlineLabel(now: now)
+
+        HStack(spacing: 10) {
+            Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                .foregroundColor(isSelected ? .cyan : .gray)
+
+            Image(systemName: data.template.icon)
+                .font(.system(size: 14, weight: .bold))
+                .foregroundColor(.white)
+                .frame(width: 24, height: 24)
+                .background(
+                    Circle().fill(Color.white.opacity(0.1))
+                )
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(data.template.title)
+                    .font(.system(.subheadline, design: .rounded))
+                    .fontWeight(.semibold)
+                    .foregroundColor(titleColor)
+                    .lineLimit(1)
+                HStack(spacing: 8) {
+                    Text("\(Int(data.template.defaultDuration / 60)) min")
+                        .font(.system(.caption2, design: .rounded))
+                        .foregroundColor(.white.opacity(0.6))
+                    if let deadlineText {
+                        Text(deadlineText)
+                            .font(.system(.caption2, design: .rounded))
+                            .foregroundColor(isExpired ? .gray : .orange)
+                    }
+                }
+            }
+            Spacer()
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color.white.opacity(isExpired ? 0.03 : 0.06))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(isSelected ? Color.cyan.opacity(0.6) : Color.white.opacity(0.12), lineWidth: 1)
+        )
+        .contentShape(Rectangle())
+        .onTapGesture {
+            guard !isExpired else { return }
+            onToggle()
+        }
+    }
+
+    private func deadlineLabel(now: Date) -> String? {
+        guard let deadlineAt = resolvedDeadlineAt() else { return nil }
+        if data.entry.deadlineStatus == .expired {
+            return "Expired"
+        }
+        let calendar = Calendar.current
+        let startNow = calendar.startOfDay(for: now)
+        let startDeadline = calendar.startOfDay(for: deadlineAt)
+        let dayDiff = calendar.dateComponents([.day], from: startNow, to: startDeadline).day ?? 0
+        if dayDiff < 0 {
+            return "Expired"
+        }
+        if dayDiff == 0 {
+            return "Due today"
+        }
+        if dayDiff == 1 {
+            return "Due tomorrow"
+        }
+        return "Due in \(dayDiff) days"
+    }
+
+    private func resolvedDeadlineAt() -> Date? {
+        if let deadlineAt = data.template.deadlineAt {
+            return deadlineAt
+        }
+        guard let windowDays = data.template.deadlineWindowDays, windowDays > 0 else { return nil }
+        return Calendar.current.date(byAdding: .day, value: windowDays, to: data.entry.addedAt)
     }
 }
 

@@ -7,13 +7,15 @@ import TimeLineCore
 struct DeckOverlay: View {
     let tab: DeckTab
     let isDimmed: Bool
+    let allowedTabs: [DeckTab]
     
     @EnvironmentObject var cardStore: CardTemplateStore
     @EnvironmentObject var appMode: AppModeManager
     
-    init(tab: DeckTab, isDimmed: Bool = false) {
+    init(tab: DeckTab, isDimmed: Bool = false, allowedTabs: [DeckTab] = DeckTab.allCases) {
         self.tab = tab
         self.isDimmed = isDimmed
+        self.allowedTabs = allowedTabs
     }
     
     var body: some View {
@@ -79,9 +81,9 @@ struct DeckOverlay: View {
             
             // Content based on tab
             Group {
-                switch tab {
+                switch activeTab {
                 case .cards:
-                    CardFanView(tab: tab)
+                    CardFanView(tab: activeTab)
                 case .library:
                     LibraryTabView()
                 case .decks:
@@ -103,7 +105,7 @@ struct DeckOverlay: View {
     }
 
     private var tipText: String {
-        switch tab {
+        switch activeTab {
         case .cards:
             return "Tap a card to add it to Library"
         case .library:
@@ -113,23 +115,30 @@ struct DeckOverlay: View {
         }
     }
     
+    private var activeTab: DeckTab {
+        guard allowedTabs.contains(tab) else {
+            return allowedTabs.first ?? tab
+        }
+        return tab
+    }
+    
     // MARK: - Tab Bar
     
     private var tabBar: some View {
         HStack(spacing: 24) {
-            ForEach(DeckTab.allCases, id: \.self) { t in
+            ForEach(allowedTabs, id: \.self) { t in
                 Button {
                     appMode.enter(.deckOverlay(t))
                 } label: {
                     Text(tabTitle(t))
                         .font(.system(.subheadline, design: .rounded))
-                        .fontWeight(tab == t ? .bold : .medium)
-                        .foregroundColor(tab == t ? .white : .gray)
+                        .fontWeight(activeTab == t ? .bold : .medium)
+                        .foregroundColor(activeTab == t ? .white : .gray)
                         .padding(.horizontal, 16)
                         .padding(.vertical, 8)
                         .background(
                             Capsule()
-                                .fill(tab == t ? Color.white.opacity(0.15) : Color.clear)
+                                .fill(activeTab == t ? Color.white.opacity(0.15) : Color.clear)
                         )
                 }
             }

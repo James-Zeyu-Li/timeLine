@@ -21,7 +21,6 @@ struct RogueMapView: View {
     @State private var showNodeEdit = false
     @State private var editingNodeTemplate: CardTemplate?
     @State private var editingNodeId: UUID?
-    @State private var showFocusList = false
     
     private let bottomFocusPadding: CGFloat = 140
     private let bottomSheetInset: CGFloat = 96
@@ -33,12 +32,6 @@ struct RogueMapView: View {
             ZStack {
                 // Background: Map content
                 mapContent(proxy: proxy)
-                
-                VStack {
-                    Spacer()
-                    focusListButton
-                }
-                .padding(.bottom, 18)
             }
             .sheet(isPresented: $showStats) {
                 StatsView()
@@ -57,10 +50,6 @@ struct RogueMapView: View {
                         }
                     }
                 )
-            }
-            .sheet(isPresented: $showFocusList) {
-                FocusListSheet()
-                    .presentationDetents([.medium, .large])
             }
         }
     }
@@ -143,34 +132,6 @@ struct RogueMapView: View {
         }
     }
 
-    private var focusListButton: some View {
-        Button(action: {
-            showFocusList = true
-        }) {
-            HStack(spacing: 8) {
-                Image(systemName: "square.stack.3d.up.fill")
-                    .font(.system(size: 12, weight: .bold))
-                Text("Focus List")
-                    .font(.system(.caption, design: .rounded))
-                    .fontWeight(.semibold)
-            }
-            .foregroundColor(.white)
-            .padding(.horizontal, 18)
-            .padding(.vertical, 10)
-            .background(
-                Capsule()
-                    .fill(Color.cyan.opacity(0.2))
-                    .overlay(
-                        Capsule()
-                            .stroke(Color.cyan.opacity(0.4), lineWidth: 1)
-                    )
-            )
-            .shadow(color: Color.cyan.opacity(0.4), radius: 8, x: 0, y: 4)
-        }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier("focusListButton")
-    }
-    
     private var mapTrack: some View {
         let nodes = Array(daySession.nodes.enumerated().reversed())
         let currentId = currentActiveId
