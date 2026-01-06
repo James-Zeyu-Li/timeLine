@@ -77,25 +77,32 @@ public struct QuickEntryParser {
         // 2. Extract Duration
         var duration: TimeInterval = 1500 // Default 25m
         let durRegex = try! NSRegularExpression(pattern: durationPattern, options: .caseInsensitive)
-        // Find FIRST duration match
-        if let match = durRegex.firstMatch(in: workingText, range: NSRange(workingText.startIndex..., in: workingText)) {
-            if let range = Range(match.range, in: workingText),
-               let valRange = Range(match.range(at: 1), in: workingText),
-               let unitRange = Range(match.range(at: 3), in: workingText) {
-                
+        let durationMatches = durRegex.matches(in: workingText, range: NSRange(workingText.startIndex..., in: workingText))
+        if !durationMatches.isEmpty {
+            var totalSeconds: TimeInterval = 0
+            for match in durationMatches {
+                guard let valRange = Range(match.range(at: 1), in: workingText),
+                      let unitRange = Range(match.range(at: 3), in: workingText) else {
+                    continue
+                }
                 let valueStr = String(workingText[valRange])
                 let unitStr = String(workingText[unitRange]).lowercased()
-                
-                if let value = Double(valueStr) {
-                    if unitStr.starts(with: "h") {
-                        duration = value * 3600
-                    } else {
-                        duration = value * 60
-                    }
+                guard let value = Double(valueStr) else { continue }
+                if unitStr.starts(with: "h") {
+                    totalSeconds += value * 3600
+                } else {
+                    totalSeconds += value * 60
                 }
-                
-                // Remove duration from text
-                workingText.removeSubrange(range)
+            }
+
+            if totalSeconds > 0 {
+                duration = totalSeconds
+            }
+
+            for match in durationMatches.reversed() {
+                if let range = Range(match.range, in: workingText) {
+                    workingText.removeSubrange(range)
+                }
             }
         }
         

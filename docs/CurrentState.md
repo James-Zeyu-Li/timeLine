@@ -1,6 +1,6 @@
 # Current Project State: TimeLineApp
 
-> **Last Updated**: 2025-12-30 (稳定性与测试修复已同步)  
+> **Last Updated**: 2026-01-05 (Core 结构整理 + Focus List 表格化)  
 > **Status**: V1 Core Complete + UI Semantics Expanded
 
 ---
@@ -131,9 +131,7 @@ A roguelike-inspired iOS focus app built with SwiftUI.
 - Flexible Group Focus（多任务组合、总计时不中断、自动分账、GroupFocusView + 报告页基础版）
 - Reminder Only（remindAt + Banner + 时间线倒计时 + Focus 内倒计时）
 - Map 主流程（地图交互、拖拽放置、节点高亮、事件提示）
-- Focus List 主入口（Timeline 底部入口 + ad-hoc 输入 + Start Focus）
-- Focus List Store（staged items + ad-hoc staging）
-- Ephemeral Cleanup（新的一天自动清理未保存临时模板）
+- Focus List 主入口（Timeline 底部入口 + 表格式逐行编辑 + Start Focus/Group）
 
 ### 未完成（V1 关键缺口）
 - Focus List：从 Cards / Library / Decks 加入 + 可排序/删除
@@ -184,6 +182,7 @@ A roguelike-inspired iOS focus app built with SwiftUI.
 - **测试默认运行**：`IncompleteExitBannerTests` 不再需要环境 gate。  
 - **测试环境变量**：`timeLine-ci` scheme 的 TestAction 加 `MallocNanoZone=0`，减少模拟器 nano zone 警告。  
 - **全量验证**：ASan + TSan + UI Tests 均通过（iPhone 17 Pro 模拟器）。  
+- **Core 结构整理**：`TimeLineCore` 已重排为 Domain / Services / Parsing / Persistence / Utilities；`swift test` 通过。  
 
 ---
 

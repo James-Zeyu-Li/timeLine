@@ -16,7 +16,7 @@ struct CardFanView: View {
     @State private var selectedIds: Set<UUID> = []
     
     var body: some View {
-        let cards = cardStore.orderedTemplates()
+        let cards = cardStore.orderedTemplates(includeEphemeral: false)
         let count = cards.count
         
         VStack(spacing: 12) {
@@ -149,7 +149,7 @@ struct CardFanView: View {
             libraryStore.add(templateId: id)
         }
         stateManager.requestSave()
-        UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
+        Haptics.impact(.heavy)
         withAnimation(.spring(response: 0.25, dampingFraction: 0.85)) {
             selectedIds.removeAll()
             isSelecting = false
@@ -159,7 +159,7 @@ struct CardFanView: View {
     private func addCardToLibrary(_ id: UUID) {
         libraryStore.add(templateId: id)
         stateManager.requestSave()
-        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        Haptics.impact(.light)
     }
     
     // MARK: - Fan Layout
@@ -307,6 +307,6 @@ private struct CardPreviewPanel: View {
             libraryStore.add(templateId: template.id)
         }
         stateManager.requestSave()
-        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        Haptics.impact(.light)
     }
 }

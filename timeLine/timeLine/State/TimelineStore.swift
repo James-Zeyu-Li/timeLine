@@ -253,6 +253,7 @@ final class TimelineStore: ObservableObject {
             style: card.style,
             category: card.category,
             templateId: card.id,
+            recommendedStart: card.fixedTime,
             remindAt: card.remindAt,
             leadTimeMinutes: card.leadTimeMinutes
         )

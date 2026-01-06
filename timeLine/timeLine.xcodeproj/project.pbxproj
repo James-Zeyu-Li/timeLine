@@ -31,6 +31,7 @@
 		1A3339802EF88863001AA049 /* timeLine.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = timeLine.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		1A33398F2EF88865001AA049 /* timeLineTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = timeLineTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		1A3339992EF88865001AA049 /* timeLineUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = timeLineUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		1A9E70EC2F09CE6000D7B0E0 /* TimeLineCore.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = TimeLineCore.xctestplan; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -80,6 +81,7 @@
 		1A3339772EF88863001AA049 = {
 			isa = PBXGroup;
 			children = (
+				1A9E70EC2F09CE6000D7B0E0 /* TimeLineCore.xctestplan */,
 				1A3339822EF88863001AA049 /* timeLine */,
 				1A3339922EF88865001AA049 /* timeLineTests */,
 				1A33399C2EF88865001AA049 /* timeLineUITests */,

@@ -327,7 +327,8 @@ private struct DecksTabView: View {
     }
 
     private var deckBuilder: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        let cards = cardStore.orderedTemplates(includeEphemeral: false)
+        return VStack(alignment: .leading, spacing: 12) {
             Text("CREATE DECK")
                 .font(.system(size: 11, weight: .bold))
                 .tracking(1.5)
@@ -348,7 +349,7 @@ private struct DecksTabView: View {
                 )
             
             VStack(alignment: .leading, spacing: 8) {
-                ForEach(cardStore.orderedTemplates()) { card in
+                ForEach(cards) { card in
                     Button {
                         toggleSelection(card.id)
                     } label: {
@@ -430,15 +431,15 @@ private struct LibraryTabView: View {
         let reminders = rows(for: buckets.reminders)
         let deadline1 = rows(for: buckets.deadline1)
         let deadline3 = rows(for: buckets.deadline3)
-        let deadline5 = rows(for: buckets.deadline5)
-        let deadline7 = rows(for: buckets.deadline7)
+        let thisWeekEntries = mergeThisWeek(buckets.deadline5, buckets.deadline7)
+        let thisWeek = rows(for: thisWeekEntries)
         let later = rows(for: buckets.later)
         let expired = rows(for: buckets.expired)
         
         VStack(spacing: 12) {
             header
             
-            if reminders.isEmpty && deadline1.isEmpty && deadline3.isEmpty && deadline5.isEmpty && deadline7.isEmpty && later.isEmpty && expired.isEmpty {
+            if reminders.isEmpty && deadline1.isEmpty && deadline3.isEmpty && thisWeek.isEmpty && later.isEmpty && expired.isEmpty {
                 emptyState
             } else {
                 ScrollViewReader { proxy in
@@ -458,19 +459,16 @@ private struct LibraryTabView: View {
                                 section(title: "Reminders", rows: reminders)
                             }
                             if !deadline1.isEmpty {
-                                section(title: "1 Day", rows: deadline1)
+                                section(title: "Today", rows: deadline1)
                             }
                             if !deadline3.isEmpty {
-                                section(title: "3 Days", rows: deadline3)
+                                section(title: "Next 3 Days", rows: deadline3)
                             }
-                            if !deadline5.isEmpty {
-                                section(title: "5 Days", rows: deadline5)
-                            }
-                            if !deadline7.isEmpty {
-                                section(title: "7 Days", rows: deadline7)
+                            if !thisWeek.isEmpty {
+                                section(title: "This Week", rows: thisWeek)
                             }
                             if !later.isEmpty {
-                                section(title: "Later", rows: later)
+                                section(title: "Later / No deadline", rows: later)
                             }
                             expiredSection(rows: expired)
                                 .id("expiredSection")
@@ -716,6 +714,27 @@ private struct LibraryTabView: View {
             return LibraryRowData(entry: entry, template: template)
         }
     }
+
+    private func mergeThisWeek(_ entries: [LibraryEntry]...) -> [LibraryEntry] {
+        let combined = entries.flatMap { $0 }
+        return combined.sorted { lhs, rhs in
+            let lhsDate = deadlineAt(for: lhs) ?? lhs.addedAt
+            let rhsDate = deadlineAt(for: rhs) ?? rhs.addedAt
+            if lhsDate != rhsDate {
+                return lhsDate < rhsDate
+            }
+            return lhs.addedAt < rhs.addedAt
+        }
+    }
+
+    private func deadlineAt(for entry: LibraryEntry) -> Date? {
+        guard let template = cardStore.get(id: entry.templateId) else { return nil }
+        if let deadlineAt = template.deadlineAt {
+            return deadlineAt
+        }
+        guard let windowDays = template.deadlineWindowDays else { return nil }
+        return Calendar.current.date(byAdding: .day, value: windowDays, to: entry.addedAt)
+    }
     
     private func toggleSelection(_ id: UUID) {
         if selectedIds.contains(id) {
@@ -764,7 +783,7 @@ private struct LibraryTabView: View {
             stateManager.requestSave()
         }
         
-        UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
+        Haptics.impact(.heavy)
         withAnimation(.spring(response: 0.25, dampingFraction: 0.85)) {
             exitSelection()
         }
@@ -863,10 +882,14 @@ private struct LibraryRow: View {
     let onEdit: () -> Void
     
     var body: some View {
+        let now = Date()
         let isReminder = template.taskMode == .reminderOnly || template.remindAt != nil
-        let deadlineText = deadlineLabel(now: Date())
-        let reminderText = reminderLabel(now: Date())
+        let deadlineText = deadlineLabel(now: now)
+        let reminderText = reminderLabel(now: now)
         let isExpired = entry.deadlineStatus == .expired
+        let isUrgent = isUrgentDeadline(now: now)
+        let isStale = isStaleEntry(now: now)
+        let titleColor: Color = isExpired ? .gray : (isStale ? .white.opacity(0.6) : .white)
         HStack(spacing: 12) {
             if isSelecting {
                 Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
@@ -886,7 +909,7 @@ private struct LibraryRow: View {
                 Text(template.title)
                     .font(.system(.subheadline, design: .rounded))
                     .fontWeight(.semibold)
-                    .foregroundColor(isExpired ? .gray : .white)
+                    .foregroundColor(titleColor)
                     .lineLimit(1)
                 HStack(spacing: 8) {
                     if !isReminder {
@@ -916,12 +939,23 @@ private struct LibraryRow: View {
         .padding(.vertical, 10)
         .background(
             RoundedRectangle(cornerRadius: 12)
-                .fill(Color.white.opacity(0.06))
+                .fill(Color.white.opacity(isStale ? 0.03 : 0.06))
         )
         .overlay(
             RoundedRectangle(cornerRadius: 12)
                 .stroke(isSelected ? Color.cyan.opacity(0.6) : Color.white.opacity(0.12), lineWidth: 1)
         )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color.red.opacity(urgentPulseOpacity(isUrgent: isUrgent)), lineWidth: 1)
+        )
+        .saturation(isStale ? 0.35 : 1.0)
+        .onAppear {
+            startUrgentPulseIfNeeded(isUrgent: isUrgent)
+        }
+        .onChange(of: isUrgent) { _, newValue in
+            startUrgentPulseIfNeeded(isUrgent: newValue)
+        }
         .contentShape(Rectangle())
         .onTapGesture {
             if isSelecting {
@@ -947,14 +981,24 @@ private struct LibraryRow: View {
     
     private func deadlineLabel(now: Date) -> String? {
         guard template.taskMode != .reminderOnly else { return nil }
-        guard let windowDays = template.deadlineWindowDays,
-              let deadlineAt = Calendar.current.date(byAdding: .day, value: windowDays, to: entry.addedAt) else {
-            return nil
-        }
+        guard let deadlineAt = resolvedDeadlineAt() else { return nil }
         if entry.deadlineStatus == .expired {
-            return "expired"
+            return "Expired"
         }
-        return CountdownFormatter.formatRelative(seconds: deadlineAt.timeIntervalSince(now)) ?? "expired"
+        let calendar = Calendar.current
+        let startNow = calendar.startOfDay(for: now)
+        let startDeadline = calendar.startOfDay(for: deadlineAt)
+        let dayDiff = calendar.dateComponents([.day], from: startNow, to: startDeadline).day ?? 0
+        if dayDiff < 0 {
+            return "Expired"
+        }
+        if dayDiff == 0 {
+            return "Due today"
+        }
+        if dayDiff == 1 {
+            return "Due tomorrow"
+        }
+        return "Due in \(dayDiff) days"
     }
 
     private func reminderLabel(now: Date) -> String? {
@@ -972,6 +1016,51 @@ private struct LibraryRow: View {
         formatter.dateFormat = "HH:mm"
         return formatter
     }()
+
+    @State private var urgentPulse = false
+
+    private func urgentPulseOpacity(isUrgent: Bool) -> Double {
+        guard isUrgent else { return 0 }
+        return urgentPulse ? 0.85 : 0.25
+    }
+
+    private func startUrgentPulseIfNeeded(isUrgent: Bool) {
+        if isUrgent && !urgentPulse {
+            withAnimation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true)) {
+                urgentPulse = true
+            }
+        }
+        if !isUrgent {
+            urgentPulse = false
+        }
+    }
+
+    private func isUrgentDeadline(now: Date) -> Bool {
+        guard template.taskMode != .reminderOnly else { return false }
+        guard entry.deadlineStatus == .active else { return false }
+        guard let deadlineAt = resolvedDeadlineAt() else { return false }
+        let calendar = Calendar.current
+        let startNow = calendar.startOfDay(for: now)
+        let startDeadline = calendar.startOfDay(for: deadlineAt)
+        let dayDiff = calendar.dateComponents([.day], from: startNow, to: startDeadline).day ?? 0
+        return dayDiff == 0
+    }
+
+    private func isStaleEntry(now: Date) -> Bool {
+        guard template.taskMode != .reminderOnly else { return false }
+        guard entry.deadlineStatus == .active else { return false }
+        guard template.deadlineWindowDays == nil && template.deadlineAt == nil else { return false }
+        guard let staleDate = Calendar.current.date(byAdding: .day, value: -7, to: now) else { return false }
+        return entry.addedAt < staleDate
+    }
+
+    private func resolvedDeadlineAt() -> Date? {
+        if let deadlineAt = template.deadlineAt {
+            return deadlineAt
+        }
+        guard let windowDays = template.deadlineWindowDays else { return nil }
+        return Calendar.current.date(byAdding: .day, value: windowDays, to: entry.addedAt)
+    }
 }
 
 private struct DeckCard: View {

@@ -436,9 +436,9 @@ struct BattleView: View {
     private func handleFreezeTap() {
         if engine.freeze() {
             stateManager.requestSave()
-            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+            Haptics.impact(.medium)
         } else {
-            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            Haptics.impact(.light)
         }
     }
 

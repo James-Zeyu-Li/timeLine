@@ -1,8 +1,20 @@
 import Foundation
 
+public struct FocusGroupSegment: Equatable {
+    public let templateId: UUID
+    public let startedAt: Date
+    public let endedAt: Date
+
+    public var duration: TimeInterval {
+        max(0, endedAt.timeIntervalSince(startedAt))
+    }
+}
+
 public struct FocusGroupSessionSummary: Equatable {
     public let allocations: [UUID: TimeInterval]
     public let totalFocusedSeconds: TimeInterval
+    public let startedAt: Date
+    public let segments: [FocusGroupSegment]
 }
 
 public final class FocusGroupSessionCoordinator {
@@ -11,7 +23,9 @@ public final class FocusGroupSessionCoordinator {
     
     private var allocations: [UUID: TimeInterval]
     private var lastSwitchAt: Date
+    private let startTime: Date
     private var isEnded = false
+    private var segments: [FocusGroupSegment]
     
     public init(
         memberTemplateIds: [UUID],
@@ -23,6 +37,8 @@ public final class FocusGroupSessionCoordinator {
         self.activeIndex = clampedIndex
         self.allocations = [:]
         self.lastSwitchAt = startTime
+        self.startTime = startTime
+        self.segments = []
     }
     
     @discardableResult
@@ -43,12 +59,26 @@ public final class FocusGroupSessionCoordinator {
             isEnded = true
         }
         let total = allocations.values.reduce(0, +)
-        return FocusGroupSessionSummary(allocations: allocations, totalFocusedSeconds: total)
+        return FocusGroupSessionSummary(
+            allocations: allocations,
+            totalFocusedSeconds: total,
+            startedAt: startTime,
+            segments: segments
+        )
     }
     
     private func accumulateTime(until time: Date) {
         guard let activeId = activeTemplateId else { return }
         let delta = max(0, time.timeIntervalSince(lastSwitchAt))
+        if delta > 0 {
+            segments.append(
+                FocusGroupSegment(
+                    templateId: activeId,
+                    startedAt: lastSwitchAt,
+                    endedAt: time
+                )
+            )
+        }
         allocations[activeId, default: 0] += delta
     }
     

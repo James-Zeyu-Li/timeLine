@@ -1,6 +1,6 @@
 # TimeLine App — UI & Coordination Logic
 
-> **Last Updated**: 2025-12-30  
+> **Last Updated**: 2026-01-05  
 > Location: `timeLine/timeLine/` (Main App Target)
 
 ---
@@ -24,10 +24,10 @@
 ## 功能位置索引（中文）
 
 ### 卡片 / Library / Deck
-- **TaskBehavior**：`TimeLineCore/Sources/TimeLineCore/TaskBehavior.swift`
-- **CardTemplate 模型**：`TimeLineCore/Sources/TimeLineCore/CardTemplate.swift`
+- **TaskBehavior**：`TimeLineCore/Sources/TimeLineCore/Domain/TaskBehavior.swift`
+- **CardTemplate 模型**：`TimeLineCore/Sources/TimeLineCore/Domain/CardTemplate.swift`
 - **CardTemplateStore / LibraryStore**：`timeLine/timeLine/State/CardTemplateStore.swift`
-- **LibraryEntry**：`TimeLineCore/Sources/TimeLineCore/LibraryEntry.swift`
+- **LibraryEntry**：`TimeLineCore/Sources/TimeLineCore/Domain/LibraryEntry.swift`
 - **Cards UI**：`timeLine/timeLine/Views/Deck/CardFanView.swift`
 - **Library UI**：`timeLine/timeLine/Views/Deck/DeckOverlay.swift`（`LibraryTabView`）
 - **Library 选卡弹窗**：`timeLine/timeLine/Views/Deck/CardLibraryPickerSheet.swift`
@@ -39,16 +39,16 @@
 - **拖拽 payload / hover**：`timeLine/timeLine/State/DragPayload.swift` / `timeLine/timeLine/State/DragDropCoordinator.swift`
 - **拖拽落点与 placement**：`timeLine/timeLine/Views/RootView.swift`
 - **放置写入**：`timeLine/timeLine/State/TimelineStore.swift`
-- **路线结构**：`TimeLineCore/Sources/TimeLineCore/DaySession.swift`
+- **路线结构**：`TimeLineCore/Sources/TimeLineCore/Domain/DaySession.swift`
 
 ### Focus Group / Rest Prompt
-- **FocusGroup payload**：`TimeLineCore/Sources/TimeLineCore/FocusGroupPayload.swift`
-- **FocusGroup 分账**：`TimeLineCore/Sources/TimeLineCore/FocusGroupSessionCoordinator.swift`
+- **FocusGroup payload**：`TimeLineCore/Sources/TimeLineCore/Domain/FocusGroupPayload.swift`
+- **FocusGroup 分账**：`TimeLineCore/Sources/TimeLineCore/Services/FocusGroupSessionCoordinator.swift`
 - **Group Focus UI**：`timeLine/timeLine/Views/FocusGroup/GroupFocusView.swift`
 - **完成/报告协调**：`timeLine/timeLine/TimelineEventCoordinator.swift`
-- **RestPrompt 逻辑**：`TimeLineCore/Sources/TimeLineCore/RestPromptService.swift`
+- **RestPrompt 逻辑**：`TimeLineCore/Sources/TimeLineCore/Services/RestPromptService.swift`
 - **RestPrompt UI**：`timeLine/timeLine/Views/Shared/RestSuggestionBanner.swift`
-- **Reminder 触发**：`TimeLineCore/Sources/TimeLineCore/ReminderScheduler.swift`
+- **Reminder 触发**：`TimeLineCore/Sources/TimeLineCore/Services/ReminderScheduler.swift`
 - **Reminder UI**：`timeLine/timeLine/Views/Shared/ReminderBanner.swift`
 
 ---

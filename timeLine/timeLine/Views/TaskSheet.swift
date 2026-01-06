@@ -4,6 +4,7 @@ import TimeLineCore
 
 struct TaskSheet: View {
     @Environment(\.dismiss) var dismiss
+    @EnvironmentObject var engine: BattleEngine
     @EnvironmentObject var cardStore: CardTemplateStore
     @EnvironmentObject var libraryStore: LibraryStore
     @Binding var templateToEdit: CardTemplate?
@@ -186,7 +187,13 @@ struct TaskSheet: View {
                                             .cornerRadius(10)
                                     }
                                     .buttonStyle(.plain)
+                                    .disabled(isTaskModeLocked)
                                 }
+                            }
+                            if isTaskModeLocked {
+                                Text("Locked during active battle.")
+                                    .font(.system(.caption2, design: .rounded))
+                                    .foregroundColor(.white.opacity(0.6))
                             }
                         }
                         
@@ -540,5 +547,9 @@ struct TaskSheet: View {
     private func deadlineLabel(_ option: Int?) -> String {
         guard let option else { return "Off" }
         return "\(option)d"
+    }
+
+    private var isTaskModeLocked: Bool {
+        engine.state == .fighting || engine.state == .paused || engine.state == .frozen
     }
 }

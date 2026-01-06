@@ -17,6 +17,7 @@ final class QuickEntryTests: XCTestCase {
     func testDurationFormats() {
         let cases = [
             ("Read 1h", 3600.0),
+            ("Combo 1h30m", 5400.0),
             ("Nap 1.5h", 5400.0),
             ("Short 10m", 600.0),
             ("Tiny 5min", 300.0)

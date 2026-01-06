@@ -1,7 +1,7 @@
 # Journey System Logic (Architecture V1)
 
-> **Last Updated**: 2025-12-30  
-> Core models live in `TimeLineCore`.
+> **Last Updated**: 2026-01-05  
+> Core models live in `TimeLineCore` (Domain / Services / Parsing / Persistence / Utilities).
 
 ---
 
@@ -12,10 +12,10 @@
 - **提醒行为统一**：`TaskBehavior` 只有 `.battle` / `.reminder`，不再区分旧的 reminderOnly/passive。
 
 ## 功能位置索引（简版）
-- **CardTemplate**：`TimeLineCore/Sources/TimeLineCore/CardTemplate.swift`
-- **LibraryEntry**：`TimeLineCore/Sources/TimeLineCore/LibraryEntry.swift`
-- **TimelineNode / DaySession**：`TimeLineCore/Sources/TimeLineCore/TimelineNode.swift` / `TimeLineCore/Sources/TimeLineCore/DaySession.swift`
-- **FocusGroup**：`TimeLineCore/Sources/TimeLineCore/FocusGroupPayload.swift` / `TimeLineCore/Sources/TimeLineCore/FocusGroupSessionCoordinator.swift`
+- **CardTemplate**：`TimeLineCore/Sources/TimeLineCore/Domain/CardTemplate.swift`
+- **LibraryEntry**：`TimeLineCore/Sources/TimeLineCore/Domain/LibraryEntry.swift`
+- **TimelineNode / DaySession**：`TimeLineCore/Sources/TimeLineCore/Domain/TimelineNode.swift` / `TimeLineCore/Sources/TimeLineCore/Domain/DaySession.swift`
+- **FocusGroup**：`TimeLineCore/Sources/TimeLineCore/Domain/FocusGroupPayload.swift` / `TimeLineCore/Sources/TimeLineCore/Services/FocusGroupSessionCoordinator.swift`
 - **App 层放置**：`timeLine/timeLine/State/TimelineStore.swift`
 
 ## 1. Core Metaphor

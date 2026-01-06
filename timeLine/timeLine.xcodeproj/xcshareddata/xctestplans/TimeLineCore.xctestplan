@@ -1,0 +1,25 @@
+{
+  "configurations" : [
+    {
+      "id" : "E8D5361C-A2F2-487B-A652-6304EE5E17F8",
+      "name" : "Test Scheme Action",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+    "codeCoverage" : false,
+    "performanceAntipatternCheckerEnabled" : true
+  },
+  "testTargets" : [
+    {
+      "target" : {
+        "containerPath" : "container:..\/timeLine\/timeLine.xcodeproj",
+        "identifier" : "1A33398E2EF88865001AA049",
+        "name" : "timeLineTests"
+      }
+    }
+  ],
+  "version" : 1
+}

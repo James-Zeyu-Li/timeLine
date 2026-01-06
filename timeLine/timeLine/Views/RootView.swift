@@ -310,12 +310,12 @@ struct RootView: View {
                 )
             }
             
-            UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
+            Haptics.impact(.heavy)
             success = true
             
         case .placeDeck(let deckId, let anchorNodeId, let placement):
             guard !isDeckPlacementLocked else {
-                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                Haptics.impact(.light)
                 success = false
                 break
             }
@@ -331,10 +331,10 @@ struct RootView: View {
                 showDeckToast = true
                 scheduleToastDismiss()
                 setDeckPlacementCooldown()
-                UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
+                Haptics.impact(.heavy)
                 success = true
             } else {
-                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                Haptics.impact(.light)
                 success = false
             }
             
@@ -346,10 +346,10 @@ struct RootView: View {
                 placement: placement,
                 using: cardStore
             ) != nil {
-                UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
+                Haptics.impact(.heavy)
                 success = true
             } else {
-                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                Haptics.impact(.light)
                 success = false
             }
 
@@ -364,7 +364,7 @@ struct RootView: View {
     private func handleEmptyDropFallback() -> Bool {
         guard daySession.nodes.isEmpty,
               let payload = dragCoordinator.activePayload else {
-            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            Haptics.impact(.light)
             return false
         }
         
@@ -376,12 +376,12 @@ struct RootView: View {
                 using: cardStore,
                 engine: engine
             ) != nil {
-                UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
+                Haptics.impact(.heavy)
                 return true
             }
         case .deck(let deckId):
             guard !isDeckPlacementLocked else {
-                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                Haptics.impact(.light)
                 return false
             }
             if let result = timelineStore.placeDeckBatchAtStart(
@@ -394,7 +394,7 @@ struct RootView: View {
                 showDeckToast = true
                 scheduleToastDismiss()
                 setDeckPlacementCooldown()
-                UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
+                Haptics.impact(.heavy)
                 return true
             }
         case .focusGroup(let memberTemplateIds):
@@ -403,12 +403,12 @@ struct RootView: View {
                 using: cardStore,
                 engine: engine
             ) != nil {
-                UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
+                Haptics.impact(.heavy)
                 return true
             }
         }
         
-        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        Haptics.impact(.light)
         return false
     }
     
@@ -580,6 +580,7 @@ struct NodeFrameKey: PreferenceKey {
 struct CardDetailEditSheet: View {
     let cardTemplateId: UUID
     
+    @EnvironmentObject var engine: BattleEngine
     @EnvironmentObject var cardStore: CardTemplateStore
     @EnvironmentObject var libraryStore: LibraryStore
     @EnvironmentObject var daySession: DaySession
@@ -625,6 +626,12 @@ struct CardDetailEditSheet: View {
                             .pickerStyle(.segmented)
                             .accessibilityIdentifier("cardDetailTaskModePicker")
                             .accessibilityValue(taskModeLabel(taskModeBinding.wrappedValue))
+                            .disabled(isTaskModeLocked)
+                            if isTaskModeLocked {
+                                Text("Locked during active battle.")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
                         }
 
                         if taskModeBinding.wrappedValue == .reminderOnly {
@@ -838,6 +845,10 @@ struct CardDetailEditSheet: View {
             timelineStore.updateNode(id: node.id, payload: template)
         }
     }
+
+    private var isTaskModeLocked: Bool {
+        engine.state == .fighting || engine.state == .paused || engine.state == .frozen
+    }
 }
 
 struct FocusGroupReportSheet: View {
@@ -849,6 +860,12 @@ struct FocusGroupReportSheet: View {
 
     private var visibleEntries: [FocusGroupReportEntry] {
         report.entries.filter { $0.focusedSeconds > 0 }
+    }
+
+    private var timelineSegments: [FocusGroupReportSegment] {
+        report.segments
+            .filter { $0.duration > 0 }
+            .sorted { $0.startedAt < $1.startedAt }
     }
 
     var body: some View {
@@ -895,6 +912,30 @@ struct FocusGroupReportSheet: View {
                     }
                 }
 
+                if !timelineSegments.isEmpty {
+                    Divider()
+                    Text("Timeline")
+                        .font(.system(.caption, design: .rounded))
+                        .foregroundColor(.secondary)
+                    VStack(spacing: 8) {
+                        ForEach(timelineSegments, id: \.startedAt) { segment in
+                            HStack(spacing: 12) {
+                                Text(timeRangeLabel(for: segment))
+                                    .font(.system(.caption2, design: .monospaced))
+                                    .foregroundColor(.secondary)
+                                Text(cardStore.get(id: segment.templateId)?.title ?? "Task")
+                                    .font(.system(.caption, design: .rounded))
+                                    .foregroundColor(.primary)
+                                Spacer()
+                                Text(TimeFormatter.formatDuration(segment.duration))
+                                    .font(.system(.caption2, design: .monospaced))
+                                    .foregroundColor(PixelTheme.accent)
+                            }
+                            .padding(.vertical, 4)
+                        }
+                    }
+                }
+
                 Spacer()
             }
             .padding(20)
@@ -921,5 +962,14 @@ struct FocusGroupReportSheet: View {
         cardStore.update(updated)
         libraryStore.add(templateId: updated.id)
         stateManager.requestSave()
+    }
+
+    private func timeRangeLabel(for segment: FocusGroupReportSegment) -> String {
+        guard let start = timelineSegments.first?.startedAt else {
+            return TimeFormatter.formatTimer(segment.duration)
+        }
+        let startOffset = segment.startedAt.timeIntervalSince(start)
+        let endOffset = segment.endedAt.timeIntervalSince(start)
+        return "\(TimeFormatter.formatTimer(startOffset)) - \(TimeFormatter.formatTimer(endOffset))"
     }
 }

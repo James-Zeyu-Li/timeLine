@@ -34,7 +34,6 @@ struct TimeLineApp: App {
     @StateObject private var daySession: DaySession
     @StateObject private var cardStore: CardTemplateStore
     @StateObject private var libraryStore: LibraryStore
-    @StateObject private var focusListStore = FocusListStore()
     @StateObject private var deckStore = DeckStore()
     @StateObject private var appMode = AppModeManager()
     @StateObject private var stateManager: AppStateManager
@@ -111,7 +110,6 @@ struct TimeLineApp: App {
                     .environmentObject(daySession)
                     .environmentObject(cardStore)
                     .environmentObject(libraryStore)
-                    .environmentObject(focusListStore)
                     .environmentObject(deckStore)
                     .environmentObject(appMode)
                     .environmentObject(stateManager)

@@ -9,9 +9,9 @@ final class ReminderSchedulerTests: XCTestCase {
         let boss = Boss(
             name: "Reminder Task",
             maxHp: 60,
+            templateId: templateId,
             remindAt: remindAt,
-            leadTimeMinutes: 5,
-            templateId: templateId
+            leadTimeMinutes: 5
         )
         let node = TimelineNode(type: .battle(boss), isLocked: false)
         let scheduler = ReminderScheduler()

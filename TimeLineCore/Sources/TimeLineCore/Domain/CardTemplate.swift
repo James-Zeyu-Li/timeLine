@@ -28,6 +28,7 @@ public struct CardTemplate: Identifiable, Codable, Equatable {
     public var leadTimeMinutes: Int
     public var isEphemeral: Bool
     public var deadlineWindowDays: Int?
+    public var deadlineAt: Date?
 
     private enum CodingKeys: String, CodingKey {
         case id
@@ -45,6 +46,7 @@ public struct CardTemplate: Identifiable, Codable, Equatable {
         case leadTimeMinutes
         case isEphemeral
         case deadlineWindowDays
+        case deadlineAt
     }
     
     public init(
@@ -62,7 +64,8 @@ public struct CardTemplate: Identifiable, Codable, Equatable {
         remindAt: Date? = nil,
         leadTimeMinutes: Int = 0,
         isEphemeral: Bool = false,
-        deadlineWindowDays: Int? = nil
+        deadlineWindowDays: Int? = nil,
+        deadlineAt: Date? = nil
     ) {
         self.id = id
         self.title = title
@@ -79,6 +82,7 @@ public struct CardTemplate: Identifiable, Codable, Equatable {
         self.leadTimeMinutes = leadTimeMinutes
         self.isEphemeral = isEphemeral
         self.deadlineWindowDays = deadlineWindowDays
+        self.deadlineAt = deadlineAt
     }
     
     public init(from decoder: Decoder) throws {
@@ -98,5 +102,6 @@ public struct CardTemplate: Identifiable, Codable, Equatable {
         self.leadTimeMinutes = try container.decodeIfPresent(Int.self, forKey: .leadTimeMinutes) ?? 0
         self.isEphemeral = try container.decodeIfPresent(Bool.self, forKey: .isEphemeral) ?? false
         self.deadlineWindowDays = try container.decodeIfPresent(Int.self, forKey: .deadlineWindowDays)
+        self.deadlineAt = try container.decodeIfPresent(Date.self, forKey: .deadlineAt)
     }
 }

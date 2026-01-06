@@ -187,10 +187,19 @@ final class TimelineEventCoordinator: ObservableObject {
                 focusedSeconds: summary.allocations[id, default: 0]
             )
         }
+        let segments = summary.segments.map { segment in
+            FocusGroupReportSegment(
+                templateId: segment.templateId,
+                startedAt: segment.startedAt,
+                endedAt: segment.endedAt,
+                duration: segment.duration
+            )
+        }
         lastExplorationReport = FocusGroupFinishedReport(
             taskName: result.bossName,
             totalFocusedSeconds: summary.totalFocusedSeconds,
-            entries: entries
+            entries: entries,
+            segments: segments
         )
     }
 
@@ -393,9 +402,17 @@ struct FocusGroupFinishedReport: Identifiable, Equatable {
     let taskName: String
     let totalFocusedSeconds: TimeInterval
     let entries: [FocusGroupReportEntry]
+    let segments: [FocusGroupReportSegment]
 }
 
 struct FocusGroupReportEntry: Equatable {
     let templateId: UUID
     let focusedSeconds: TimeInterval
+}
+
+struct FocusGroupReportSegment: Equatable {
+    let templateId: UUID
+    let startedAt: Date
+    let endedAt: Date
+    let duration: TimeInterval
 }

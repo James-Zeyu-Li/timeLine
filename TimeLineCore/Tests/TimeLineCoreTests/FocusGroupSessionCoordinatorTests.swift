@@ -18,6 +18,13 @@ final class FocusGroupSessionCoordinatorTests: XCTestCase {
         XCTAssertEqual(summary.allocations[first] ?? 0, 90, accuracy: 0.1)
         XCTAssertEqual(summary.allocations[second] ?? 0, 60, accuracy: 0.1)
         XCTAssertEqual(summary.totalFocusedSeconds, 150, accuracy: 0.1)
+        XCTAssertEqual(summary.segments.count, 3)
+        XCTAssertEqual(summary.segments[0].templateId, first)
+        XCTAssertEqual(summary.segments[0].duration, 60, accuracy: 0.1)
+        XCTAssertEqual(summary.segments[1].templateId, second)
+        XCTAssertEqual(summary.segments[1].duration, 60, accuracy: 0.1)
+        XCTAssertEqual(summary.segments[2].templateId, first)
+        XCTAssertEqual(summary.segments[2].duration, 30, accuracy: 0.1)
     }
     
     func testSwitchToIgnoresInvalidIndex() {

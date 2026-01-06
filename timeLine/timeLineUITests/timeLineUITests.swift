@@ -14,6 +14,25 @@ final class timeLineUITests: XCTestCase {
         app.launchArguments.append("-ui-testing")
         return app
     }
+
+    private func dismissKeyboard(in app: XCUIApplication) {
+        let doneButton = app.keyboards.buttons["Done"]
+        if doneButton.exists {
+            doneButton.tap()
+            return
+        }
+        let returnButton = app.keyboards.buttons["Return"]
+        if returnButton.exists {
+            returnButton.tap()
+            return
+        }
+        let taskModeHeader = app.staticTexts["Task Mode"]
+        if taskModeHeader.exists {
+            taskModeHeader.tap()
+            return
+        }
+        app.tap()
+    }
     
     override func setUpWithError() throws {
         // Put setup code here. This method is called before the invocation of each test method in the class.
@@ -51,13 +70,7 @@ final class timeLineUITests: XCTestCase {
         let app = makeApp()
         app.launch()
         
-        let addButton = app.buttons["floatingAddButton"]
-        XCTAssertTrue(addButton.waitForExistence(timeout: 2))
-        addButton.tap()
-        
-        let addCardButton = app.buttons["addCardButton"]
-        XCTAssertTrue(addCardButton.waitForExistence(timeout: 2))
-        addCardButton.tap()
+        openQuickBuilder(in: app)
         
         let titleField = app.textFields["quickBuilderTitleField"]
         XCTAssertTrue(titleField.waitForExistence(timeout: 2))
@@ -67,12 +80,11 @@ final class timeLineUITests: XCTestCase {
             titleField.typeText(deleteString)
         }
         titleField.typeText("TaskModeTest")
-        app.swipeUp()
-        
-        let reminderChip = app.buttons["quickBuilderTaskModeReminder"]
-        XCTAssertTrue(reminderChip.waitForExistence(timeout: 2))
-        reminderChip.tap()
-        XCTAssertEqual(reminderChip.value as? String, "selected")
+
+        dismissKeyboard(in: app)
+        let modePicker = app.segmentedControls["quickBuilderTaskModePicker"]
+        XCTAssertTrue(modePicker.waitForExistence(timeout: 2))
+        modePicker.buttons["Reminder"].tap()
 
         app.swipeUp()
         let createButton = app.buttons["quickBuilderCreateButton"]
@@ -88,9 +100,9 @@ final class timeLineUITests: XCTestCase {
         XCTAssertTrue(editTitleField.waitForExistence(timeout: 2))
         XCTAssertEqual(editTitleField.value as? String, "TaskModeTest")
         
-        let modePicker = app.segmentedControls["cardDetailTaskModePicker"]
-        XCTAssertTrue(modePicker.waitForExistence(timeout: 2))
-        XCTAssertEqual(modePicker.value as? String, "Reminder")
+        let detailModePicker = app.segmentedControls["cardDetailTaskModePicker"]
+        XCTAssertTrue(detailModePicker.waitForExistence(timeout: 2))
+        XCTAssertEqual(detailModePicker.value as? String, "Reminder")
     }
     
     @MainActor
@@ -124,6 +136,7 @@ final class timeLineUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments.append(contentsOf: ["-ui-testing", "-empty-timeline"])
         app.launchEnvironment["EMPTY_TIMELINE"] = "1"
+        XCUIDevice.shared.orientation = .portrait
         app.launch()
         
         // 1. Add Battle Task
@@ -137,41 +150,40 @@ final class timeLineUITests: XCTestCase {
         
         let titleField = app.textFields["quickBuilderTitleField"]
         XCTAssertTrue(titleField.waitForExistence(timeout: 2))
-        titleField.tap()
-        titleField.typeText("FocusTask")
+        replaceText(in: titleField, with: "FocusTask")
         
         let createButton = app.buttons["quickBuilderCreateButton"]
         createButton.tap()
         
         // Wait for sheet to dismiss
         XCTAssertTrue(titleField.waitForNonExistence(timeout: 5))
+
+        closeDeckOverlayIfNeeded(in: app)
         
-        XCTAssertTrue(app.buttons["mapNode_FocusTask"].waitForExistence(timeout: 5))
+        let focusNode = app.descendants(matching: .any)["mapNode_FocusTask"]
+        XCTAssertTrue(focusNode.waitForExistence(timeout: 8))
         
         // 2. Add Reminder Task (Upcoming)
-        addButton.tap()
-        addCardButton.tap()
+        openQuickBuilder(in: app)
         
         XCTAssertTrue(titleField.waitForExistence(timeout: 2))
-        titleField.tap()
-        titleField.typeText("ReminderTask")
-        
+        replaceText(in: titleField, with: "ReminderTask")
+
+        dismissKeyboard(in: app)
+        let modePicker = app.segmentedControls["quickBuilderTaskModePicker"]
+        XCTAssertTrue(modePicker.waitForExistence(timeout: 2))
+        modePicker.buttons["Reminder"].tap()
         app.swipeUp()
         
-        let reminderChip = app.buttons["quickBuilderTaskModeReminder"]
-        XCTAssertTrue(reminderChip.waitForExistence(timeout: 2))
-        reminderChip.tap()
-        
         createButton.tap()
+
+        XCTAssertTrue(titleField.waitForNonExistence(timeout: 5))
+        closeDeckOverlayIfNeeded(in: app)
         
         // 3. Start Battle Task
-        let focusNode = app.descendants(matching: .any)["mapNode_FocusTask"]
         XCTAssertTrue(focusNode.waitForExistence(timeout: 4))
-        
-        // Use coordinate tap for reliability
-        app.swipeRight() 
-        let coordinate = focusNode.coordinate(withNormalizedOffset: CGVector(dx: 0.7, dy: 0.5))
-        coordinate.tap()
+        makeHittable(focusNode, in: app)
+        focusNode.tap()
         
         // 4. Verify Battle View and Countdown
         let sessionLabel = app.staticTexts["FOCUS SESSION"]
@@ -242,12 +254,8 @@ final class timeLineUITests: XCTestCase {
         // Try finding GroupFocusView elements
         let endButton = app.buttons["完成今日探险"]
         let focusGroupHeader = app.staticTexts["FOCUS GROUP"]
-        let tasksLabel = app.staticTexts["Tasks"]
-        
         let foundEndButton = endButton.waitForExistence(timeout: 3)
         let foundHeader = focusGroupHeader.exists
-        let foundTasks = tasksLabel.exists
-        
         // If GroupFocusView not found, we might be in BattleView instead
         if !foundEndButton && !foundHeader {
             // Check for BattleView elements as a fallback
@@ -258,9 +266,114 @@ final class timeLineUITests: XCTestCase {
         XCTAssertTrue(foundEndButton || foundHeader, "GroupFocusView should be displayed but neither endButton nor header found")
     }
 
+    @MainActor
+    func testFocusListCreatesGroupFromRows() throws {
+        let app = XCUIApplication()
+        app.launchArguments.append(contentsOf: ["-ui-testing", "-empty-timeline"])
+        app.launchEnvironment["EMPTY_TIMELINE"] = "1"
+        app.launch()
+
+        let focusListButton = app.buttons["focusListButton"]
+        XCTAssertTrue(focusListButton.waitForExistence(timeout: 2))
+        focusListButton.tap()
+
+        let firstRow = app.textFields["focusRowTitle_0"]
+        XCTAssertTrue(firstRow.waitForExistence(timeout: 2))
+        firstRow.tap()
+        firstRow.typeText("Math 45m\n")
+
+        let secondRow = app.textFields["focusRowTitle_1"]
+        if !secondRow.waitForExistence(timeout: 1.5) {
+            let addRow = app.buttons["focusListAddRow"]
+            XCTAssertTrue(addRow.waitForExistence(timeout: 1))
+            addRow.tap()
+            XCTAssertTrue(secondRow.waitForExistence(timeout: 1))
+        }
+        secondRow.tap()
+        secondRow.typeText("English 30m")
+
+        dismissKeyboard(in: app)
+
+        let parsedDuration = app.staticTexts["focusRowParsedDuration_0"]
+        XCTAssertTrue(parsedDuration.waitForExistence(timeout: 1))
+
+        let startGroup = app.buttons["Start Group Focus"]
+        XCTAssertTrue(startGroup.waitForExistence(timeout: 2))
+        startGroup.tap()
+
+        let focusListSheet = app.otherElements["focusListSheet"]
+        XCTAssertTrue(focusListSheet.waitForNonExistence(timeout: 4))
+    }
+
+    @MainActor
+    func testFocusListParsesCombinedDuration() throws {
+        let app = XCUIApplication()
+        app.launchArguments.append(contentsOf: ["-ui-testing", "-empty-timeline"])
+        app.launchEnvironment["EMPTY_TIMELINE"] = "1"
+        app.launch()
+
+        let focusListButton = app.buttons["focusListButton"]
+        XCTAssertTrue(focusListButton.waitForExistence(timeout: 2))
+        focusListButton.tap()
+
+        let firstRow = app.textFields["focusRowTitle_0"]
+        XCTAssertTrue(firstRow.waitForExistence(timeout: 2))
+        firstRow.tap()
+        firstRow.typeText("Math 1h30m")
+
+        dismissKeyboard(in: app)
+
+        let parsedDuration = app.staticTexts["focusRowParsedDuration_0"]
+        XCTAssertTrue(parsedDuration.waitForExistence(timeout: 1))
+        XCTAssertEqual(parsedDuration.label, "1h 30m")
+    }
+
     private func waitForDisappearance(_ element: XCUIElement, timeout: TimeInterval) -> Bool {
         let predicate = NSPredicate(format: "exists == false")
         let expectation = XCTNSPredicateExpectation(predicate: predicate, object: element)
         return XCTWaiter.wait(for: [expectation], timeout: timeout) == .completed
+    }
+
+    private func closeDeckOverlayIfNeeded(in app: XCUIApplication) {
+        let overlayBackground = app.otherElements["deckOverlayBackground"]
+        if overlayBackground.waitForExistence(timeout: 1) {
+            overlayBackground.tap()
+            _ = waitForDisappearance(overlayBackground, timeout: 2)
+        }
+    }
+
+    private func openQuickBuilder(in app: XCUIApplication) {
+        let addCardButton = app.buttons["addCardButton"]
+        if !addCardButton.waitForExistence(timeout: 1) {
+            let addButton = app.buttons["floatingAddButton"]
+            XCTAssertTrue(addButton.waitForExistence(timeout: 2))
+            addButton.tap()
+            XCTAssertTrue(addCardButton.waitForExistence(timeout: 2))
+        }
+        addCardButton.tap()
+    }
+
+    private func makeHittable(_ element: XCUIElement, in app: XCUIApplication) {
+        guard !element.isHittable else { return }
+        for _ in 0..<3 {
+            app.swipeUp()
+            if element.isHittable { return }
+        }
+        for _ in 0..<3 {
+            app.swipeDown()
+            if element.isHittable { return }
+        }
+    }
+
+    private func replaceText(in field: XCUIElement, with text: String) {
+        field.tap()
+        if let existingValue = field.value as? String {
+            let placeholder = field.placeholderValue ?? ""
+            if existingValue != placeholder {
+                let deleteString = String(repeating: XCUIKeyboardKey.delete.rawValue, count: existingValue.count)
+                field.typeText(deleteString)
+            }
+        }
+        field.typeText(text)
     }
 }

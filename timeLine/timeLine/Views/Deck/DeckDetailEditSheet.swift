@@ -63,7 +63,8 @@ struct DeckDetailEditSheet: View {
                         }
                         
                         Section("Add Card") {
-                            ForEach(cardStore.orderedTemplates()) { template in
+                            let availableCards = cardStore.orderedTemplates(includeEphemeral: false)
+                            ForEach(availableCards) { template in
                                 Button {
                                     var updated = cardTemplateIds
                                     updated.append(template.id)

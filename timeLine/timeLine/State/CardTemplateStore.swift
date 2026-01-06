@@ -27,8 +27,10 @@ final class CardTemplateStore: ObservableObject {
         templates[id]
     }
     
-    func orderedTemplates() -> [CardTemplate] {
-        order.compactMap { templates[$0] }
+    func orderedTemplates(includeEphemeral: Bool = true) -> [CardTemplate] {
+        let ordered = order.compactMap { templates[$0] }
+        guard !includeEphemeral else { return ordered }
+        return ordered.filter { !$0.isEphemeral }
     }
     
     func load(from templates: [CardTemplate]) {
@@ -127,23 +129,41 @@ final class LibraryStore: ObservableObject {
                 continue
             }
 
-            if let windowDays = template.deadlineWindowDays,
-               let deadlineAt = deadlineAt(for: entry, windowDays: windowDays, calendar: calendar) {
+            let usesExplicitDeadline = template.deadlineAt != nil
+            if let deadlineAt = resolvedDeadlineAt(for: entry, template: template, calendar: calendar) {
                 deadlineAtById[entry.templateId] = deadlineAt
                 if now >= deadlineAt {
                     buckets.expired.append(entry)
                     continue
                 }
-                switch windowDays {
-                case 1:
-                    buckets.deadline1.append(entry)
-                case 3:
-                    buckets.deadline3.append(entry)
-                case 5:
-                    buckets.deadline5.append(entry)
-                case 7:
-                    buckets.deadline7.append(entry)
-                default:
+                if usesExplicitDeadline {
+                    let startNow = calendar.startOfDay(for: now)
+                    let startDeadline = calendar.startOfDay(for: deadlineAt)
+                    let dayDiff = calendar.dateComponents([.day], from: startNow, to: startDeadline).day ?? 0
+                    switch dayDiff {
+                    case ...0:
+                        buckets.deadline1.append(entry)
+                    case 1...3:
+                        buckets.deadline3.append(entry)
+                    case 4...7:
+                        buckets.deadline7.append(entry)
+                    default:
+                        buckets.later.append(entry)
+                    }
+                } else if let windowDays = template.deadlineWindowDays {
+                    switch windowDays {
+                    case 1:
+                        buckets.deadline1.append(entry)
+                    case 3:
+                        buckets.deadline3.append(entry)
+                    case 5:
+                        buckets.deadline5.append(entry)
+                    case 7:
+                        buckets.deadline7.append(entry)
+                    default:
+                        buckets.later.append(entry)
+                    }
+                } else {
                     buckets.later.append(entry)
                 }
             } else {
@@ -177,8 +197,15 @@ final class LibraryStore: ObservableObject {
         order.removeAll()
     }
 
-    private func deadlineAt(for entry: LibraryEntry, windowDays: Int, calendar: Calendar) -> Date? {
-        guard windowDays > 0 else { return nil }
+    private func resolvedDeadlineAt(
+        for entry: LibraryEntry,
+        template: CardTemplate,
+        calendar: Calendar
+    ) -> Date? {
+        if let deadlineAt = template.deadlineAt {
+            return deadlineAt
+        }
+        guard let windowDays = template.deadlineWindowDays, windowDays > 0 else { return nil }
         return calendar.date(byAdding: .day, value: windowDays, to: entry.addedAt)
     }
 
@@ -199,22 +226,23 @@ final class LibraryStore: ObservableObject {
         calendar: Calendar = .current
     ) -> Int {
         var newlyExpired = 0
+        var expiredIds: [UUID] = []
         for (id, entry) in entries {
             guard entry.deadlineStatus == .active else { continue }
             guard let template = cardStore.get(id: entry.templateId) else { continue }
             if template.taskMode == .reminderOnly || template.remindAt != nil {
                 continue
             }
-            guard let windowDays = template.deadlineWindowDays,
-                  let deadlineAt = deadlineAt(for: entry, windowDays: windowDays, calendar: calendar) else {
-                continue
-            }
+            guard let deadlineAt = resolvedDeadlineAt(for: entry, template: template, calendar: calendar) else { continue }
             if now >= deadlineAt {
-                var updated = entry
-                updated.deadlineStatus = .expired
-                entries[id] = updated
-                newlyExpired += 1
+                expiredIds.append(id)
             }
+        }
+        for id in expiredIds {
+            guard var entry = entries[id] else { continue }
+            entry.deadlineStatus = .expired
+            entries[id] = entry
+            newlyExpired += 1
         }
         return newlyExpired
     }

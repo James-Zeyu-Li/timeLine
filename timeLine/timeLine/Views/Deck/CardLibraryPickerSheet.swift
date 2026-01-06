@@ -12,15 +12,16 @@ struct CardLibraryPickerSheet: View {
     @State private var selectedIds: Set<UUID> = []
 
     var body: some View {
-        NavigationStack {
+        let templates = cardStore.orderedTemplates(includeEphemeral: false)
+        return NavigationStack {
             VStack(spacing: 12) {
-                if cardStore.orderedTemplates().isEmpty {
+                if templates.isEmpty {
                     Text("No cards available.")
                         .foregroundColor(.secondary)
                         .padding(.top, 40)
                 } else {
                     CardLibrarySelectionView(
-                        templates: cardStore.orderedTemplates(),
+                        templates: templates,
                         selectedIds: $selectedIds,
                         showLibraryStatus: true
                     )

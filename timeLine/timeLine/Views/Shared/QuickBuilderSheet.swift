@@ -17,6 +17,8 @@ struct QuickBuilderSheet: View {
     }
     
     @State private var draft = QuickBuilderDraft.default
+    @State private var selectedTaskMode: TaskMode = QuickBuilderDraft.default.taskMode
+    @FocusState private var isTitleFocused: Bool
     
     private let topics: [(String, TaskCategory)] = [
         ("Study", .study),
@@ -69,6 +71,7 @@ struct QuickBuilderSheet: View {
                         TextField("What's next?", text: $draft.title)
                             .font(.system(.body, design: .rounded))
                             .foregroundColor(.white)
+                            .focused($isTitleFocused)
                             .padding(.horizontal, 14)
                             .padding(.vertical, 12)
                             .background(
@@ -81,7 +84,7 @@ struct QuickBuilderSheet: View {
                             )
                             .submitLabel(.done)
                             .onSubmit {
-                                handlePrimaryAction()
+                                isTitleFocused = false
                             }
                             .accessibilityIdentifier("quickBuilderTitleField")
                         
@@ -94,14 +97,14 @@ struct QuickBuilderSheet: View {
                         }
                         
                         sectionTitle("Task Mode")
-                        modeChips
+                        taskModePicker
                         
                         if !recentTemplates.isEmpty {
                             sectionTitle("Recent Cards")
                             recentChips
                         }
 
-                        if draft.taskMode == .reminderOnly {
+                        if selectedTaskMode == .reminderOnly {
                             sectionTitle("Remind At")
                             reminderTimePicker
                             
@@ -109,7 +112,7 @@ struct QuickBuilderSheet: View {
                             leadTimeChips
                         }
 
-                        if draft.taskMode != .reminderOnly {
+                        if selectedTaskMode != .reminderOnly {
                             sectionTitle("Duration")
                             chipRow(
                                 items: QuickDuration.allCases,
@@ -187,8 +190,8 @@ struct QuickBuilderSheet: View {
         let trimmed = draft.title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
         
-        let style: BossStyle = draft.taskMode == .reminderOnly ? .passive : .focus
-        let remindAt: Date? = draft.taskMode == .reminderOnly ? draft.reminderTime : nil
+        let style: BossStyle = selectedTaskMode == .reminderOnly ? .passive : .focus
+        let remindAt: Date? = selectedTaskMode == .reminderOnly ? draft.reminderTime : nil
         let template = CardTemplate(
             title: trimmed,
             icon: draft.category.icon,
@@ -197,10 +200,10 @@ struct QuickBuilderSheet: View {
             energyColor: energyToken(for: draft.category),
             category: draft.category,
             style: style,
-            taskMode: draft.taskMode,
+            taskMode: selectedTaskMode,
             remindAt: remindAt,
             leadTimeMinutes: draft.leadTimeMinutes,
-            deadlineWindowDays: draft.taskMode == .reminderOnly ? nil : draft.deadlineWindowDays
+            deadlineWindowDays: selectedTaskMode == .reminderOnly ? nil : draft.deadlineWindowDays
         )
         cardStore.add(template)
         libraryStore.add(templateId: template.id)
@@ -293,7 +296,7 @@ struct QuickBuilderSheet: View {
     }
     
     private var recentTemplates: [CardTemplate] {
-        Array(cardStore.orderedTemplates().prefix(6))
+        Array(cardStore.orderedTemplates(includeEphemeral: false).prefix(6))
     }
     
     private var recentChips: some View {
@@ -308,25 +311,30 @@ struct QuickBuilderSheet: View {
                     draft.title = template.title
                     draft.category = template.category
                     draft.duration = durationOption(for: template.defaultDuration)
-                    draft.taskMode = template.taskMode
+                    setTaskMode(template.taskMode)
                 }
             }
         }
     }
     
-    private var modeChips: some View {
-        LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 3), spacing: 12) {
-            ForEach(taskModeOptions, id: \.rawValue) { mode in
-                ChipButton(
-                    title: taskModeLabel(mode),
-                    isSelected: draft.taskMode == mode,
-                    tint: taskModeTint(mode)
-                ) {
-                    draft.taskMode = mode
+    private var taskModePicker: some View {
+        Picker(
+            "Task Mode",
+            selection: Binding(
+                get: { selectedTaskMode },
+                set: { mode in
+                    isTitleFocused = false
+                    setTaskMode(mode)
                 }
-                .accessibilityIdentifier(taskModeIdentifier(mode))
+            )
+        ) {
+            ForEach(taskModeOptions, id: \.rawValue) { mode in
+                Text(taskModeLabel(mode)).tag(mode)
             }
         }
+        .pickerStyle(.segmented)
+        .accessibilityIdentifier("quickBuilderTaskModePicker")
+        .accessibilityValue(taskModeLabel(selectedTaskMode))
     }
     
     private var reminderTimePicker: some View {
@@ -385,28 +393,6 @@ struct QuickBuilderSheet: View {
         }
     }
     
-    private func taskModeTint(_ mode: TaskMode) -> Color {
-        switch mode {
-        case .focusStrictFixed:
-            return .cyan
-        case .focusGroupFlexible:
-            return .mint
-        case .reminderOnly:
-            return .orange
-        }
-    }
-    
-    private func taskModeIdentifier(_ mode: TaskMode) -> String {
-        switch mode {
-        case .focusStrictFixed:
-            return "quickBuilderTaskModeFocusFixed"
-        case .focusGroupFlexible:
-            return "quickBuilderTaskModeFocusFlex"
-        case .reminderOnly:
-            return "quickBuilderTaskModeReminder"
-        }
-    }
-
     private func leadTimeLabel(_ minutes: Int) -> String {
         if minutes == 0 {
             return "On Time"
@@ -421,6 +407,11 @@ struct QuickBuilderSheet: View {
             abs(lhs.duration - target) < abs(rhs.duration - target)
         }
         return closest ?? .m30
+    }
+
+    private func setTaskMode(_ mode: TaskMode) {
+        selectedTaskMode = mode
+        draft.taskMode = mode
     }
 }
 
@@ -453,6 +444,8 @@ private struct ChipButton: View {
         }
         .buttonStyle(.plain)
         .accessibilityValue(isSelected ? "selected" : "unselected")
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .accessibilityRemoveTraits(isSelected ? [] : .isSelected)
     }
 }
 

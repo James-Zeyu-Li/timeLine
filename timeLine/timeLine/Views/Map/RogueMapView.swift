@@ -229,7 +229,7 @@ struct RogueMapView: View {
     
     private func handleTap(on node: TimelineNode) {
         guard !node.isCompleted else {
-            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            Haptics.impact(.light)
             return
         }
 
@@ -239,7 +239,7 @@ struct RogueMapView: View {
             }
             if behavior == .reminder {
                 coordinator.completeReminder(nodeId: node.id)
-                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                Haptics.impact(.medium)
                 return
             }
         }
@@ -249,7 +249,7 @@ struct RogueMapView: View {
             // Allow start even if lock state is stale.
         } else {
             guard !node.isLocked, !node.isCompleted else {
-                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                Haptics.impact(.light)
                 return
             }
         }
@@ -257,7 +257,7 @@ struct RogueMapView: View {
         switch node.type {
         case .battle(let boss):
             if node.id != daySession.currentNode?.id {
-                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                Haptics.impact(.medium)
                 daySession.setCurrentNode(id: node.id)
                 engine.startBattle(boss: boss)
                 stateManager.requestSave()
@@ -268,12 +268,12 @@ struct RogueMapView: View {
                 } else if engine.state != .fighting {
                     engine.startBattle(boss: boss)
                 } else {
-                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    Haptics.impact(.light)
                 }
             }
         case .bonfire(let duration):
             if node.id != daySession.currentNode?.id {
-                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                Haptics.impact(.medium)
                 daySession.setCurrentNode(id: node.id)
                 engine.startRest(duration: duration)
                 stateManager.requestSave()
@@ -362,6 +362,7 @@ private struct MapNodeRow: View {
     @EnvironmentObject var dragCoordinator: DragDropCoordinator
     
     @State private var preventTap = false
+    @State private var containerWidth: CGFloat = 0
     
     var body: some View {
         ZStack {
@@ -462,6 +463,12 @@ private struct MapNodeRow: View {
         .background(
             GeometryReader { geo in
                 Color.clear
+                    .onAppear {
+                        containerWidth = geo.size.width
+                    }
+                    .onChange(of: geo.size.width) { _, newValue in
+                        containerWidth = newValue
+                    }
                     .preference(
                         key: MapNodeAnchorKey.self,
                         value: [node.id: geo.frame(in: .named("mapScroll")).midY]
@@ -498,8 +505,8 @@ private struct MapNodeRow: View {
     }
 
     private var cardWidth: CGFloat {
-        let screenWidth = UIScreen.main.bounds.width
-        let target = screenWidth * 0.75
+        let width = containerWidth > 0 ? containerWidth : 360
+        let target = width * 0.75
         return min(max(target, 240), 320)
     }
 
@@ -516,7 +523,7 @@ private struct MapNodeRow: View {
     }
 
     private var cardOffsetX: CGFloat {
-        let screenWidth = UIScreen.main.bounds.width
+        let screenWidth = containerWidth > 0 ? containerWidth : 360
         let halfCard = cardWidth / 2
         let center = screenWidth / 2
         let offset = center - halfCard - MapLayout.horizontalInset

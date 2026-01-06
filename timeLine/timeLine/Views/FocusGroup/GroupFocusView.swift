@@ -157,7 +157,9 @@ struct GroupFocusView: View {
         guard let nodeId else { return }
         let didSwitch = coordinator.switchFocusGroup(to: index, nodeId: nodeId, at: Date())
         if didSwitch {
-            activeIndex = index
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                activeIndex = index
+            }
         }
     }
 
@@ -185,6 +187,7 @@ private struct GroupMemberRow: View {
     let template: CardTemplate?
     let isActive: Bool
     let onTap: () -> Void
+    @State private var flipPhase = false
 
     var body: some View {
         Button(action: onTap) {
@@ -227,8 +230,21 @@ private struct GroupMemberRow: View {
                 RoundedRectangle(cornerRadius: 12)
                     .stroke(isActive ? Color.cyan.opacity(0.5) : Color.white.opacity(0.12), lineWidth: 1)
             )
+            .scaleEffect(flipPhase ? 1.02 : 1.0)
+            .rotation3DEffect(.degrees(flipPhase ? 8 : 0), axis: (x: 0, y: 1, z: 0))
         }
         .buttonStyle(.plain)
+        .onChange(of: isActive) { _, newValue in
+            guard newValue else { return }
+            withAnimation(.easeInOut(duration: 0.15)) {
+                flipPhase = true
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                withAnimation(.easeInOut(duration: 0.15)) {
+                    flipPhase = false
+                }
+            }
+        }
     }
 }
 
