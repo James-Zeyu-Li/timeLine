@@ -67,7 +67,7 @@ private struct CardLibrarySelectionRow: View {
                         .font(.system(.caption2, design: .rounded))
                         .foregroundColor(.white.opacity(0.6))
                     if isInLibrary {
-                        Text("In Library")
+                        Text("Saved")
                             .font(.system(.caption2, design: .rounded))
                             .foregroundColor(.cyan)
                     }

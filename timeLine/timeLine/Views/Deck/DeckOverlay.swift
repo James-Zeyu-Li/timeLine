@@ -107,7 +107,7 @@ struct DeckOverlay: View {
     private var tipText: String {
         switch activeTab {
         case .cards:
-            return "Tap a card to add it to Library"
+            return "Tap a card to save it"
         case .library:
             return "Drag a task to the map, or select to group"
         case .decks:
@@ -150,7 +150,7 @@ struct DeckOverlay: View {
         case .cards:
             return "Cards"
         case .library:
-            return "Library"
+            return "Backlog"
         case .decks:
             return "Decks"
         }
@@ -417,7 +417,7 @@ private struct DecksTabView: View {
     }
 }
 
-// MARK: - Library Tab
+// MARK: - Backlog Tab
 
 private struct LibraryTabView: View {
     @EnvironmentObject var engine: BattleEngine
@@ -518,7 +518,7 @@ private struct LibraryTabView: View {
     private var header: some View {
         HStack {
             VStack(alignment: .leading, spacing: 4) {
-                Text("Library")
+                Text("Backlog")
                     .font(.system(.headline, design: .rounded))
                     .fontWeight(.semibold)
                     .foregroundColor(.white)
@@ -614,7 +614,7 @@ private struct LibraryTabView: View {
     
     private var emptyState: some View {
         VStack(spacing: 8) {
-            Text("Library is empty")
+            Text("Backlog is empty")
                 .font(.system(.subheadline, design: .rounded))
                 .foregroundColor(.white)
             Text("Create a card to add it here.")

@@ -23,7 +23,7 @@ struct CardFanView: View {
             headerRow
             
             if !isSelecting {
-                Text("Tap a card to add it to Library")
+                Text("Tap a card to save it")
                     .font(.system(.caption, design: .rounded))
                     .foregroundColor(.white.opacity(0.7))
             }
@@ -123,7 +123,7 @@ struct CardFanView: View {
             HStack(spacing: 8) {
                 Image(systemName: "tray.and.arrow.down")
                     .font(.system(size: 12, weight: .bold))
-                Text("Add to Library")
+                Text("Save to Backlog")
                     .font(.system(.caption, design: .rounded))
                     .fontWeight(.semibold)
             }

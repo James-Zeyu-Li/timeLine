@@ -137,7 +137,7 @@ struct RootView: View {
         }
         .sheet(isPresented: $showFocusList) {
             TodoSheet()
-                .presentationDetents([.medium, .large])
+                .presentationDetents([.large])
         }
         .sheet(item: explorationReportBinding) { report in
             FocusGroupReportSheet(report: report)
@@ -611,11 +611,7 @@ private struct StrictSheet: View {
     }
 }
 
-private struct TodoSheet: View {
-    var body: some View {
-        FocusListSheet()
-    }
-}
+
 
 // MARK: - Node Frame Preference Key
 
@@ -714,8 +710,8 @@ struct CardDetailEditSheet: View {
                             }
                         }
                         
-                        Section("Library") {
-                            Toggle("Add to Library", isOn: libraryBinding)
+                        Section("Backlog") {
+                            Toggle("Save to Backlog", isOn: libraryBinding)
                         }
                     }
                 } else {

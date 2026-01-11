@@ -148,7 +148,7 @@ struct RogueMapView: View {
                 let isFinal = index == daySession.nodes.indices.last
                 let timeInfo = node.isCompleted ? nil : timeInfo(for: node)
                 
-                MapNodeRow(
+                SwipeableTimelineNode(
                     node: node,
                     alignment: alignment,
                     isCurrent: isCurrent,
@@ -157,7 +157,11 @@ struct RogueMapView: View {
                     isPulsing: viewModel.pulseNextNodeId == node.id,
                     timeInfo: timeInfo,
                     onTap: { handleTap(on: node) },
-                    onLongPress: { handleLongPress(on: node) }
+                    onLongPress: { handleLongPress(on: node) },
+                    onEdit: { handleEdit(on: node) },
+                    onDuplicate: { handleDuplicate(on: node) },
+                    onDelete: { handleDelete(on: node) },
+                    onMove: { direction in handleMove(node: node, direction: direction) }
                 )
                 .id(node.id)
             }
@@ -247,6 +251,10 @@ struct RogueMapView: View {
     }
     
     private func handleLongPress(on node: TimelineNode) {
+        handleEdit(on: node)
+    }
+    
+    private func handleEdit(on node: TimelineNode) {
         guard case .battle(let boss) = node.type else { return }
         if let templateId = boss.templateId, let template = cardStore.get(id: templateId) {
             editingNodeTemplate = template
@@ -269,6 +277,29 @@ struct RogueMapView: View {
         }
         editingNodeId = node.id
         showNodeEdit = true
+    }
+    
+    private func handleDuplicate(on node: TimelineNode) {
+        guard case .battle(let boss) = node.type else { return }
+        let timelineStore = TimelineStore(daySession: daySession, stateManager: stateManager)
+        timelineStore.duplicateNode(id: node.id)
+    }
+    
+    private func handleDelete(on node: TimelineNode) {
+        let timelineStore = TimelineStore(daySession: daySession, stateManager: stateManager)
+        timelineStore.deleteNode(id: node.id)
+    }
+    
+    private func handleMove(node: TimelineNode, direction: Int) {
+        guard let currentIndex = daySession.nodes.firstIndex(where: { $0.id == node.id }) else { return }
+        let newIndex = currentIndex + direction
+        guard newIndex >= 0 && newIndex < daySession.nodes.count else { return }
+        
+        // 使用IndexSet进行移动，确保正确的重排序
+        let sourceIndexSet = IndexSet(integer: currentIndex)
+        let destinationIndex = newIndex > currentIndex ? newIndex + 1 : newIndex
+        
+        viewModel.moveNode(from: sourceIndexSet, to: destinationIndex)
     }
     
     private func timeInfo(for node: TimelineNode) -> MapTimeInfo? {
@@ -305,443 +336,6 @@ struct RogueMapView: View {
                 proxy.scrollTo(id, anchor: UnitPoint(x: 0.5, y: mapAnchorY))
             }
         }
-    }
-}
-
-private struct MapNodeRow: View {
-    let node: TimelineNode
-    let alignment: MapNodeAlignment
-    let isCurrent: Bool
-    let isNext: Bool
-    let isFinal: Bool
-    let isPulsing: Bool
-    let timeInfo: MapTimeInfo?
-    let onTap: () -> Void
-    let onLongPress: () -> Void
-    
-    @EnvironmentObject var appMode: AppModeManager
-    @EnvironmentObject var dragCoordinator: DragDropCoordinator
-    
-    @State private var preventTap = false
-    @State private var containerWidth: CGFloat = 0
-    
-    var body: some View {
-        ZStack {
-            PixelTrail()
-                .frame(width: PixelTheme.baseUnit * 1.5)
-                .frame(maxHeight: .infinity)
-            
-            PixelTerrainTile(type: terrainType)
-                .frame(width: terrainWidth, height: terrainHeight)
-                .opacity(0.35)
-                .offset(y: 18)
-            
-            if showHeroMarker {
-                PixelHeroMarker()
-                    .offset(x: alignment == .left ? -120 : 120, y: -24)
-            }
-            
-            Button(action: {
-                if preventTap {
-                    preventTap = false
-                    return
-                }
-                onTap()
-            }) {
-                HStack(spacing: 12) {
-                    iconBadge
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(titleText)
-                            .font(.system(.subheadline, design: .rounded))
-                            .fontWeight(.bold)
-                            .foregroundColor(PixelTheme.textPrimary)
-                            .lineLimit(1)
-                        
-                        if let timeInfo {
-                            HStack(spacing: 6) {
-                                if let absolute = timeInfo.absolute {
-                                    Text(absolute)
-                                        .font(.system(.caption2, design: .monospaced))
-                                        .foregroundColor(PixelTheme.accent)
-                                }
-                                if let relative = timeInfo.relative {
-                                    Text(relative)
-                                        .font(.system(.caption2, design: .rounded))
-                                        .foregroundColor(PixelTheme.textSecondary)
-                                }
-                                if timeInfo.isRecommended {
-                                    Text("RECOMMENDED")
-                                        .font(.system(size: 8, weight: .bold))
-                                        .tracking(0.6)
-                                        .foregroundColor(PixelTheme.accent)
-                                }
-                            }
-                        }
-                    }
-                    Spacer()
-                    if let badge = statusBadge {
-                        Text(badge.text)
-                            .font(.system(size: 9, weight: .bold))
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(badge.color.opacity(0.2))
-                            .foregroundColor(badge.color)
-                            .cornerRadius(PixelTheme.cornerSmall)
-                    } else if isFinal {
-                        Text("FINAL")
-                            .font(.system(size: 9, weight: .bold))
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(Color.purple.opacity(0.2))
-                            .foregroundColor(.purple)
-                            .cornerRadius(PixelTheme.cornerSmall)
-                    }
-                }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 12)
-                .frame(width: cardWidth, height: cardHeight)
-                .background(cardBackground)
-                .overlay(cardBorder)
-                .overlay(dropTargetOverlay)
-                .overlay(deckGhostOverlay, alignment: .topTrailing)
-                .opacity(node.isLocked ? 0.45 : 1)
-                .scaleEffect(cardScale)
-                .animation(.spring(response: 0.4, dampingFraction: 0.85), value: cardScale)
-            }
-            .buttonStyle(PlainButtonStyle())
-            .accessibilityIdentifier(nodeAccessibilityId)
-            .offset(x: alignment == .left ? -cardOffsetX : cardOffsetX)
-            .simultaneousGesture(
-                LongPressGesture(minimumDuration: 0.5)
-                    .onEnded { _ in
-                        guard canEditNode, !appMode.isDragging else { return }
-                        preventTap = true
-                        onLongPress()
-                    }
-            )
-        }
-        .frame(height: 120)
-        .background(
-            GeometryReader { geo in
-                Color.clear
-                    .onAppear {
-                        containerWidth = geo.size.width
-                    }
-                    .onChange(of: geo.size.width) { _, newValue in
-                        containerWidth = newValue
-                    }
-                    .preference(
-                        key: MapNodeAnchorKey.self,
-                        value: [node.id: geo.frame(in: .named("mapScroll")).midY]
-                    )
-                    .preference(
-                        key: NodeFrameKey.self,
-                        value: [node.id: geo.frame(in: .global)]
-                    )
-            }
-        )
-    }
-    
-    private var titleText: String {
-        switch node.type {
-        case .battle(let boss):
-            return boss.name
-        case .bonfire:
-            return "Bonfire"
-        case .treasure:
-            return "Treasure"
-        }
-    }
-    
-    private var nodeAccessibilityId: String {
-        switch node.type {
-        case .battle(let boss):
-            let compact = boss.name.replacingOccurrences(of: " ", with: "_")
-            return "mapNode_\(compact)"
-        case .bonfire:
-            return "mapNode_Bonfire_\(node.id.uuidString.prefix(6))"
-        case .treasure:
-            return "mapNode_Treasure_\(node.id.uuidString.prefix(6))"
-        }
-    }
-
-    private var cardWidth: CGFloat {
-        let width = containerWidth > 0 ? containerWidth : 360
-        let target = width * 0.75
-        return min(max(target, 240), 320)
-    }
-
-    private var cardHeight: CGFloat {
-        76
-    }
-
-    private var terrainWidth: CGFloat {
-        max(140, cardWidth - 16)
-    }
-
-    private var terrainHeight: CGFloat {
-        cardHeight - 4
-    }
-
-    private var cardOffsetX: CGFloat {
-        let screenWidth = containerWidth > 0 ? containerWidth : 360
-        let halfCard = cardWidth / 2
-        let center = screenWidth / 2
-        let offset = center - halfCard - MapLayout.horizontalInset
-        return max(0, offset)
-    }
-
-    private var cardScale: CGFloat {
-        1.0
-    }
-    
-    private var showHeroMarker: Bool {
-        isNext && !isCurrent && !node.isCompleted
-    }
-    
-    private var canEditNode: Bool {
-        if case .battle = node.type {
-            return true
-        }
-        return false
-    }
-
-    private var terrainType: PixelTerrainType {
-        switch node.type {
-        case .bonfire:
-            return .campfire
-        case .treasure:
-            return .plains
-        case .battle(let boss):
-            if boss.maxHp >= 3600 {
-                return .cave
-            }
-            switch boss.category {
-            case .study:
-                return .forest
-            case .work:
-                return .plains
-            case .gym, .rest:
-                return .plains
-            case .other:
-                return .forest
-            }
-        }
-    }
-    
-    private var iconBadge: some View {
-        let icon: String
-        let color: Color
-        
-        switch node.type {
-        case .battle(let boss):
-            icon = boss.style == .focus ? "bolt.fill" : "checkmark.circle.fill"
-            color = boss.category.color
-        case .bonfire:
-            icon = "flame.fill"
-            color = .orange
-        case .treasure:
-            icon = "star.fill"
-            color = .yellow
-        }
-        
-        return ZStack {
-            RoundedRectangle(cornerRadius: PixelTheme.cornerSmall)
-                .fill(color.opacity(0.25))
-                .frame(width: 38, height: 38)
-                .overlay(
-                    RoundedRectangle(cornerRadius: PixelTheme.cornerSmall)
-                        .stroke(color.opacity(0.6), lineWidth: PixelTheme.strokeThin)
-                )
-            Image(systemName: icon)
-                .font(.system(size: 16, weight: .bold))
-                .foregroundColor(color)
-        }
-        .overlay(
-            RoundedRectangle(cornerRadius: PixelTheme.cornerMedium)
-                .stroke(isPulsing ? PixelTheme.accent : Color.clear, lineWidth: PixelTheme.strokeBold)
-                .scaleEffect(isPulsing ? 1.35 : 1)
-                .opacity(isPulsing ? 0.7 : 0)
-        )
-        .shadow(color: isCurrent ? color.opacity(0.6) : .clear, radius: 10, x: 0, y: 0)
-    }
-    
-    private var statusBadge: (text: String, color: Color)? {
-        if isCurrent {
-            return ("STARTED", .cyan)
-        }
-        if isNext {
-            return ("NEXT", .green)
-        }
-        if node.isCompleted {
-            return ("DONE", .gray)
-        }
-        if node.isLocked {
-            return ("LOCKED", .orange)
-        }
-        return nil
-    }
-    
-    private var cardBackground: some View {
-        RoundedRectangle(cornerRadius: PixelTheme.cornerLarge)
-            .fill(
-                LinearGradient(
-                    colors: [PixelTheme.cardTop, PixelTheme.cardBottom],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-            )
-    }
-    
-    private var cardBorder: some View {
-        RoundedRectangle(cornerRadius: PixelTheme.cornerLarge)
-            .stroke(isCurrent ? PixelTheme.cardGlow : PixelTheme.cardBorder, lineWidth: isCurrent ? PixelTheme.strokeBold : PixelTheme.strokeThin)
-            .shadow(
-                color: isCurrent ? PixelTheme.cardGlow.opacity(0.6) : .clear,
-                radius: PixelTheme.shadowRadius,
-                x: PixelTheme.shadowOffset.width,
-                y: PixelTheme.shadowOffset.height
-            )
-    }
-    
-    private var dropTargetOverlay: some View {
-        Group {
-            if appMode.isDragging {
-                let isHovering = dragCoordinator.hoveringNodeId == node.id
-                RoundedRectangle(cornerRadius: PixelTheme.cornerLarge)
-                    .stroke(
-                        isHovering ? PixelTheme.accent : Color.white.opacity(0.15),
-                        lineWidth: isHovering ? PixelTheme.strokeBold + 1 : PixelTheme.strokeThin
-                    )
-                    .shadow(color: isHovering ? PixelTheme.accent.opacity(0.6) : .clear, radius: 8, x: 0, y: 0)
-                    .allowsHitTesting(false)
-                    .overlay(alignment: .bottom) {
-                        if isHovering {
-                            InsertHint(placement: dragCoordinator.hoveringPlacement)
-                                .padding(.bottom, 8)
-                        }
-                    }
-            }
-        }
-    }
-    
-    
-    private var deckGhostOverlay: some View {
-        Group {
-            if appMode.isDragging,
-               let summary = dragCoordinator.activeDeckSummary,
-               dragCoordinator.hoveringNodeId == node.id {
-                HStack(spacing: 6) {
-                    Image(systemName: "square.stack.3d.up.fill")
-                        .font(.system(size: 10, weight: .bold))
-                    Text("Insert \(summary.count)")
-                        .font(.system(size: 10, weight: .bold))
-                    Text("·")
-                        .font(.system(size: 10, weight: .bold))
-                    Text(formatDuration(summary.duration))
-                        .font(.system(size: 10, weight: .bold))
-                }
-                .foregroundColor(.white)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 6)
-                .background(
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(Color.black.opacity(0.7))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 8)
-                                .stroke(Color.white.opacity(0.15), lineWidth: 1)
-                        )
-                )
-                .padding(.trailing, 12)
-                .padding(.top, 10)
-            }
-        }
-    }
-    
-    private func formatDuration(_ seconds: TimeInterval) -> String {
-        let minutes = Int(seconds / 60)
-        return "\(minutes) min"
-    }
-}
-
-private enum MapNodeAlignment {
-    case left
-    case right
-}
-
-private struct MapTimeInfo {
-    let absolute: String?
-    let relative: String?
-    let isRecommended: Bool
-}
-
-private struct MapNodeAnchorKey: PreferenceKey {
-    static var defaultValue: [UUID: CGFloat] = [:]
-    
-    static func reduce(value: inout [UUID: CGFloat], nextValue: () -> [UUID: CGFloat]) {
-        value.merge(nextValue()) { _, new in new }
-    }
-}
-
-private struct InsertHint: View {
-    let placement: DropPlacement
-
-    var body: some View {
-        let isAfter = placement == .after
-        HStack(spacing: 6) {
-            Image(systemName: isAfter ? "arrow.up" : "arrow.down")
-                .font(.system(size: 10, weight: .bold))
-            Text(isAfter ? "Drop to insert after" : "Drop to insert before")
-                .font(.system(size: 10, weight: .bold))
-        }
-        .foregroundColor(.white)
-        .padding(.horizontal, 8)
-        .padding(.vertical, 5)
-        .background(
-            Capsule()
-                .fill(Color.black.opacity(0.7))
-                .overlay(
-                    Capsule()
-                        .stroke(Color.white.opacity(0.15), lineWidth: 1)
-                )
-        )
-        .allowsHitTesting(false)
-    }
-}
-
-private struct PixelTrail: View {
-    var body: some View {
-        Canvas { context, size in
-            let tile: CGFloat = 5
-            let step: CGFloat = 9
-            for y in stride(from: 0, to: size.height, by: step) {
-                let rect = CGRect(x: 0, y: y, width: tile, height: tile)
-                context.fill(Path(rect), with: .color(PixelTheme.pathPixel))
-            }
-        }
-    }
-}
-
-private struct PixelHeroMarker: View {
-    var body: some View {
-        VStack(spacing: 4) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 4)
-                    .fill(PixelTheme.petBody.opacity(0.25))
-                    .frame(width: 28, height: 28)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 4)
-                            .stroke(PixelTheme.petBody.opacity(0.7), lineWidth: 1)
-                    )
-                Image(systemName: "figure.walk")
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundColor(PixelTheme.textPrimary)
-            }
-            RoundedRectangle(cornerRadius: 1)
-                .fill(PixelTheme.textPrimary.opacity(0.5))
-                .frame(width: 6, height: 6)
-        }
-        .shadow(color: PixelTheme.petShadow, radius: 4, x: 0, y: 2)
     }
 }
 
@@ -802,70 +396,6 @@ private struct PixelTerrainBand: View {
                     }
                 }
             }
-        }
-    }
-}
-
-private enum PixelTerrainType {
-    case forest
-    case plains
-    case cave
-    case campfire
-}
-
-private struct PixelTerrainTile: View {
-    let type: PixelTerrainType
-    
-    var body: some View {
-        GeometryReader { _ in
-            Canvas { context, size in
-                let tile = PixelTheme.baseUnit * 2
-                let rows = Int(size.height / tile)
-                let cols = Int(size.width / tile)
-                let palette = colors(for: type)
-                
-                for row in 0...rows {
-                    for col in 0...cols {
-                        if (row + col) % 2 == 0 {
-                            let rect = CGRect(
-                                x: CGFloat(col) * tile,
-                                y: CGFloat(row) * tile,
-                                width: tile - 1,
-                                height: tile - 1
-                            )
-                            context.fill(Path(rect), with: .color(palette.base.opacity(0.7)))
-                        }
-                    }
-                }
-                
-                for row in 0...rows {
-                    for col in 0...cols {
-                        if (row * col) % 7 == 0 {
-                            let rect = CGRect(
-                                x: CGFloat(col) * tile,
-                                y: CGFloat(row) * tile,
-                                width: tile,
-                                height: tile
-                            )
-                            context.fill(Path(rect), with: .color(palette.accent.opacity(0.4)))
-                        }
-                    }
-                }
-            }
-        }
-        .clipShape(RoundedRectangle(cornerRadius: PixelTheme.cornerLarge))
-    }
-    
-    private func colors(for type: PixelTerrainType) -> (base: Color, accent: Color) {
-        switch type {
-        case .forest:
-            return (PixelTheme.forest, PixelTheme.forest.opacity(0.6))
-        case .plains:
-            return (PixelTheme.plains, PixelTheme.plains.opacity(0.6))
-        case .cave:
-            return (PixelTheme.cave, PixelTheme.cave.opacity(0.6))
-        case .campfire:
-            return (PixelTheme.camp, PixelTheme.camp.opacity(0.7))
         }
     }
 }

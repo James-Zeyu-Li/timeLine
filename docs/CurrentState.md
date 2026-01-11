@@ -15,7 +15,7 @@ A roguelike-inspired iOS focus app built with SwiftUI.
 | **Design** | Strict Mode (no pause), single-day timeline + Inbox for tomorrow |
 | **Tech** | Pure Swift (`TimeLineCore`) + SwiftUI |
 | **Persistence** | Local JSON + debounced save (500ms) |
-| **Interaction** | Tap to start, DeckOverlay bottom sheet (Cards/Library/Decks), drag from Library/Decks, edit via sheet, floating Add/Settings |
+| **Interaction** | Tap to start, Dual Entry (Strict/Todo), drag from TodoSheet, map swipe-to-edit, floating Settings |
 
 ---
 
@@ -34,11 +34,11 @@ A roguelike-inspired iOS focus app built with SwiftUI.
 - **Routine decks**: `RoutineTemplate` converts into Decks; no direct DaySession append in UI.
 
 ### UI Surfaces
-- **RootView**: map layer, DeckOverlay, drag layer, edit sheets, floating Add/Settings + message.
-- **RogueMapView**: map route with node snapping, header, and banners.
+- **RootView**: map layer, Dual Entry Buttons (Strict/Todo), floating Settings + message.
+- **RogueMapView**: map route with node snapping, header, and banners. Uses `SwipeableTimelineNode` for swipe-to-edit interactions.
 - **GroupFocusView**: focus group nodes open a switchable task list with total focused timer.
-- **DeckOverlay** + **CardFanView**: bottom sheet overlay with Cards/Library/Decks tabs; Cards add to Library (tap or multi-select).
-- **Library tab**: long-press drag a single task to map; Select mode shows Add to Group + drag token for group placement; sections are `Reminders`, `1/3/5/7 Days`, `Later`, `Expired`（按 deadlineWindowDays 分桶 + 过期折叠）。
+- **StrictSheet**: bottom sheet with Cards/Decks tabs for Strict Focus Mode.
+- **TodoSheet**: merged "Backlog" + "Quick Add" sheet for flexible tasks; supports multi-selection and "Start Group Focus".
 - **QuickBuilderSheet**: fast template creator (no direct timeline writes), supports Task Mode selection（任务模式选择）.
 - **DeckDetailEditSheet / CardDetailEditSheet**: long-press edit for Decks and CardTemplates, includes Task Mode selection（任务模式选择）and Library toggle.
 - **RoutinePickerView**: Routine Decks list + preview sheet.
@@ -49,11 +49,11 @@ A roguelike-inspired iOS focus app built with SwiftUI.
 - **ReminderBanner**: remindAt 触发后弹出“完成 / 稍后 10 分钟”.
 
 ### Interaction Flow
-- **+ Add → DeckOverlay** is the primary creation surface.
-- **Cards → Library** is required before placement; drag from Library or Decks to create occurrences via `TimelineStore`.
-- **Deck hover** shows “Insert N / Est. X”; drop inserts batch + Undo.
-- **Long press** opens template/deck edit sheets; map node long press opens TaskSheet for node edit.
-- **QuickBuilder create** returns to Cards tab with add-to-Library hint.
+- **Dual Entry**: Left = Strict (Cards/Decks), Right = Todo (Backlog/Inbox).
+- **Cards → Backlog**: is required for Todo/Group Focus; Strict Mode can drag directly from Cards/Decks.
+- **Map Swipe**: Swipe Timeline Node left to Edit / Copy / Delete.
+- **Long press** opens template/deck edit sheets; map node long press also triggers Edit.
+- **QuickBuilder create** returns to Cards tab with add-to-Backlog hint.
 - **Reminder create**: if `remindAt` is set, auto-inserts into timeline by time order.
 - **Empty map** accepts drop to create the first node.
 - **Drop zones**: only upcoming (non-completed) nodes accept drops.
@@ -130,13 +130,9 @@ A roguelike-inspired iOS focus app built with SwiftUI.
 ### 已完成
 - Flexible Group Focus（多任务组合、总计时不中断、自动分账、GroupFocusView + 报告页基础版）
 - Reminder Only（remindAt + Banner + 时间线倒计时 + Focus 内倒计时）
-- Map 主流程（地图交互、拖拽放置、节点高亮、事件提示）
-- Focus List 主入口（Timeline 底部入口 + 表格式逐行编辑 + Start Focus/Group）
-
-### 未完成（V1 关键缺口）
-- Focus List：从 Cards / Library / Decks 加入 + 可排序/删除
-- In Focus (n) 占用态显示（Library 折叠区 + 地图 Exploring 标记）
-- ad-hoc → isEphemeral → 收藏/留存流程
+- Map 主流程（地图交互、拖拽放置、节点高亮、Swipe Actions）
+- Dual Entry Architecture (Strict Sheet + Todo Sheet)
+- Todo/Backlog List (Library 合并 Quick Add)
 
 ---
 

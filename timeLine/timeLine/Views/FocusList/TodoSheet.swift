@@ -1,7 +1,7 @@
 import SwiftUI
 import TimeLineCore
 
-struct FocusListSheet: View {
+struct TodoSheet: View {
     @EnvironmentObject var daySession: DaySession
     @EnvironmentObject var engine: BattleEngine
     @EnvironmentObject var stateManager: AppStateManager
@@ -59,8 +59,7 @@ struct FocusListSheet: View {
             actionBar
         }
         .padding(20)
-        .accessibilityIdentifier("focusListSheet")
-        .onAppear {
+                .onAppear {
             if focusedRowId == nil {
                 focusedRowId = rows.first?.id
             }
@@ -94,7 +93,7 @@ struct FocusListSheet: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
-                Text("Focus List")
+                Text("Todo")
                     .font(.system(.title3, design: .rounded))
                     .fontWeight(.semibold)
                 Spacer()
@@ -120,7 +119,7 @@ struct FocusListSheet: View {
         let libraryCount = selectedLibraryIds.count
         guard validCount > 0 || libraryCount > 0 else { return AnyView(EmptyView()) }
         let missingCount = missingDurationCount
-        let summary = "Rows \(validCount) · Missing duration \(missingCount) · Library \(libraryCount)"
+        let summary = "Rows \(validCount) · Missing duration \(missingCount) · Selected \(libraryCount)"
         return AnyView(
             HStack {
                 Text(summary)
@@ -195,12 +194,14 @@ struct FocusListSheet: View {
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
-        .frame(minHeight: 260, maxHeight: 520)
+        .frame(minHeight: 200, maxHeight: 520)
         .background(
             RoundedRectangle(cornerRadius: 12)
                 .fill(Color.white.opacity(0.04))
         )
     }
+    
+
 
     private var actionBar: some View {
         HStack(spacing: 12) {
@@ -411,8 +412,11 @@ struct FocusListSheet: View {
             return
         }
 
+        print("DEBUG: startFocus - Valid Rows: \(activeRows.count)")
         let generatedIds = materializeTemplates(from: activeRows)
         let memberIds = libraryIds + generatedIds
+        print("DEBUG: MemberIDs count: \(memberIds.count)")
+        
         guard !memberIds.isEmpty else {
             errorMessage = "部分任务解析失败，请检查输入格式。"
             return
@@ -422,6 +426,7 @@ struct FocusListSheet: View {
         let newId: UUID?
 
         if memberIds.count == 1 {
+            print("DEBUG: Single member path")
             if let anchorId = daySession.currentNode?.id ?? daySession.nodes.last?.id {
                 newId = timelineStore.placeCardOccurrence(
                     cardTemplateId: memberIds[0],
@@ -436,6 +441,7 @@ struct FocusListSheet: View {
                 )
             }
         } else {
+            print("DEBUG: Group member path")
             if let anchorId = daySession.currentNode?.id ?? daySession.nodes.last?.id {
                 newId = timelineStore.placeFocusGroupOccurrence(
                     memberTemplateIds: memberIds,
@@ -443,6 +449,7 @@ struct FocusListSheet: View {
                     using: cardStore
                 )
             } else {
+                print("DEBUG: placeFocusGroupOccurrenceAtStart")
                 newId = timelineStore.placeFocusGroupOccurrenceAtStart(
                     memberTemplateIds: memberIds,
                     using: cardStore,
@@ -450,14 +457,19 @@ struct FocusListSheet: View {
                 )
             }
         }
+        
+        print("DEBUG: newId: \(String(describing: newId))")
 
         if let newId,
            let node = daySession.nodes.first(where: { $0.id == newId }),
            case .battle(let boss) = node.type,
            engine.state == .idle || engine.state == .victory || engine.state == .retreat {
+            print("DEBUG: Starting battle")
             daySession.setCurrentNode(id: newId)
             engine.startBattle(boss: boss)
             stateManager.requestSave()
+        } else {
+            print("DEBUG: Failed to start battle. State: \(engine.state), Node: \(String(describing: newId))")
         }
 
         rows = [FocusRow()]
@@ -469,7 +481,8 @@ struct FocusListSheet: View {
     private func materializeTemplates(from activeRows: [FocusRow]) -> [UUID] {
         var memberIds: [UUID] = []
         for row in activeRows {
-            guard let parsed = QuickEntryParser.parseDetailed(input: row.title) else {
+            let cleanedTitle = row.title.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard let parsed = QuickEntryParser.parseDetailed(input: cleanedTitle) else {
                 continue
             }
             var template = parsed.template
@@ -559,7 +572,7 @@ struct FocusListSheet: View {
             ("Today", today),
             ("Next 3 Days", next3),
             ("This Week", thisWeek),
-            ("Later / No deadline", later),
+            ("Backlog", later), // Renamed from Later
             ("Expired", expired)
         ]
     }

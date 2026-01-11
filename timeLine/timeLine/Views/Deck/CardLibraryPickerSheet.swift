@@ -49,7 +49,7 @@ struct CardLibraryPickerSheet: View {
             HStack(spacing: 8) {
                 Image(systemName: "tray.and.arrow.down")
                     .font(.system(size: 12, weight: .bold))
-                Text("Add to Library")
+                Text("Save to Backlog")
                     .font(.system(.caption, design: .rounded))
                     .fontWeight(.semibold)
             }

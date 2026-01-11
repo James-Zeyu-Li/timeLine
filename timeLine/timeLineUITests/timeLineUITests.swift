@@ -206,12 +206,12 @@ final class timeLineUITests: XCTestCase {
         XCTAssertTrue(todoButton.waitForExistence(timeout: 2))
         todoButton.tap()
 
-        let firstRow = app.textFields["focusRowTitle_0"]
+        let firstRow = focusRowField(0, in: app)
         XCTAssertTrue(firstRow.waitForExistence(timeout: 2))
         firstRow.tap()
         firstRow.typeText("Email 25m\n")
 
-        let secondRow = app.textFields["focusRowTitle_1"]
+        let secondRow = focusRowField(1, in: app)
         if !secondRow.waitForExistence(timeout: 1.5) {
             let addRow = app.buttons["focusListAddRow"]
             XCTAssertTrue(addRow.waitForExistence(timeout: 1))
@@ -225,7 +225,8 @@ final class timeLineUITests: XCTestCase {
 
         let startGroup = app.buttons["Start Group Focus"]
         XCTAssertTrue(startGroup.waitForExistence(timeout: 2))
-        startGroup.tap()
+        XCTAssertTrue(startGroup.isEnabled, "Start button should be enabled")
+        startGroup.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
 
         // Try finding GroupFocusView elements
         let endButton = app.buttons["完成今日探险"]
@@ -253,12 +254,12 @@ final class timeLineUITests: XCTestCase {
         XCTAssertTrue(todoButton.waitForExistence(timeout: 2))
         todoButton.tap()
 
-        let firstRow = app.textFields["focusRowTitle_0"]
+        let firstRow = focusRowField(0, in: app)
         XCTAssertTrue(firstRow.waitForExistence(timeout: 2))
         firstRow.tap()
         firstRow.typeText("Math 45m\n")
 
-        let secondRow = app.textFields["focusRowTitle_1"]
+        let secondRow = focusRowField(1, in: app)
         if !secondRow.waitForExistence(timeout: 1.5) {
             let addRow = app.buttons["focusListAddRow"]
             XCTAssertTrue(addRow.waitForExistence(timeout: 1))
@@ -270,15 +271,11 @@ final class timeLineUITests: XCTestCase {
 
         dismissKeyboard(in: app)
 
-        let parsedDuration = app.staticTexts["focusRowParsedDuration_0"]
-        XCTAssertTrue(parsedDuration.waitForExistence(timeout: 1))
-
         let startGroup = app.buttons["Start Group Focus"]
         XCTAssertTrue(startGroup.waitForExistence(timeout: 2))
         startGroup.tap()
 
-        let focusListSheet = app.otherElements["focusListSheet"]
-        XCTAssertTrue(focusListSheet.waitForNonExistence(timeout: 4))
+        XCTAssertTrue(firstRow.waitForNonExistence(timeout: 4))
     }
 
     @MainActor
@@ -292,16 +289,16 @@ final class timeLineUITests: XCTestCase {
         XCTAssertTrue(todoButton.waitForExistence(timeout: 2))
         todoButton.tap()
 
-        let firstRow = app.textFields["focusRowTitle_0"]
+        let firstRow = focusRowField(0, in: app)
         XCTAssertTrue(firstRow.waitForExistence(timeout: 2))
         firstRow.tap()
         firstRow.typeText("Math 1h30m")
 
         dismissKeyboard(in: app)
 
-        let parsedDuration = app.staticTexts["focusRowParsedDuration_0"]
-        XCTAssertTrue(parsedDuration.waitForExistence(timeout: 1))
-        XCTAssertEqual(parsedDuration.label, "1h 30m")
+        let durationButton = app.buttons["focusRowDuration_0"]
+        XCTAssertTrue(durationButton.waitForExistence(timeout: 1))
+        XCTAssertEqual(durationButton.label, "1h 30m")
     }
 
     private func waitForDisappearance(_ element: XCUIElement, timeout: TimeInterval) -> Bool {
@@ -321,12 +318,34 @@ final class timeLineUITests: XCTestCase {
     private func openQuickBuilder(in app: XCUIApplication) {
         let addCardButton = app.buttons["addCardButton"]
         if !addCardButton.waitForExistence(timeout: 1) {
+            let overlayBackground = app.otherElements["deckOverlayBackground"]
+            if overlayBackground.waitForExistence(timeout: 1) {
+                let cardsTab = app.buttons["Cards"]
+                if cardsTab.exists {
+                    cardsTab.tap()
+                }
+                if addCardButton.waitForExistence(timeout: 1) {
+                    addCardButton.tap()
+                    return
+                }
+                overlayBackground.tap()
+                _ = waitForDisappearance(overlayBackground, timeout: 2)
+            }
             let addButton = app.buttons["strictEntryButton"]
             XCTAssertTrue(addButton.waitForExistence(timeout: 2))
             addButton.tap()
             XCTAssertTrue(addCardButton.waitForExistence(timeout: 2))
         }
         addCardButton.tap()
+    }
+
+    private func focusRowField(_ index: Int, in app: XCUIApplication) -> XCUIElement {
+        let identifier = "focusRowTitle_\(index)"
+        let textField = app.textFields[identifier]
+        if textField.exists {
+            return textField
+        }
+        return app.textViews[identifier]
     }
 
     private func makeHittable(_ element: XCUIElement, in app: XCUIApplication) {
