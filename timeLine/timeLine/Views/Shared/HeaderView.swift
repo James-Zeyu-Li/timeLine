@@ -38,22 +38,24 @@ struct HeaderView: View {
                 .cornerRadius(8)
             }
             
-            VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    Text("TODAY'S PROGRESS")
-                        .font(.system(size: 9, weight: .bold))
-                        .tracking(1)
-                        .foregroundColor(.gray)
-                    Spacer()
-                    Text("\(Int(progress * 100))%")
-                        .font(.system(size: 9, weight: .bold))
-                        .tracking(1)
-                        .foregroundColor(.white)
+            dayTapTarget {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Text("TODAY'S PROGRESS")
+                            .font(.system(size: 9, weight: .bold))
+                            .tracking(1)
+                            .foregroundColor(.gray)
+                        Spacer()
+                        Text("\(Int(progress * 100))%")
+                            .font(.system(size: 9, weight: .bold))
+                            .tracking(1)
+                            .foregroundColor(.white)
+                    }
+                    ProgressView(value: min(max(progress, 0), 1))
+                        .progressViewStyle(.linear)
+                        .tint(LinearGradient(colors: [.green, .cyan], startPoint: .leading, endPoint: .trailing))
+                        .frame(height: 4)
                 }
-                ProgressView(value: min(max(progress, 0), 1))
-                    .progressViewStyle(.linear)
-                    .tint(LinearGradient(colors: [.green, .cyan], startPoint: .leading, endPoint: .trailing))
-                    .frame(height: 4)
             }
         }
         .padding(.horizontal, 24)

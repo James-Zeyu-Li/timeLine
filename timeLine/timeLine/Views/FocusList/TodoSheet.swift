@@ -21,6 +21,7 @@ struct TodoSheet: View {
     private enum FinishBySelection: Equatable {
         case tonight
         case tomorrow
+        case next3Days
         case thisWeek
         case none
         case pickDate(Date)
@@ -38,7 +39,7 @@ struct TodoSheet: View {
             title = ""
             durationMinutes = nil
             durationFromInput = false
-            finishBy = .tonight
+            finishBy = .next3Days
         }
     }
 
@@ -54,27 +55,38 @@ struct TodoSheet: View {
             if let errorMessage {
                 Text(errorMessage)
                     .font(.system(.caption, design: .rounded))
-                    .foregroundColor(.orange)
+                    .foregroundColor(Color(red: 0.941, green: 0.502, blue: 0.188)) // 活力橘 #F08030
             }
             actionBar
         }
         .padding(20)
+        .background(
+            // 温馨的草地背景渐变
+            LinearGradient(
+                gradient: Gradient(colors: [
+                    Color(red: 0.992, green: 0.965, blue: 0.890), // 浅米色 #FDF6E3
+                    Color(red: 0.306, green: 0.486, blue: 0.196).opacity(0.1) // 淡森林绿
+                ]),
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        )
                 .onAppear {
             if focusedRowId == nil {
                 focusedRowId = rows.first?.id
             }
         }
         .confirmationDialog(
-            "End current battle?",
+            "结束当前专注？",
             isPresented: $showActiveBattleConfirm,
             titleVisibility: .visible
         ) {
-            Button("End & Start New Focus", role: .destructive) {
+            Button("结束并开始新专注", role: .destructive) {
                 startFocus()
             }
-            Button("Cancel", role: .cancel) { }
+            Button("取消", role: .cancel) { }
         } message: {
-            Text("You already have an active battle. Starting a new Focus List will end the current one.")
+            Text("你正在进行专注任务。开始新的专注会结束当前任务。")
         }
         .sheet(item: $durationPickerTarget) { target in
             DurationPickerSheet(
@@ -93,25 +105,55 @@ struct TodoSheet: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
-                Text("Todo")
+                // 添加像素风格的小图标
+                Image(systemName: "list.clipboard.fill")
+                    .font(.system(size: 20, weight: .bold))
+                    .foregroundColor(Color(red: 0.306, green: 0.486, blue: 0.196)) // 森林绿 #4E7C32
+                
+                Text("任务清单")
                     .font(.system(.title3, design: .rounded))
                     .fontWeight(.semibold)
+                    .foregroundColor(Color(red: 0.2, green: 0.133, blue: 0.067)) // 深棕黑 #332211
+                
                 Spacer()
-                Button("Clean format") {
+                
+                Button("整理格式") {
                     cleanDurationFormats()
                 }
                 .font(.system(.caption, design: .rounded))
-                .foregroundColor(.cyan)
+                .foregroundColor(Color(red: 0.306, green: 0.486, blue: 0.196)) // 森林绿
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(
+                    Capsule()
+                        .fill(Color(red: 0.306, green: 0.486, blue: 0.196).opacity(0.1))
+                        .overlay(
+                            Capsule()
+                                .stroke(Color(red: 0.306, green: 0.486, blue: 0.196).opacity(0.3), lineWidth: 1)
+                        )
+                )
                 .buttonStyle(.plain)
             }
-            Text("每行一个任务，分别设置时长与截止")
+            
+            Text("🌱 每行一个任务，设置时长与截止时间")
                 .font(.system(.caption, design: .rounded))
-                .foregroundColor(.gray)
-            Text("输入如 Math 45m 会自动填充 Duration（稍后可清理格式）")
+                .foregroundColor(Color(red: 0.2, green: 0.133, blue: 0.067).opacity(0.7))
+            
+            Text("💡 输入如 Math 45m 会自动填充时长（稍后可整理格式）")
                 .font(.system(.caption2, design: .rounded))
-                .foregroundColor(.gray)
+                .foregroundColor(Color(red: 0.2, green: 0.133, blue: 0.067).opacity(0.6))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color.white.opacity(0.9))
+                .shadow(color: Color(red: 0.545, green: 0.369, blue: 0.235).opacity(0.2), radius: 4, x: 2, y: 2)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16)
+                        .stroke(Color(red: 0.306, green: 0.486, blue: 0.196).opacity(0.3), lineWidth: 2)
+                )
+        )
     }
 
     private var statusLine: some View {
@@ -119,12 +161,22 @@ struct TodoSheet: View {
         let libraryCount = selectedLibraryIds.count
         guard validCount > 0 || libraryCount > 0 else { return AnyView(EmptyView()) }
         let missingCount = missingDurationCount
-        let summary = "Rows \(validCount) · Missing duration \(missingCount) · Selected \(libraryCount)"
+        let summary = "📝 任务 \(validCount) · ⏰ 缺时长 \(missingCount) · ✅ 已选 \(libraryCount)"
         return AnyView(
             HStack {
                 Text(summary)
                     .font(.system(.caption, design: .rounded))
-                    .foregroundColor(.white.opacity(0.6))
+                    .foregroundColor(Color(red: 0.2, green: 0.133, blue: 0.067).opacity(0.8))
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(
+                        Capsule()
+                            .fill(Color(red: 0.992, green: 0.965, blue: 0.890).opacity(0.8)) // 浅米色背景
+                            .overlay(
+                                Capsule()
+                                    .stroke(Color(red: 0.306, green: 0.486, blue: 0.196).opacity(0.2), lineWidth: 1)
+                            )
+                    )
                 Spacer()
             }
         )
@@ -132,52 +184,16 @@ struct TodoSheet: View {
 
     private var rowsList: some View {
         List {
+            // Task input rows section
             Section {
-                ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
-                    FocusRowView(
-                        title: titleBinding(for: row),
-                        parsedDuration: parsedDurationLabel(for: row),
-                        durationTitle: durationButtonTitle(for: row),
-                        finishByTitle: finishByTitle(for: row),
-                        onDurationTap: { durationPickerTarget = RowPickerTarget(id: row.id) },
-                        onFinishTap: { openFinishPicker(for: row.id) },
-                        onSubmit: { handleSubmit(for: row.id) },
-                        focusedRowId: $focusedRowId,
-                        rowId: row.id,
-                        rowIndex: index
-                    )
-                    .listRowInsets(EdgeInsets(top: 6, leading: 0, bottom: 6, trailing: 0))
-                    .listRowSeparator(.hidden)
-                    .listRowBackground(Color.clear)
-                    .swipeActions(edge: .trailing) {
-                        Button(role: .destructive) {
-                            deleteRow(row.id)
-                        } label: {
-                            Label("Delete", systemImage: "trash")
-                        }
-                    }
-                }
-
-                Button {
-                    addRowAndFocus()
-                } label: {
-                    HStack(spacing: 8) {
-                        Image(systemName: "plus")
-                        Text("Add task")
-                            .font(.system(.subheadline, design: .rounded))
-                    }
-                    .foregroundColor(.cyan)
-                    .padding(.vertical, 4)
-                }
-                .accessibilityIdentifier("focusListAddRow")
-                .listRowInsets(EdgeInsets(top: 8, leading: 0, bottom: 8, trailing: 0))
-                .listRowSeparator(.hidden)
-                .listRowBackground(Color.clear)
+                taskInputRows
+                addTaskButton
             }
 
+            // Library sections
             ForEach(librarySections, id: \.title) { section in
                 if !section.rows.isEmpty {
-                    Section(section.title) {
+                    Section {
                         ForEach(section.rows) { row in
                             LibraryRowView(
                                 data: row,
@@ -188,6 +204,8 @@ struct TodoSheet: View {
                             .listRowSeparator(.hidden)
                             .listRowBackground(Color.clear)
                         }
+                    } header: {
+                        sectionHeader(for: section.title)
                     }
                 }
             }
@@ -196,8 +214,90 @@ struct TodoSheet: View {
         .scrollContentBackground(.hidden)
         .frame(minHeight: 200, maxHeight: 520)
         .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color.white.opacity(0.04))
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color.white.opacity(0.6))
+                .shadow(color: Color(red: 0.545, green: 0.369, blue: 0.235).opacity(0.2), radius: 6, x: 3, y: 3)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16)
+                        .stroke(Color(red: 0.306, green: 0.486, blue: 0.196).opacity(0.3), lineWidth: 2)
+                )
+        )
+    }
+    
+    private var taskInputRows: some View {
+        ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
+            FocusRowView(
+                title: titleBinding(for: row),
+                parsedDuration: parsedDurationLabel(for: row),
+                durationTitle: durationButtonTitle(for: row),
+                finishByTitle: finishByTitle(for: row),
+                onDurationTap: { durationPickerTarget = RowPickerTarget(id: row.id) },
+                onFinishTap: { openFinishPicker(for: row.id) },
+                onSubmit: { handleSubmit(for: row.id) },
+                focusedRowId: $focusedRowId,
+                rowId: row.id,
+                rowIndex: index
+            )
+            .listRowInsets(EdgeInsets(top: 6, leading: 0, bottom: 6, trailing: 0))
+            .listRowSeparator(.hidden)
+            .listRowBackground(Color.clear)
+            .swipeActions(edge: .trailing) {
+                Button(role: .destructive) {
+                    deleteRow(row.id)
+                } label: {
+                    Label("删除", systemImage: "trash")
+                }
+                .tint(Color(red: 0.941, green: 0.502, blue: 0.188)) // 活力橘
+            }
+        }
+    }
+    
+    private var addTaskButton: some View {
+        Button {
+            addRowAndFocus()
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "plus.circle.fill")
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundColor(Color(red: 0.306, green: 0.486, blue: 0.196)) // 森林绿
+                Text("添加任务")
+                    .font(.system(.subheadline, design: .rounded))
+                    .fontWeight(.semibold)
+                    .foregroundColor(Color(red: 0.306, green: 0.486, blue: 0.196))
+            }
+            .padding(.vertical, 8)
+            .padding(.horizontal, 12)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Color(red: 0.306, green: 0.486, blue: 0.196).opacity(0.1))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(Color(red: 0.306, green: 0.486, blue: 0.196).opacity(0.3), style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
+                    )
+            )
+        }
+        .accessibilityIdentifier("focusListAddRow")
+        .listRowInsets(EdgeInsets(top: 8, leading: 0, bottom: 8, trailing: 0))
+        .listRowSeparator(.hidden)
+        .listRowBackground(Color.clear)
+    }
+    
+    private func sectionHeader(for title: String) -> some View {
+        HStack {
+            Image(systemName: sectionIcon(for: title))
+                .font(.system(size: 14, weight: .bold))
+                .foregroundColor(Color(red: 0.306, green: 0.486, blue: 0.196))
+            Text(title)
+                .font(.system(.subheadline, design: .rounded))
+                .fontWeight(.bold)
+                .foregroundColor(Color(red: 0.2, green: 0.133, blue: 0.067))
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .background(
+            Capsule()
+                .fill(Color.white.opacity(0.8))
+                .shadow(color: Color(red: 0.545, green: 0.369, blue: 0.235).opacity(0.1), radius: 2, x: 1, y: 1)
         )
     }
     
@@ -205,17 +305,59 @@ struct TodoSheet: View {
 
     private var actionBar: some View {
         HStack(spacing: 12) {
-            Button("Cancel") {
+            Button("取消") {
                 dismiss()
             }
             .font(.system(.caption, design: .rounded))
-            .foregroundColor(.gray)
+            .fontWeight(.semibold)
+            .foregroundColor(Color(red: 0.2, green: 0.133, blue: 0.067)) // 深棕黑
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
             .background(
-                Capsule().fill(Color.white.opacity(0.08))
+                Capsule()
+                    .fill(Color.white.opacity(0.8))
+                    .overlay(
+                        Capsule()
+                            .stroke(Color(red: 0.545, green: 0.369, blue: 0.235).opacity(0.3), lineWidth: 1)
+                    )
             )
             .accessibilityIdentifier("focusListCancelButton")
+
+            // Save to Library button (收藏种子)
+            if canSaveToLibrary {
+                Button("🌱 收藏种子") {
+                    saveToLibrary()
+                }
+                .font(.system(.caption, design: .rounded))
+                .fontWeight(.semibold)
+                .foregroundColor(.white)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .background(
+                    Capsule()
+                        .fill(Color(red: 0.941, green: 0.502, blue: 0.188)) // 活力橘
+                        .shadow(color: Color(red: 0.941, green: 0.502, blue: 0.188).opacity(0.3), radius: 3, x: 2, y: 2)
+                )
+                .accessibilityIdentifier("focusListSaveButton")
+            }
+
+            // Add to Timeline button (种植到农场)
+            if canAddToTimeline {
+                Button("🌾 种植到农场") {
+                    addToTimeline()
+                }
+                .font(.system(.caption, design: .rounded))
+                .fontWeight(.semibold)
+                .foregroundColor(.white)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .background(
+                    Capsule()
+                        .fill(Color(red: 0.306, green: 0.486, blue: 0.196)) // 森林绿
+                        .shadow(color: Color(red: 0.306, green: 0.486, blue: 0.196).opacity(0.3), radius: 3, x: 2, y: 2)
+                )
+                .accessibilityIdentifier("focusListAddToTimelineButton")
+            }
 
             Button(startButtonTitle) {
                 if isActiveBattle {
@@ -225,17 +367,45 @@ struct TodoSheet: View {
                 }
             }
             .font(.system(.caption, design: .rounded))
-            .fontWeight(.semibold)
+            .fontWeight(.bold)
             .foregroundColor(.white)
             .padding(.horizontal, 18)
             .padding(.vertical, 10)
             .background(
-                Capsule().fill(Color.cyan.opacity(canStart ? 0.9 : 0.3))
+                Capsule()
+                    .fill(
+                        canStart ? 
+                        LinearGradient(
+                            gradient: Gradient(colors: [
+                                Color(red: 0.2, green: 0.8, blue: 0.8),
+                                Color(red: 0.1, green: 0.7, blue: 0.9)
+                            ]),
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        ) :
+                        LinearGradient(
+                            gradient: Gradient(colors: [Color.gray.opacity(0.3), Color.gray.opacity(0.2)]),
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .shadow(color: canStart ? Color.cyan.opacity(0.4) : Color.clear, radius: 4, x: 2, y: 2)
             )
             .disabled(!canStart)
             .accessibilityIdentifier("focusListStartButton")
         }
         .frame(maxWidth: .infinity, alignment: .trailing)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .background(
+            RoundedRectangle(cornerRadius: 20)
+                .fill(Color.white.opacity(0.9))
+                .shadow(color: Color(red: 0.545, green: 0.369, blue: 0.235).opacity(0.2), radius: 4, x: 2, y: 2)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 20)
+                        .stroke(Color(red: 0.306, green: 0.486, blue: 0.196).opacity(0.3), lineWidth: 2)
+                )
+        )
     }
 
     private var validRows: [FocusRow] {
@@ -249,9 +419,22 @@ struct TodoSheet: View {
     private var canStart: Bool {
         !validRows.isEmpty || !selectedLibraryIds.isEmpty
     }
+    
+    private var canSaveToLibrary: Bool {
+        !validRows.isEmpty
+    }
+    
+    private var canAddToTimeline: Bool {
+        !validRows.isEmpty && validRows.allSatisfy { $0.durationMinutes != nil }
+    }
+
 
     private var startButtonTitle: String {
-        totalSelectionCount > 1 ? "Start Group Focus" : "Start Focus"
+        if totalSelectionCount > 1 {
+            return "🌟 开始探险队"
+        } else {
+            return "⚡ 开始专注"
+        }
     }
 
     private var isActiveBattle: Bool {
@@ -333,17 +516,36 @@ struct TodoSheet: View {
     }
 
     private func finishByTitle(for row: FocusRow) -> String {
+        let now = Date()
+        let calendar = Calendar.current
+        
         switch row.finishBy {
         case .tonight:
             return "Tonight"
         case .tomorrow:
             return "Tomorrow"
+        case .next3Days:
+            return "Next 3 Days"
         case .thisWeek:
             return "This Week"
         case .none:
             return "None"
         case .pickDate(let date):
-            return Self.shortDateFormatter.string(from: date)
+            let startNow = calendar.startOfDay(for: now)
+            let startDate = calendar.startOfDay(for: date)
+            let dayDiff = calendar.dateComponents([.day], from: startNow, to: startDate).day ?? 0
+            
+            if dayDiff < 0 {
+                return Self.shortDateFormatter.string(from: date)
+            } else if dayDiff == 0 {
+                return "Today"
+            } else if dayDiff == 1 {
+                return "Tomorrow"
+            } else if dayDiff <= 7 {
+                return "in \(dayDiff) days"
+            } else {
+                return Self.shortDateFormatter.string(from: date)
+            }
         }
     }
 
@@ -359,41 +561,121 @@ struct TodoSheet: View {
 
     private func finishByPickerSheet(rowId: UUID) -> some View {
         NavigationStack {
-            VStack(spacing: 12) {
-                Button("Tonight") {
-                    setFinishBy(rowId, selection: .tonight)
+            VStack(spacing: 20) {
+                // 标题区域
+                VStack(spacing: 8) {
+                    Image(systemName: "calendar")
+                        .font(.system(size: 32, weight: .bold))
+                        .foregroundColor(Color(red: 0.306, green: 0.486, blue: 0.196)) // 森林绿
+                    
+                    Text("设置截止时间")
+                        .font(.system(.headline, design: .rounded))
+                        .fontWeight(.bold)
+                        .foregroundColor(Color(red: 0.2, green: 0.133, blue: 0.067))
                 }
-                Button("Tomorrow") {
-                    setFinishBy(rowId, selection: .tomorrow)
+                .padding(.top, 16)
+                
+                // 快捷选项
+                VStack(spacing: 12) {
+                    ForEach([
+                        ("今晚", FinishBySelection.tonight, "moon.stars.fill"),
+                        ("明天", FinishBySelection.tomorrow, "sun.max.fill"),
+                        ("未来3天", FinishBySelection.next3Days, "calendar.badge.clock"),
+                        ("本周内", FinishBySelection.thisWeek, "calendar"),
+                        ("无截止", FinishBySelection.none, "infinity")
+                    ], id: \.0) { title, selection, icon in
+                        Button(action: {
+                            setFinishBy(rowId, selection: selection)
+                        }) {
+                            HStack(spacing: 12) {
+                                Image(systemName: icon)
+                                    .font(.system(size: 16, weight: .bold))
+                                    .foregroundColor(.white)
+                                    .frame(width: 32, height: 32)
+                                    .background(
+                                        Circle()
+                                            .fill(Color(red: 0.306, green: 0.486, blue: 0.196))
+                                    )
+                                
+                                Text(title)
+                                    .font(.system(.subheadline, design: .rounded))
+                                    .fontWeight(.semibold)
+                                    .foregroundColor(Color(red: 0.2, green: 0.133, blue: 0.067))
+                                
+                                Spacer()
+                                
+                                Image(systemName: "chevron.right")
+                                    .font(.system(size: 12, weight: .bold))
+                                    .foregroundColor(Color(red: 0.545, green: 0.369, blue: 0.235).opacity(0.6))
+                            }
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 12)
+                            .background(
+                                RoundedRectangle(cornerRadius: 16)
+                                    .fill(Color.white.opacity(0.8))
+                                    .shadow(color: Color(red: 0.545, green: 0.369, blue: 0.235).opacity(0.15), radius: 2, x: 1, y: 1)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 16)
+                                            .stroke(Color(red: 0.306, green: 0.486, blue: 0.196).opacity(0.2), lineWidth: 1)
+                                    )
+                            )
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
-                Button("This Week") {
-                    setFinishBy(rowId, selection: .thisWeek)
-                }
-                Button("None") {
-                    setFinishBy(rowId, selection: .none)
-                }
+                .padding(.horizontal, 16)
 
                 Divider()
+                    .background(Color(red: 0.545, green: 0.369, blue: 0.235).opacity(0.3))
 
-                DatePicker(
-                    "Pick Date",
-                    selection: $finishPickerDate,
-                    displayedComponents: .date
-                )
-                .datePickerStyle(.graphical)
-                .padding(.horizontal, 8)
+                // 自定义日期选择器
+                VStack(spacing: 12) {
+                    Text("自定义日期")
+                        .font(.system(.subheadline, design: .rounded))
+                        .fontWeight(.semibold)
+                        .foregroundColor(Color(red: 0.2, green: 0.133, blue: 0.067))
+                    
+                    DatePicker(
+                        "选择日期",
+                        selection: $finishPickerDate,
+                        displayedComponents: .date
+                    )
+                    .datePickerStyle(.graphical)
+                    .padding(.horizontal, 8)
+                    .background(
+                        RoundedRectangle(cornerRadius: 16)
+                            .fill(Color.white.opacity(0.8))
+                    )
 
-                Button("Set Date") {
-                    setFinishBy(rowId, selection: .pickDate(finishPickerDate))
+                    Button("设置日期") {
+                        setFinishBy(rowId, selection: .pickDate(finishPickerDate))
+                    }
+                    .font(.system(.subheadline, design: .rounded))
+                    .fontWeight(.bold)
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 12)
+                    .background(
+                        RoundedRectangle(cornerRadius: 16)
+                            .fill(Color(red: 0.941, green: 0.502, blue: 0.188)) // 活力橘
+                            .shadow(color: Color(red: 0.941, green: 0.502, blue: 0.188).opacity(0.4), radius: 4, x: 2, y: 2)
+                    )
                 }
-                .font(.system(.subheadline, design: .rounded))
                 .padding(.horizontal, 16)
-                .padding(.vertical, 10)
-                .background(Capsule().fill(Color.cyan.opacity(0.8)))
-                .foregroundColor(.white)
+                
+                Spacer()
             }
-            .padding(.vertical, 12)
-            .navigationTitle("Finish by")
+            .background(
+                LinearGradient(
+                    gradient: Gradient(colors: [
+                        Color(red: 0.992, green: 0.965, blue: 0.890), // 浅米色
+                        Color(red: 0.306, green: 0.486, blue: 0.196).opacity(0.1) // 淡森林绿
+                    ]),
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            )
+            .navigationTitle("截止时间")
             .navigationBarTitleDisplayMode(.inline)
         }
     }
@@ -402,6 +684,101 @@ struct TodoSheet: View {
         guard let index = rows.firstIndex(where: { $0.id == rowId }) else { return }
         rows[index].finishBy = selection
         finishPickerTarget = nil
+    }
+
+    private func saveToLibrary() {
+        let activeRows = validRows
+        guard !activeRows.isEmpty else {
+            errorMessage = "没有可保存的任务，请检查输入格式。"
+            return
+        }
+
+        let savedIds = materializeTemplatesForLibrary(from: activeRows)
+        guard !savedIds.isEmpty else {
+            errorMessage = "部分任务解析失败，请检查输入格式。"
+            return
+        }
+
+        // Add to library
+        for templateId in savedIds {
+            libraryStore.add(templateId: templateId)
+        }
+        
+        stateManager.requestSave()
+        
+        // Clear form and dismiss
+        rows = [FocusRow()]
+        focusedRowId = rows.first?.id
+        dismiss()
+    }
+
+    private func addToTimeline() {
+        let activeRows = validRows
+        guard !activeRows.isEmpty else {
+            errorMessage = "没有可添加的任务，请检查输入格式。"
+            return
+        }
+        
+        // Validate all rows have duration for timeline insertion
+        // Allow nil duration (Flexible Task)
+        // guard activeRows.allSatisfy({ $0.durationMinutes != nil }) else { ... }
+
+        let generatedIds = materializeTemplates(from: activeRows)
+        guard !generatedIds.isEmpty else {
+            errorMessage = "部分任务解析失败，请检查输入格式。"
+            return
+        }
+
+        let timelineStore = TimelineStore(daySession: daySession, stateManager: stateManager)
+        var insertedCount = 0
+        
+        for templateId in generatedIds {
+            guard cardStore.get(id: templateId) != nil else { continue }
+            
+            // ALWAYS insert at the front (Next Up) logic as requested.
+            // Ignored deadline-based time insertion to prioritize "doing it now".
+            let newId: UUID?
+            
+            if let currentNode = daySession.currentNode {
+                // If session is active (or has a current node), insert immediately AFTER it (Next)
+                newId = timelineStore.placeCardOccurrence(
+                    cardTemplateId: templateId,
+                    anchorNodeId: currentNode.id,
+                    placement: .after,
+                    using: cardStore
+                )
+            } else if let firstUpcoming = daySession.nodes.first(where: { !$0.isCompleted }) {
+                // If idle but has upcoming nodes, insert BEFORE the first upcoming (Top of list)
+                newId = timelineStore.placeCardOccurrence(
+                    cardTemplateId: templateId,
+                    anchorNodeId: firstUpcoming.id,
+                    placement: .before,
+                    using: cardStore
+                )
+            } else {
+                // Empty or all completed - Append to end
+                newId = timelineStore.placeCardOccurrenceAtStart(
+                    cardTemplateId: templateId,
+                    using: cardStore,
+                    engine: engine
+                )
+            }
+            
+            if newId != nil {
+                insertedCount += 1
+            }
+        }
+        
+        if insertedCount > 0 {
+            stateManager.requestSave()
+            
+            // Clear form and dismiss
+            rows = [FocusRow()]
+            focusedRowId = rows.first?.id
+            dismiss()
+        } else {
+            errorMessage = "无法插入任务到时间线，请检查时间冲突。"
+        }
     }
 
     private func startFocus() {
@@ -478,7 +855,26 @@ struct TodoSheet: View {
         dismiss()
     }
 
+    private func sectionIcon(for title: String) -> String {
+        switch title {
+        case "Today": return "sun.max.fill"
+        case "Next 3 Days": return "calendar.badge.clock"
+        case "This Week": return "calendar"
+        case "Backlog": return "tray.full.fill"
+        case "Expired": return "clock.badge.exclamationmark"
+        default: return "folder.fill"
+        }
+    }
+
     private func materializeTemplates(from activeRows: [FocusRow]) -> [UUID] {
+        return materializeTemplates(from: activeRows, isEphemeral: true)
+    }
+    
+    private func materializeTemplatesForLibrary(from activeRows: [FocusRow]) -> [UUID] {
+        return materializeTemplates(from: activeRows, isEphemeral: false)
+    }
+    
+    private func materializeTemplates(from activeRows: [FocusRow], isEphemeral: Bool) -> [UUID] {
         var memberIds: [UUID] = []
         for row in activeRows {
             let cleanedTitle = row.title.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -486,10 +882,16 @@ struct TodoSheet: View {
                 continue
             }
             var template = parsed.template
-            let minutes = row.durationMinutes ?? 25
-            template.defaultDuration = TimeInterval(minutes * 60)
+            if let minutes = row.durationMinutes {
+                template.defaultDuration = TimeInterval(minutes * 60)
+                template.style = .focus
+            } else {
+                // Flexible Task (0 duration, passive style)
+                template.defaultDuration = 0
+                template.style = .passive
+            }
             template.deadlineAt = deadlineDate(for: row.finishBy)
-            template.isEphemeral = true
+            template.isEphemeral = isEphemeral
             cardStore.add(template)
             memberIds.append(template.id)
         }
@@ -504,6 +906,9 @@ struct TodoSheet: View {
         case .tomorrow:
             guard let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: now) else { return nil }
             return endOfDay(for: tomorrow)
+        case .next3Days:
+            guard let next3Days = Calendar.current.date(byAdding: .day, value: 3, to: now) else { return nil }
+            return endOfDay(for: next3Days)
         case .thisWeek:
             return endOfWeek(for: now)
         case .none:
@@ -684,23 +1089,32 @@ private struct FocusRowView: View {
     var body: some View {
         HStack(spacing: 10) {
             HStack(spacing: 6) {
-                TextField("Task…", text: $title)
+                // 小种子图标
+                Image(systemName: "leaf.fill")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundColor(Color(red: 0.306, green: 0.486, blue: 0.196)) // 森林绿
+                
+                TextField("种下一颗种子…", text: $title)
                     .font(.system(.body, design: .rounded))
-                    .foregroundColor(.white)
+                    .foregroundColor(Color(red: 0.2, green: 0.133, blue: 0.067)) // 深棕黑
                     .focused(focusedRowId, equals: rowId)
                     .submitLabel(.next)
                     .onSubmit {
                         onSubmit()
                     }
                     .accessibilityIdentifier("focusRowTitle_\(rowIndex)")
+                
                 if let parsedDuration {
                     Text(parsedDuration)
                         .font(.system(.caption2, design: .rounded))
-                        .foregroundColor(.cyan)
+                        .fontWeight(.bold)
+                        .foregroundColor(.white)
                         .padding(.horizontal, 6)
                         .padding(.vertical, 4)
                         .background(
-                            Capsule().fill(Color.cyan.opacity(0.15))
+                            Capsule()
+                                .fill(Color(red: 0.306, green: 0.486, blue: 0.196)) // 森林绿
+                                .shadow(color: Color(red: 0.306, green: 0.486, blue: 0.196).opacity(0.3), radius: 2, x: 1, y: 1)
                         )
                         .accessibilityIdentifier("focusRowParsedDuration_\(rowIndex)")
                 }
@@ -708,39 +1122,62 @@ private struct FocusRowView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
 
             Button(action: onDurationTap) {
-                Text(durationTitle)
-                    .font(.system(.caption, design: .rounded))
-                    .fontWeight(.semibold)
-                    .foregroundColor(durationTitle == "—" ? .gray : .black)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(
-                        Capsule()
-                            .fill(durationTitle == "—" ? Color.white.opacity(0.08) : Color.cyan)
-                    )
+                HStack(spacing: 4) {
+                    Image(systemName: "clock.fill")
+                        .font(.system(size: 10, weight: .bold))
+                    Text(durationTitle)
+                        .font(.system(.caption, design: .rounded))
+                        .fontWeight(.semibold)
+                }
+                .foregroundColor(durationTitle == "—" ? Color(red: 0.2, green: 0.133, blue: 0.067).opacity(0.5) : .white)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(
+                    Capsule()
+                        .fill(durationTitle == "—" ? 
+                              Color.white.opacity(0.3) : 
+                              Color(red: 0.941, green: 0.502, blue: 0.188) // 活力橘
+                        )
+                        .shadow(color: durationTitle == "—" ? Color.clear : Color(red: 0.941, green: 0.502, blue: 0.188).opacity(0.3), radius: 2, x: 1, y: 1)
+                )
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("focusRowDuration_\(rowIndex)")
 
             Button(action: onFinishTap) {
-                Text(finishByTitle)
-                    .font(.system(.caption, design: .rounded))
-                    .fontWeight(.semibold)
-                    .foregroundColor(.black)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(
-                        Capsule().fill(Color.white.opacity(0.9))
-                    )
+                HStack(spacing: 4) {
+                    Image(systemName: "calendar")
+                        .font(.system(size: 10, weight: .bold))
+                    Text(finishByTitle)
+                        .font(.system(.caption, design: .rounded))
+                        .fontWeight(.semibold)
+                }
+                .foregroundColor(Color(red: 0.2, green: 0.133, blue: 0.067))
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(
+                    Capsule()
+                        .fill(Color.white.opacity(0.9))
+                        .shadow(color: Color(red: 0.545, green: 0.369, blue: 0.235).opacity(0.2), radius: 2, x: 1, y: 1)
+                        .overlay(
+                            Capsule()
+                                .stroke(Color(red: 0.545, green: 0.369, blue: 0.235).opacity(0.3), lineWidth: 1)
+                        )
+                )
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("focusRowFinish_\(rowIndex)")
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 10)
+        .padding(.vertical, 12)
         .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color.white.opacity(0.06))
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color.white.opacity(0.8))
+                .shadow(color: Color(red: 0.545, green: 0.369, blue: 0.235).opacity(0.15), radius: 3, x: 2, y: 2)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16)
+                        .stroke(Color(red: 0.306, green: 0.486, blue: 0.196).opacity(0.2), lineWidth: 1)
+                )
         )
     }
 }
@@ -762,19 +1199,24 @@ private struct LibraryRowView: View {
     var body: some View {
         let now = Date()
         let isExpired = data.entry.deadlineStatus == .expired
-        let titleColor: Color = isExpired ? .gray : .white
+        let titleColor: Color = isExpired ? Color(red: 0.2, green: 0.133, blue: 0.067).opacity(0.4) : Color(red: 0.2, green: 0.133, blue: 0.067)
         let deadlineText = deadlineLabel(now: now)
 
-        HStack(spacing: 10) {
+        HStack(spacing: 12) {
+            // 选择状态图标 (像素风格)
             Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                .foregroundColor(isSelected ? .cyan : .gray)
+                .font(.system(size: 18, weight: .bold))
+                .foregroundColor(isSelected ? Color(red: 0.306, green: 0.486, blue: 0.196) : Color(red: 0.545, green: 0.369, blue: 0.235).opacity(0.5))
 
+            // 任务图标 (像素小物件)
             Image(systemName: data.template.icon)
                 .font(.system(size: 14, weight: .bold))
                 .foregroundColor(.white)
-                .frame(width: 24, height: 24)
+                .frame(width: 28, height: 28)
                 .background(
-                    Circle().fill(Color.white.opacity(0.1))
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(pixelColor(for: data.template.id))
+                        .shadow(color: pixelColor(for: data.template.id).opacity(0.3), radius: 2, x: 1, y: 1)
                 )
 
             VStack(alignment: .leading, spacing: 4) {
@@ -783,28 +1225,54 @@ private struct LibraryRowView: View {
                     .fontWeight(.semibold)
                     .foregroundColor(titleColor)
                     .lineLimit(1)
+                
                 HStack(spacing: 8) {
-                    Text("\(Int(data.template.defaultDuration / 60)) min")
-                        .font(.system(.caption2, design: .rounded))
-                        .foregroundColor(.white.opacity(0.6))
-                    if let deadlineText {
-                        Text(deadlineText)
+                    // 时长标签
+                    HStack(spacing: 2) {
+                        Image(systemName: "clock.fill")
+                            .font(.system(size: 8))
+                            .foregroundColor(Color(red: 0.941, green: 0.502, blue: 0.188))
+                        Text("\(Int(data.template.defaultDuration / 60)) 分钟")
                             .font(.system(.caption2, design: .rounded))
-                            .foregroundColor(isExpired ? .gray : .orange)
+                            .foregroundColor(Color(red: 0.2, green: 0.133, blue: 0.067).opacity(0.8))
+                    }
+                    
+                    if let deadlineText {
+                        HStack(spacing: 2) {
+                            Image(systemName: isExpired ? "exclamationmark.triangle.fill" : "calendar")
+                                .font(.system(size: 8))
+                                .foregroundColor(isExpired ? Color(red: 0.941, green: 0.502, blue: 0.188) : Color(red: 0.306, green: 0.486, blue: 0.196))
+                            Text(deadlineText)
+                                .font(.system(.caption2, design: .rounded))
+                                .foregroundColor(isExpired ? Color(red: 0.941, green: 0.502, blue: 0.188) : Color(red: 0.306, green: 0.486, blue: 0.196))
+                        }
                     }
                 }
             }
             Spacer()
+            
+            // 过期状态指示
+            if isExpired {
+                Image(systemName: "leaf.fill")
+                    .font(.system(size: 12))
+                    .foregroundColor(Color(red: 0.545, green: 0.369, blue: 0.235).opacity(0.3))
+            }
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 8)
+        .padding(.vertical, 10)
         .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color.white.opacity(isExpired ? 0.03 : 0.06))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(isSelected ? Color.cyan.opacity(0.6) : Color.white.opacity(0.12), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color.white.opacity(isExpired ? 0.3 : 0.8))
+                .shadow(color: Color(red: 0.545, green: 0.369, blue: 0.235).opacity(isExpired ? 0.1 : 0.15), radius: 2, x: 1, y: 1)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16)
+                        .stroke(
+                            isSelected ? 
+                            Color(red: 0.306, green: 0.486, blue: 0.196).opacity(0.6) : 
+                            Color(red: 0.545, green: 0.369, blue: 0.235).opacity(0.2), 
+                            lineWidth: isSelected ? 2 : 1
+                        )
+                )
         )
         .contentShape(Rectangle())
         .onTapGesture {
@@ -816,22 +1284,22 @@ private struct LibraryRowView: View {
     private func deadlineLabel(now: Date) -> String? {
         guard let deadlineAt = resolvedDeadlineAt() else { return nil }
         if data.entry.deadlineStatus == .expired {
-            return "Expired"
+            return "已过期"
         }
         let calendar = Calendar.current
         let startNow = calendar.startOfDay(for: now)
         let startDeadline = calendar.startOfDay(for: deadlineAt)
         let dayDiff = calendar.dateComponents([.day], from: startNow, to: startDeadline).day ?? 0
         if dayDiff < 0 {
-            return "Expired"
+            return "已过期"
         }
         if dayDiff == 0 {
-            return "Due today"
+            return "今天截止"
         }
         if dayDiff == 1 {
-            return "Due tomorrow"
+            return "明天截止"
         }
-        return "Due in \(dayDiff) days"
+        return "\(dayDiff) 天后截止"
     }
 
     private func resolvedDeadlineAt() -> Date? {
@@ -840,6 +1308,20 @@ private struct LibraryRowView: View {
         }
         guard let windowDays = data.template.deadlineWindowDays, windowDays > 0 else { return nil }
         return Calendar.current.date(byAdding: .day, value: windowDays, to: data.entry.addedAt)
+    }
+    
+    private func pixelColor(for templateId: UUID) -> Color {
+        // 像素治愈风格的自然色系
+        let hash = templateId.hashValue
+        let colors: [Color] = [
+            Color(red: 0.306, green: 0.486, blue: 0.196), // 森林绿 #4E7C32
+            Color(red: 0.941, green: 0.502, blue: 0.188), // 活力橘 #F08030
+            Color(red: 0.545, green: 0.369, blue: 0.235), // 木纹棕 #8B5E3C
+            Color(red: 0.2, green: 0.6, blue: 0.8),       // 天蓝色 (学习)
+            Color(red: 0.8, green: 0.4, blue: 0.6),       // 粉紫色 (创作)
+            Color(red: 0.6, green: 0.8, blue: 0.4),       // 草绿色 (家务)
+        ]
+        return colors[abs(hash) % colors.count]
     }
 }
 
@@ -857,50 +1339,116 @@ private struct DurationPickerSheet: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 12) {
-                Text("Duration")
-                    .font(.system(.headline, design: .rounded))
-
-                let presets = [15, 25, 30, 45, 60, 90, 120]
+            VStack(spacing: 16) {
+                // 标题区域
                 VStack(spacing: 8) {
+                    Image(systemName: "clock.fill")
+                        .font(.system(size: 32, weight: .bold))
+                        .foregroundColor(Color(red: 0.941, green: 0.502, blue: 0.188)) // 活力橘
+                    
+                    Text("设置专注时长")
+                        .font(.system(.headline, design: .rounded))
+                        .fontWeight(.bold)
+                        .foregroundColor(Color(red: 0.2, green: 0.133, blue: 0.067))
+                }
+                .padding(.top, 16)
+
+                // 预设时长按钮
+                let presets = [15, 25, 30, 45, 60, 90, 120]
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 3), spacing: 12) {
                     ForEach(presets, id: \.self) { minutes in
-                        Button("\(minutes)m") {
+                        Button("\(minutes) 分钟") {
                             onSelect(minutes)
                             dismiss()
                         }
                         .font(.system(.subheadline, design: .rounded))
+                        .fontWeight(.semibold)
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+                        .background(
+                            RoundedRectangle(cornerRadius: 12)
+                                .fill(Color(red: 0.306, green: 0.486, blue: 0.196)) // 森林绿
+                                .shadow(color: Color(red: 0.306, green: 0.486, blue: 0.196).opacity(0.3), radius: 3, x: 2, y: 2)
+                        )
+                        .buttonStyle(.plain)
                     }
                 }
+                .padding(.horizontal, 16)
 
                 Divider()
+                    .background(Color(red: 0.545, green: 0.369, blue: 0.235).opacity(0.3))
 
-                Picker("Custom", selection: $customMinutes) {
-                    ForEach(1...240, id: \.self) { minutes in
-                        Text("\(minutes)m").tag(minutes)
+                // 自定义时长选择器
+                VStack(spacing: 12) {
+                    Text("自定义时长")
+                        .font(.system(.subheadline, design: .rounded))
+                        .fontWeight(.semibold)
+                        .foregroundColor(Color(red: 0.2, green: 0.133, blue: 0.067))
+                    
+                    Picker("自定义", selection: $customMinutes) {
+                        ForEach(1...240, id: \.self) { minutes in
+                            Text("\(minutes) 分钟").tag(minutes)
+                        }
                     }
+                    .pickerStyle(.wheel)
+                    .frame(height: 140)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(Color.white.opacity(0.8))
+                    )
                 }
-                .pickerStyle(.wheel)
-                .frame(height: 140)
 
-                HStack(spacing: 12) {
-                    Button("Clear") {
+                // 操作按钮
+                HStack(spacing: 16) {
+                    Button("清除") {
                         onSelect(nil)
                         dismiss()
                     }
-                    .foregroundColor(.gray)
+                    .font(.system(.subheadline, design: .rounded))
+                    .fontWeight(.semibold)
+                    .foregroundColor(Color(red: 0.2, green: 0.133, blue: 0.067))
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 12)
+                    .background(
+                        RoundedRectangle(cornerRadius: 16)
+                            .fill(Color.white.opacity(0.8))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 16)
+                                    .stroke(Color(red: 0.545, green: 0.369, blue: 0.235).opacity(0.3), lineWidth: 1)
+                            )
+                    )
 
-                    Button("Set") {
+                    Button("确定") {
                         onSelect(customMinutes)
                         dismiss()
                     }
+                    .font(.system(.subheadline, design: .rounded))
+                    .fontWeight(.bold)
                     .foregroundColor(.white)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
-                    .background(Capsule().fill(Color.cyan.opacity(0.8)))
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 12)
+                    .background(
+                        RoundedRectangle(cornerRadius: 16)
+                            .fill(Color(red: 0.941, green: 0.502, blue: 0.188)) // 活力橘
+                            .shadow(color: Color(red: 0.941, green: 0.502, blue: 0.188).opacity(0.4), radius: 4, x: 2, y: 2)
+                    )
                 }
+                .padding(.horizontal, 16)
+                
+                Spacer()
             }
-            .padding(.vertical, 12)
-            .navigationTitle("Duration")
+            .background(
+                LinearGradient(
+                    gradient: Gradient(colors: [
+                        Color(red: 0.992, green: 0.965, blue: 0.890), // 浅米色
+                        Color(red: 0.306, green: 0.486, blue: 0.196).opacity(0.1) // 淡森林绿
+                    ]),
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            )
+            .navigationTitle("专注时长")
             .navigationBarTitleDisplayMode(.inline)
         }
     }

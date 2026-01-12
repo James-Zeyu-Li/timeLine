@@ -185,6 +185,7 @@ struct TimelineNodeEditActions: View {
             .frame(width: actionButtonWidth, height: cardHeight)
             .background(Color.blue)
         }
+        .accessibilityIdentifier("Edit")
     }
     
     private var duplicateButton: some View {
@@ -204,6 +205,7 @@ struct TimelineNodeEditActions: View {
             .frame(width: actionButtonWidth, height: cardHeight)
             .background(Color.orange)
         }
+        .accessibilityIdentifier("Copy")
     }
     
     private var deleteButton: some View {
@@ -223,6 +225,7 @@ struct TimelineNodeEditActions: View {
             .frame(width: actionButtonWidth, height: cardHeight)
             .background(Color.red)
         }
+        .accessibilityIdentifier("Delete")
     }
 }
 

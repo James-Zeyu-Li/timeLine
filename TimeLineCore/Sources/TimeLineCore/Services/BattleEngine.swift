@@ -307,15 +307,9 @@ public class BattleEngine: ObservableObject {
     public func tick(at time: Date = Date()) {
         guard state == .fighting, let boss = currentBoss, let start = startTime else { return }
         
-        // Passive Task Logic: Time passes but no damage/fail conditions
-        if boss.style == .passive {
-             // For passive tasks, we simply track time elapsed if we want, 
-             // but we do NOT tick down HP or fail on time out in the same strict way.
-             // Actually, "Total Time" usually increases for Passive/Stopwatch style?
-             // But for Timeline consistency, let's keep the MaxHP as the "Allocated Time".
-             // We just won't AUTO-FAIL.
-             return
-        }
+        // Passive/Flexible Task Logic
+        // We track time but don't enforce maxHp limits or auto-fail.
+        // Proceed to calculate time...
         
         // Calculate total time elapsed (The Clock)
         let currentSessionElapsed = time.timeIntervalSince(start)
@@ -341,7 +335,9 @@ public class BattleEngine: ObservableObject {
         // Let's say maxHp is the "Time Limit".
         // So Remaining Time = maxHp - totalElapsed.
         
-        if totalElapsed >= boss.maxHp {
+        // Check for Time Out (Timer > MaxHP) - regardless of HP
+        // Passive tasks (Flexible) do NOT timeout.
+        if boss.style != .passive && totalElapsed >= boss.maxHp {
              // Time Over!
              if newHp <= 0 {
                  // Clean win
@@ -408,9 +404,25 @@ public class BattleEngine: ObservableObject {
         guard let boss = currentBoss else { return }
         
         // Calculate focused time for this session
+        // Calculate focused time for this session
         let focusedThisSession: TimeInterval
         if boss.style == .passive {
-             focusedThisSession = state == .victory ? boss.maxHp : 0
+             // For passive tasks, focused time is the Effective Combat Time so far
+             // Recalculate based on current state (similar to tick)
+             if let start = startTime {
+                 let currentElapsed = Date().timeIntervalSince(start)
+                 let totalElapsed = elapsedBeforeCurrentSession + currentElapsed
+                 // Subtract wasted time
+                 var currentWasted = wastedTime
+                 if let distStart = distractionStartTime {
+                     currentWasted += Date().timeIntervalSince(distStart)
+                 }
+                 focusedThisSession = max(0, totalElapsed - currentWasted)
+             } else {
+                 // Paused or Frozen or Idle
+                 let effective = max(0, elapsedBeforeCurrentSession - wastedTime)
+                 focusedThisSession = effective
+             }
         } else {
              focusedThisSession = max(0, boss.maxHp - boss.currentHp)
         }

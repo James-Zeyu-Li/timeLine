@@ -15,6 +15,7 @@ struct SwipeableTimelineNode: View {
     let onDuplicate: () -> Void
     let onDelete: () -> Void
     let onMove: (Int) -> Void
+    let onDrop: ((DropAction) -> Void)?
     
     @EnvironmentObject var appMode: AppModeManager
     @EnvironmentObject var dragCoordinator: DragDropCoordinator
@@ -77,12 +78,48 @@ struct SwipeableTimelineNode: View {
             .gesture(
                 SimultaneousGesture(
                     gestureCoordinator.swipeGesture,
-                    gestureCoordinator.dragGesture.onEnded { _ in
-                        let moveSteps = gestureCoordinator.calculateMoveSteps(from: dragOffset.height)
-                        if abs(moveSteps) >= 1 {
-                            onMove(moveSteps)
+                    LongPressGesture(minimumDuration: 0.3)
+                        .sequenced(before: DragGesture(coordinateSpace: .global))
+                        .onChanged { value in
+                            switch value {
+                            case .second(true, let drag):
+                                // Long press confirmed, dragging
+                                if let drag = drag {
+                                    if !isDragging {
+                                        isDragging = true
+                                        Haptics.impact(.medium)
+                                        // Start global drag
+                                        let payload = DragPayload(type: .node(node.id), source: .library) // Source doesn't matter for node
+                                        dragCoordinator.startDrag(payload: payload)
+                                    }
+                                    // Update global drag position
+                                    dragCoordinator.updatePosition(
+                                        drag.location,
+                                        nodeFrames: [:], // This will be filled by parent or coordinator should use shared state??
+                                        allowedNodeIds: [] // This logic needs to be valid. Coordinator expects parent to provide frames?
+                                        // Wait, the coordinator.updatePosition needs the frames passed in.
+                                        // SwipeableTimelineNode doesn't have access to all frames.
+                                        // CHANGING STRATEGY: SwipeableTimelineNode just updates dragLocation. 
+                                        // Parent (RogueMapView) must observe dragLocation and call updatePosition.
+                                    )
+                                    // Actually, let's just update the local dragOffset for visual feedback
+                                    dragOffset = drag.translation
+                                    
+                                    // Update coordinator location
+                                    dragCoordinator.dragLocation = drag.location
+                                }
+                            default:
+                                break
+                            }
                         }
-                    }
+                        .onEnded { value in
+                            if isDragging {
+                                isDragging = false
+                                dragOffset = .zero
+                                let action = dragCoordinator.drop()
+                                onDrop?(action)
+                            }
+                        }
                 )
             )
         }

@@ -1,7 +1,7 @@
 # Current Project State: TimeLineApp
 
-> **Last Updated**: 2026-01-05 (Core 结构整理 + Focus List 表格化)  
-> **Status**: V1 Core Complete + UI Semantics Expanded
+> **Last Updated**: 2026-01-11
+> **Status**: V1 Core Complete + Transitioning to V2 Pixel Healing UI
 
 ---
 
@@ -25,9 +25,10 @@ A roguelike-inspired iOS focus app built with SwiftUI.
 - **Timeline engine**: `DaySession` manages nodes, progression, and lock states; `BattleEngine` handles focus timing and outcomes.
 - **Template semantics**: `CardTemplate` + `DeckTemplate` are reusable; timeline placement creates occurrences (templates never consumed). `CardTemplate` carries taskMode/repeatRule/fixedTime/remindAt/leadTime/deadlineWindowDays. Inbox stores CardTemplate IDs in `AppState.inbox` with templates persisted in `AppState.cardTemplates`.
 - **Write path**: placement uses `TimelineStore.placeCardOccurrence / placeDeckBatch / placeFocusGroupOccurrence` (Inbox/QuickEntry create CardTemplate then place).
-- **Task behavior**: `.battle` vs `.reminder`（remindAt / legacy passive / reminderOnly 都映射为 reminder）。Reminder 不进入 BattleView。
+- **Task behavior**: `.battle` (Focus/Strict/Flexible) vs `.reminder`. Flexible Tasks (`.passive` style) now behave as open-ended stopwatch battles.
+- **Insert Logic**: "Add to Timeline" prioritizes "Insert at Front" (Next Up) over deadline-based backlog placement.
 - **App mode**: `AppModeManager` enforces overlay/drag/edit exclusivity.
-- **Drag system**: `DragDropCoordinator` handles global coords + hover targeting; drop targets are upcoming (non-completed) nodes.
+- **Drag system**: Global "Lift and Drop" reordering fully implemented via `DragDropCoordinator` and Long-Press gesture.
 - **Persistence + events**: `AppStateManager` saves; `TimelineEventCoordinator` advances on battle end.
 - **Exit rules**: Retreat offers Undo Start ≤60s (no record). Otherwise End & Record → incompleteExit. FocusGroupFlexible uses “End Exploring” and emits completedExploration (no Undo Start).
 - **Freeze tokens**: 3/day; Freeze suspends battle and returns to map, resume continues same task; logs duration.
@@ -132,7 +133,10 @@ A roguelike-inspired iOS focus app built with SwiftUI.
 - Reminder Only（remindAt + Banner + 时间线倒计时 + Focus 内倒计时）
 - Map 主流程（地图交互、拖拽放置、节点高亮、Swipe Actions）
 - Dual Entry Architecture (Strict Sheet + Todo Sheet)
-- Todo/Backlog List (Library 合并 Quick Add)
+- Todo/Backlog List (Library 合并 Quick Add, Save to Library)
+- Time-based Insertion (TodoSheet 按时间自动插入)
+- Enhanced Time Options (Next 3 Days, 智能相对时间)
+- Journey Summary (Roguelike 风格, Total Damage, 成就系统)
 
 ---
 

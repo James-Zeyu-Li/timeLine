@@ -17,6 +17,7 @@ struct RogueMapView: View {
     
     @State private var showStats = false
     @State private var nodeAnchors: [UUID: CGFloat] = [:]
+    @State private var nodeFrames: [UUID: CGRect] = [:]
     @State private var viewportHeight: CGFloat = 0
     @State private var showNodeEdit = false
     @State private var editingNodeTemplate: CardTemplate?
@@ -96,6 +97,16 @@ struct RogueMapView: View {
             .onPreferenceChange(MapNodeAnchorKey.self) { value in
                 nodeAnchors = value
             }
+            .onPreferenceChange(NodeFrameKey.self) { value in
+                nodeFrames = value
+            }
+            .onChange(of: dragCoordinator.dragLocation) { _, newValue in
+                guard dragCoordinator.activePayload != nil else { return }
+                var allowedIds = Set(daySession.nodes.map(\.id))
+                // Can filter allowedIds if needed (e.g. only unlock nodes?)
+                // For now allow reordering any node
+                dragCoordinator.updatePosition(newValue, nodeFrames: nodeFrames, allowedNodeIds: allowedIds)
+            }
             .simultaneousGesture(
                 DragGesture(minimumDistance: 10)
                     .onEnded { _ in
@@ -161,7 +172,8 @@ struct RogueMapView: View {
                     onEdit: { handleEdit(on: node) },
                     onDuplicate: { handleDuplicate(on: node) },
                     onDelete: { handleDelete(on: node) },
-                    onMove: { direction in handleMove(node: node, direction: direction) }
+                    onMove: { direction in handleMove(node: node, direction: direction) },
+                    onDrop: { action in handleDrop(action: action) }
                 )
                 .id(node.id)
             }
@@ -300,6 +312,37 @@ struct RogueMapView: View {
         let destinationIndex = newIndex > currentIndex ? newIndex + 1 : newIndex
         
         viewModel.moveNode(from: sourceIndexSet, to: destinationIndex)
+    }
+    
+    private func handleDrop(action: DropAction) {
+        switch action {
+        case .moveNode(let nodeId, let anchorId, let placement):
+            guard let currentIndex = daySession.nodes.firstIndex(where: { $0.id == nodeId }),
+                  let anchorIndex = daySession.nodes.firstIndex(where: { $0.id == anchorId }) else { return }
+            
+            let destinationIndex: Int
+            if placement == .before {
+                destinationIndex = anchorIndex
+            } else {
+                destinationIndex = anchorIndex + 1
+            }
+            
+            // Adjust destination index if moving downwards (source < destination)
+            // The standard move logic handles this, but let's be precise.
+            // viewModel.moveNode uses the standard SwiftUI move logic where destination is insertion point.
+            
+            let sourceIndexSet = IndexSet(integer: currentIndex)
+            viewModel.moveNode(from: sourceIndexSet, to: destinationIndex)
+            
+            Haptics.impact(.medium)
+            
+        case .placeCard(let cardTemplateId, let anchorNodeId, let placement):
+            // Existing logic or delegate to viewModel
+            Haptics.impact(.light)
+            // Implement if needed for card drop
+        default:
+            break
+        }
     }
     
     private func timeInfo(for node: TimelineNode) -> MapTimeInfo? {

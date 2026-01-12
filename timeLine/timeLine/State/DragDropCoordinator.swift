@@ -8,6 +8,7 @@ enum DropAction: Equatable {
     case placeCard(cardTemplateId: UUID, anchorNodeId: UUID, placement: DropPlacement)
     case placeDeck(deckId: UUID, anchorNodeId: UUID, placement: DropPlacement)
     case placeFocusGroup(memberTemplateIds: [UUID], anchorNodeId: UUID, placement: DropPlacement)
+    case moveNode(nodeId: UUID, anchorNodeId: UUID, placement: DropPlacement)
     case cancel
 }
 
@@ -109,6 +110,8 @@ final class DragDropCoordinator: ObservableObject {
             return .placeDeck(deckId: deckId, anchorNodeId: nodeId, placement: hoveringPlacement)
         case .focusGroup(let memberTemplateIds):
             return .placeFocusGroup(memberTemplateIds: memberTemplateIds, anchorNodeId: nodeId, placement: hoveringPlacement)
+        case .node(let nodeId):
+            return .moveNode(nodeId: nodeId, anchorNodeId: nodeId, placement: hoveringPlacement)
         }
     }
     
