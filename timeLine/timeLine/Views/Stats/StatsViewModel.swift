@@ -3,6 +3,11 @@ import Combine
 import TimeLineCore
 
 public class StatsViewModel: ObservableObject {
+    // MARK: - All Time Stats
+    @Published public var totalFocusedAllTime: TimeInterval = 0
+    @Published public var totalSessionsAllTime: Int = 0
+    
+    // MARK: - Existing Stats
     @Published public var heatmapData: [Date: Int] = [:] // Date (normalized) -> Level (0-4)
     @Published public var weeklyFocusedText: String = "0m"
     @Published public var weeklyWastedText: String = "0m"
@@ -11,7 +16,7 @@ public class StatsViewModel: ObservableObject {
     @Published public var weekStart: Date = Calendar.current.startOfDay(for: Date())
     @Published public var weekEnd: Date = Calendar.current.startOfDay(for: Date())
     
-    // Grid Configuration
+    // MARK: - Grid Configuration
     public let daysInGrid = 365
     public var gridDates: [Date] = []
     
@@ -30,16 +35,8 @@ public class StatsViewModel: ObservableObject {
     }
     
     private func generateGridDates() {
-        // Generate last 365 days ending today
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: Date())
-        
-        // We want a grid that ends on Today? Or 52 weeks?
-        // GitHub style: Rows=7 (Sun-Sat), Cols=52.
-        // Let's simplified: Just a flat list of dates reversed or forward?
-        // Usually visualised as Columns (Weeks). 
-        // We will generate dates, the View will lay them out.
-        // Let's generate from (Today - 364 days) to Today.
         
         var dates: [Date] = []
         for i in 0..<daysInGrid {
@@ -53,6 +50,11 @@ public class StatsViewModel: ObservableObject {
     public func processHistory(_ history: [DailyFunctionality], weekStartOverride: Date? = nil) {
         cachedHistory = history
         self.weekStartOverride = weekStartOverride
+        
+        // 0. All-Time Stats
+        totalFocusedAllTime = history.reduce(0) { $0 + $1.totalFocusedTime }
+        totalSessionsAllTime = history.reduce(0) { $0 + $1.sessionsCount }
+        
         // 1. Buckets for Heatmap
         var map: [Date: Int] = [:]
         for day in history {
@@ -66,6 +68,7 @@ public class StatsViewModel: ObservableObject {
         let calendar = calendarWithMondayStart()
         let referenceDate = weekStartOverride ?? Date()
         let today = calendar.startOfDay(for: referenceDate)
+        
         if let interval = calendar.dateInterval(of: .weekOfYear, for: today) {
             weekStart = interval.start
             weekEnd = calendar.date(byAdding: .day, value: 6, to: interval.start) ?? interval.start

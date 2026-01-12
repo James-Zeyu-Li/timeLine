@@ -68,23 +68,20 @@ struct CardFanView: View {
                 showQuickBuilder = true
             } label: {
                 HStack(spacing: 6) {
-                    Image(systemName: "plus")
+                    Image(systemName: "hammer.fill")
                         .font(.system(size: 12, weight: .bold))
-                    Text("Add Card")
+                    Text("Craft New Spellbook")
                         .font(.system(.caption, design: .rounded))
-                        .fontWeight(.semibold)
+                        .fontWeight(.bold)
                 }
-                .foregroundColor(.cyan)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
+                .foregroundColor(.white)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
                 .background(
                     Capsule()
-                        .fill(Color.cyan.opacity(0.15))
-                        .overlay(
-                            Capsule()
-                                .stroke(Color.cyan.opacity(0.3), lineWidth: 1)
-                        )
+                        .fill(PixelTheme.primary)
                 )
+                .shadow(color: PixelTheme.primary.opacity(0.4), radius: 4, x: 0, y: 2)
             }
             .accessibilityIdentifier("addCardButton")
             .buttonStyle(.plain)
@@ -101,17 +98,9 @@ struct CardFanView: View {
             }
             .font(.system(.caption, design: .rounded))
             .fontWeight(.semibold)
-            .foregroundColor(isSelecting ? .white : .cyan)
+            .foregroundColor(PixelTheme.textSecondary)
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
-            .background(
-                Capsule()
-                    .fill(isSelecting ? Color.white.opacity(0.15) : Color.cyan.opacity(0.15))
-                    .overlay(
-                        Capsule()
-                            .stroke(isSelecting ? Color.white.opacity(0.2) : Color.cyan.opacity(0.3), lineWidth: 1)
-                    )
-            )
         }
         .padding(.horizontal, 24)
     }
@@ -123,24 +112,21 @@ struct CardFanView: View {
             HStack(spacing: 8) {
                 Image(systemName: "tray.and.arrow.down")
                     .font(.system(size: 12, weight: .bold))
-                Text("Save to Backlog")
+                Text("Add to Backpack")
                     .font(.system(.caption, design: .rounded))
-                    .fontWeight(.semibold)
+                    .fontWeight(.bold)
             }
-            .foregroundColor(selectedIds.isEmpty ? .gray : .cyan)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
+            .foregroundColor(.white)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 12)
             .background(
                 Capsule()
-                    .fill(selectedIds.isEmpty ? Color.white.opacity(0.08) : Color.cyan.opacity(0.15))
-                    .overlay(
-                        Capsule()
-                            .stroke(Color.cyan.opacity(selectedIds.isEmpty ? 0.15 : 0.3), lineWidth: 1)
-                    )
+                    .fill(selectedIds.isEmpty ? Color.gray.opacity(0.3) : PixelTheme.primary)
             )
         }
         .buttonStyle(.plain)
         .disabled(selectedIds.isEmpty)
+        .padding(.horizontal, 24)
         .padding(.bottom, 8)
     }
     
@@ -165,66 +151,92 @@ struct CardFanView: View {
     // MARK: - Fan Layout
     
     private func fanOffset(index: Int, total: Int) -> CGSize {
+        // Vertical stack layout for backpack view? Or Grid?
+        // Reference image shows a grid or list.
+        // But CardFanView implies a fan. Ideally we switch to Grid for "Backpack" feel.
+        // For now, let's keep fan to minimize logic refactor, but tighten it.
         guard total > 1 else { return .zero }
         let centerIndex = Double(total - 1) / 2.0
         let offset = Double(index) - centerIndex
-        return CGSize(width: offset * 60, height: abs(offset) * 10)
+        return CGSize(width: offset * 40, height: abs(offset) * 8)
     }
     
     private func fanRotation(index: Int, total: Int) -> Angle {
         guard total > 1 else { return .zero }
         let centerIndex = Double(total - 1) / 2.0
         let offset = Double(index) - centerIndex
-        return .degrees(offset * 5)
+        return .degrees(offset * 3) // Less rotation
     }
     
     // MARK: - Gestures
 }
 
-// MARK: - Card View
+// MARK: - Card View (Scroll/Spellbook Style)
 
 struct CardView: View {
     let template: CardTemplate
     
     var body: some View {
-        VStack(spacing: 8) {
-            // Icon
-            Image(systemName: template.icon)
-                .font(.system(size: 24, weight: .bold))
-                .foregroundColor(.white)
+        HStack(spacing: 12) {
+            // Icon Box
+            ZStack {
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(cardColor.opacity(0.15))
+                    .frame(width: 48, height: 48)
+                Image(systemName: template.icon)
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundColor(cardColor)
+            }
             
-            // Title
-            Text(template.title)
-                .font(.system(.caption, design: .rounded))
-                .fontWeight(.semibold)
-                .foregroundColor(.white)
-                .lineLimit(2)
-                .multilineTextAlignment(.center)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(template.title)
+                    .font(.system(.subheadline, design: .rounded))
+                    .fontWeight(.bold)
+                    .foregroundColor(PixelTheme.textPrimary)
+                    .lineLimit(1)
+                
+                HStack(spacing: 6) {
+                    // Time Chip
+                    HStack(spacing: 2) {
+                        Image(systemName: "clock")
+                            .font(.system(size: 8))
+                        Text(formatDuration(template.defaultDuration))
+                            .font(.system(size: 10, weight: .medium))
+                    }
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Color.secondary.opacity(0.1))
+                    .cornerRadius(4)
+                    .foregroundColor(PixelTheme.textSecondary)
+                    
+                    // Spells Chip (dummy data for visual match)
+                    HStack(spacing: 2) {
+                        Image(systemName: "diamond.fill")
+                            .font(.system(size: 8))
+                        Text("1 spell")
+                            .font(.system(size: 10, weight: .medium))
+                    }
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Color.secondary.opacity(0.1))
+                    .cornerRadius(4)
+                    .foregroundColor(PixelTheme.textSecondary)
+                }
+            }
             
-            // Duration
-            Text(formatDuration(template.defaultDuration))
-                .font(.system(.caption2, design: .monospaced))
-                .foregroundColor(.white.opacity(0.7))
+            Spacer()
         }
         .padding(12)
-        .frame(width: 100, height: 140)
-        .background(cardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(Color.white.opacity(0.2), lineWidth: 1)
-        )
-        .shadow(color: .black.opacity(0.3), radius: 8, x: 0, y: 4)
+        .frame(width: 240, height: 80) // Horizontal card format
+        .background(Color.white)
+        .cornerRadius(16)
+        .shadow(color: Color.black.opacity(0.08), radius: 8, x: 0, y: 4)
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier(cardAccessibilityId)
     }
     
-    private var cardBackground: some View {
-        LinearGradient(
-            colors: [Color.purple.opacity(0.8), Color.purple.opacity(0.5)],
-            startPoint: .topLeading,
-            endPoint: .bottomTrailing
-        )
+    private var cardColor: Color {
+        template.category.color
     }
     
     private var cardAccessibilityId: String {
@@ -234,7 +246,7 @@ struct CardView: View {
     
     private func formatDuration(_ seconds: TimeInterval) -> String {
         let minutes = Int(seconds / 60)
-        return "\(minutes) min"
+        return "\(minutes)m"
     }
 }
 

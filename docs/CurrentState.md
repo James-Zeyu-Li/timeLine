@@ -1,7 +1,7 @@
 # Current Project State: TimeLineApp
 
 > **Last Updated**: 2026-01-11
-> **Status**: V1 Core Complete + Transitioning to V2 Pixel Healing UI
+> **Status**: V1 Core Complete + V2 Pixel Healing UI (Phases 16.1-16.4 Complete)
 
 ---
 
@@ -94,24 +94,22 @@ A roguelike-inspired iOS focus app built with SwiftUI.
 - **Reminder Core**: `ReminderScheduler` + countdown formatter
 
 ### UI
-- **RogueMapView**: pinned header, event banners, pulse effects, node snapping
-- **DeckOverlay**: Cards / Library / Decks tabs in a bottom sheet
-- **Library tab**: long-press drag to map; Select mode enables Add to Group and a draggable group token (drop to insert; quick append still places at end); deadlineWindowDays buckets + Expired 折叠区
-- **CardFanView**: tap to add to Library; long-press edit
-- **QuickBuilderSheet**: Add Card button opens quick template creator (no direct timeline writes)
-- **Deck Edit**: long-press deck → rename + reorder + add/remove cards
-- **Routine Decks**: Decks tab top strip + See All picker
-- **Drag Layer**: floating card/deck follows global drag location
-- **Deck Ghost + Undo**: hover shows insert summary; drop creates batch + undo toast
-- **Empty Map Drop**: drag-to-drop auto-creates first node
-- **Floating Controls**: Add + Settings buttons + floating message
-- **Inbox Section**: tomorrow tasks stored outside today
-- **Labels**: FIRST / NEXT / STARTED status tags
-- **Recommended Time**: RECOMMENDED label from `Boss.recommendedStart`
-- **Settings**: 24h/12h time toggle
-- **PixelTheme**: unified palette, grid scale, borders, shadows
-- **Terrain Tiles**: forest/plains/cave/campfire tiles behind nodes
-- **Reminder UX**: timeline countdown + in-focus countdown + banner → detail jump
+- **RogueMapView**: **Vertical Dashed Line** timeline; **Card Nodes** (White/Rounded) aligned to icons.
+- **DeckOverlay**: "Backpack" aesthetic with horizontal spellbook cards.
+- **Library tab**: merged into TodoSheet (as Backlog).
+- **CardFanView**: Cards styled as **Spellbooks/Scrolls** (Horizontal/White); Orange/Cream theme.
+- **TodoSheet**: Notice Board merged with Map aesthetics.
+- **QuickBuilderSheet**: Fast template creator.
+- **Deck Edit**: Long-press deck to edit.
+- **Routine Decks**: Decks tab with specialized "Routine" section.
+- **Drag Layer**: Floating card/deck follows global drag.
+- **Deck Ghost**: Hover previews insert.
+- **Empty Map Drop**: Drop to create first node.
+- **Labels**: IN PROGRESS / NEXT UP chips.
+- **Settings**: 24h/12h toggle.
+- **PixelTheme**: **V2.5 Modern RPG Palette** (Cream `#F9F5EC`, Orange `#F5A623`, White Cards); Clean rounded typography.
+- **Terrain Tiles**: Replaced by dashed line.
+- **Reminder UX**: Countdown on nodes + In-focus countdown banner.
 
 ### Event System
 - **TimelineEventCoordinator**: unified advancement + bonfire suggestion

@@ -60,7 +60,7 @@ struct DeckOverlay: View {
     private var sheetContent: some View {
         VStack(spacing: 0) {
             Capsule()
-                .fill(Color.white.opacity(0.2))
+                .fill(Color(red: 0.545, green: 0.369, blue: 0.235).opacity(0.3)) // 木纹棕
                 .frame(width: 36, height: 4)
                 .padding(.top, 8)
                 .padding(.bottom, 10)
@@ -69,7 +69,7 @@ struct DeckOverlay: View {
             if !isDimmed {
                 Text(tipText)
                     .font(.system(.caption, design: .rounded))
-                    .foregroundColor(.white.opacity(0.6))
+                    .foregroundColor(Color(red: 0.6, green: 0.5, blue: 0.4)) // 温暖棕色
                     .padding(.bottom, 10)
             }
             
@@ -96,7 +96,16 @@ struct DeckOverlay: View {
 
     private var sheetBackground: some View {
         RoundedRectangle(cornerRadius: 24, style: .continuous)
-            .fill(Color.black.opacity(0.85))
+            .fill(
+                LinearGradient(
+                    gradient: Gradient(colors: [
+                        Color(red: 0.992, green: 0.965, blue: 0.890), // 浅米色 #FDF6E3
+                        Color(red: 0.545, green: 0.369, blue: 0.235).opacity(0.1) // 淡木纹棕
+                    ]),
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            )
     }
 
     private var sheetBorder: some View {
@@ -133,12 +142,12 @@ struct DeckOverlay: View {
                     Text(tabTitle(t))
                         .font(.system(.subheadline, design: .rounded))
                         .fontWeight(activeTab == t ? .bold : .medium)
-                        .foregroundColor(activeTab == t ? .white : .gray)
+                        .foregroundColor(activeTab == t ? Color(red: 0.2, green: 0.133, blue: 0.067) : Color(red: 0.6, green: 0.5, blue: 0.4)) // 深棕黑 vs 温暖棕
                         .padding(.horizontal, 16)
                         .padding(.vertical, 8)
                         .background(
                             Capsule()
-                                .fill(activeTab == t ? Color.white.opacity(0.15) : Color.clear)
+                                .fill(activeTab == t ? Color(red: 1.0, green: 0.6, blue: 0.2).opacity(0.2) : Color.clear) // 活力橘背景
                         )
                 }
             }

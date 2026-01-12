@@ -8,20 +8,20 @@ struct TimelineNodeDragHandle: View {
     let isDragging: Bool
     
     var body: some View {
-        VStack(spacing: 2) {
+        VStack(spacing: 3) {
             ForEach(0..<3, id: \.self) { _ in
                 RoundedRectangle(cornerRadius: 1)
-                    .fill(PixelTheme.textSecondary.opacity(isDragging ? 0.8 : 0.4))
-                    .frame(width: 12, height: 2)
+                    .fill(PixelTheme.textSecondary.opacity(isDragging ? 0.8 : 0.3))
+                    .frame(width: 14, height: 2)
             }
         }
-        .padding(.trailing, 4)
+        .padding(.trailing, 8)
         .scaleEffect(isDragging ? 1.1 : 1.0)
         .animation(.spring(response: 0.2), value: isDragging)
     }
 }
 
-/// Icon badge component for timeline nodes
+/// Icon badge component (Clean Circle Style)
 struct TimelineNodeIconBadge: View {
     let node: TimelineNode
     let isCurrent: Bool
@@ -31,33 +31,28 @@ struct TimelineNodeIconBadge: View {
         let (icon, color) = iconAndColor
         
         return ZStack {
-            RoundedRectangle(cornerRadius: PixelTheme.cornerSmall)
-                .fill(color.opacity(0.25))
-                .frame(width: 38, height: 38)
-                .overlay(
-                    RoundedRectangle(cornerRadius: PixelTheme.cornerSmall)
-                        .stroke(color.opacity(0.6), lineWidth: PixelTheme.strokeThin)
-                )
+            Circle()
+                .fill(color.opacity(0.15))
+                .frame(width: 40, height: 40)
+                
             Image(systemName: icon)
-                .font(.system(size: 16, weight: .bold))
+                .font(.system(size: 18, weight: .semibold))
                 .foregroundColor(color)
         }
         .overlay(
-            RoundedRectangle(cornerRadius: PixelTheme.cornerMedium)
-                .stroke(isPulsing ? PixelTheme.accent : Color.clear, lineWidth: PixelTheme.strokeBold)
-                .scaleEffect(isPulsing ? 1.35 : 1)
-                .opacity(isPulsing ? 0.7 : 0)
+            Circle()
+                .stroke(isPulsing ? PixelTheme.primary : Color.clear, lineWidth: 2)
+                .scaleEffect(isPulsing ? 1.2 : 1)
+                .opacity(isPulsing ? 0.6 : 0)
         )
-        .shadow(color: isCurrent ? color.opacity(0.6) : .clear, radius: 10, x: 0, y: 0)
     }
     
     private var iconAndColor: (String, Color) {
         switch node.type {
         case .battle(let boss):
-            let icon = boss.style == .focus ? "bolt.fill" : "checkmark.circle.fill"
-            return (icon, boss.category.color)
+            return (boss.category.icon, boss.category.color)
         case .bonfire:
-            return ("flame.fill", .orange)
+            return ("flame.fill", PixelTheme.primary)
         case .treasure:
             return ("star.fill", .yellow)
         }
@@ -70,21 +65,37 @@ struct TimelineNodeTimeInfo: View {
     
     var body: some View {
         HStack(spacing: 6) {
-            if let absolute = timeInfo.absolute {
-                Text(absolute)
-                    .font(.system(.caption2, design: .monospaced))
-                    .foregroundColor(PixelTheme.accent)
-            }
-            if let relative = timeInfo.relative {
-                Text(relative)
-                    .font(.system(.caption2, design: .rounded))
-                    .foregroundColor(PixelTheme.textSecondary)
-            }
             if timeInfo.isRecommended {
                 Text("RECOMMENDED")
-                    .font(.system(size: 8, weight: .bold))
-                    .tracking(0.6)
-                    .foregroundColor(PixelTheme.accent)
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundColor(PixelTheme.primary)
+                    .padding(.horizontal, 4)
+                    .padding(.vertical, 2)
+                    .background(PixelTheme.primary.opacity(0.1))
+                    .cornerRadius(4)
+            }
+            
+            if let relative = timeInfo.relative {
+                HStack(spacing: 4) {
+                    if relative.contains("min") {
+                        Image(systemName: "timer")
+                            .font(.system(size: 10))
+                    }
+                    Text(relative)
+                        .font(.system(.caption2, design: .rounded))
+                        .fontWeight(.medium)
+                }
+                .foregroundColor(PixelTheme.textSecondary)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
+                .background(Color.secondary.opacity(0.05))
+                .cornerRadius(12)
+            }
+            
+            if let absolute = timeInfo.absolute {
+                Text(absolute)
+                    .font(.system(.caption2, design: .rounded))
+                    .foregroundColor(PixelTheme.textSecondary.opacity(0.7))
             }
         }
     }
@@ -107,30 +118,37 @@ struct TimelineNodeStatusBadge: View {
         }
     }
     
-    private var statusBadge: (text: String, color: Color)? {
+    private var statusBadge: (text: String?, color: Color)? {
         if isCurrent {
-            return ("STARTED", .cyan)
+            return ("IN PROGRESS", PixelTheme.primary)
         }
         if isNext {
-            return ("NEXT", .green)
+            return ("NEXT UP", PixelTheme.success)
         }
         if node.isCompleted {
-            return ("DONE", .gray)
+            return (nil, PixelTheme.textSecondary) // Use tick icon instead
         }
         if node.isLocked {
-            return ("LOCKED", .orange)
+            return ("LOCKED", PixelTheme.textSecondary.opacity(0.5))
         }
         return nil
     }
     
-    private func statusBadgeView(_ badge: (text: String, color: Color)) -> some View {
-        Text(badge.text)
-            .font(.system(size: 9, weight: .bold))
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(badge.color.opacity(0.2))
-            .foregroundColor(badge.color)
-            .cornerRadius(PixelTheme.cornerSmall)
+    @ViewBuilder
+    private func statusBadgeView(_ badge: (text: String?, color: Color)) -> some View {
+        if let text = badge.text {
+            Text(text)
+                .font(.system(size: 9, weight: .bold))
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(badge.color.opacity(0.1))
+                .foregroundColor(badge.color)
+                .cornerRadius(4)
+        } else {
+            // Completed tick
+            Image(systemName: "checkmark.circle.fill")
+                .foregroundColor(PixelTheme.success)
+        }
     }
     
     private var finalBadgeView: some View {
@@ -138,9 +156,9 @@ struct TimelineNodeStatusBadge: View {
             .font(.system(size: 9, weight: .bold))
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
-            .background(Color.purple.opacity(0.2))
-            .foregroundColor(.purple)
-            .cornerRadius(PixelTheme.cornerSmall)
+            .background(PixelTheme.warning.opacity(0.1))
+            .foregroundColor(PixelTheme.warning)
+            .cornerRadius(4)
     }
 }
 
@@ -165,91 +183,74 @@ struct TimelineNodeEditActions: View {
                 deleteButton
             }
             .offset(x: alignment == .left ? cardOffsetX : -cardOffsetX)
+            .clipShape(RoundedRectangle(cornerRadius: 12)) 
         }
     }
     
     private var editButton: some View {
         Button(action: {
-            withAnimation(.spring(response: 0.3)) {
-                onHide()
-            }
+            withAnimation(.spring(response: 0.3)) { onHide() }
             onEdit()
         }) {
             VStack(spacing: 4) {
                 Image(systemName: "pencil")
-                    .font(.system(size: 16, weight: .semibold))
-                Text("Edit")
-                    .font(.system(size: 10, weight: .medium))
+                Text("Edit").font(.system(size: 10))
             }
             .foregroundColor(.white)
             .frame(width: actionButtonWidth, height: cardHeight)
-            .background(Color.blue)
+            .background(PixelTheme.secondary)
         }
-        .accessibilityIdentifier("Edit")
     }
     
     private var duplicateButton: some View {
         Button(action: {
-            withAnimation(.spring(response: 0.3)) {
-                onHide()
-            }
+            withAnimation(.spring(response: 0.3)) { onHide() }
             onDuplicate()
         }) {
             VStack(spacing: 4) {
                 Image(systemName: "doc.on.doc")
-                    .font(.system(size: 16, weight: .semibold))
-                Text("Copy")
-                    .font(.system(size: 10, weight: .medium))
+                Text("Copy").font(.system(size: 10))
             }
             .foregroundColor(.white)
             .frame(width: actionButtonWidth, height: cardHeight)
-            .background(Color.orange)
+            .background(PixelTheme.secondary.opacity(0.7))
         }
-        .accessibilityIdentifier("Copy")
     }
     
     private var deleteButton: some View {
         Button(action: {
-            withAnimation(.spring(response: 0.3)) {
-                onHide()
-            }
+            withAnimation(.spring(response: 0.3)) { onHide() }
             onDelete()
         }) {
             VStack(spacing: 4) {
                 Image(systemName: "trash")
-                    .font(.system(size: 16, weight: .semibold))
-                Text("Delete")
-                    .font(.system(size: 10, weight: .medium))
+                Text("Delete").font(.system(size: 10))
             }
             .foregroundColor(.white)
             .frame(width: actionButtonWidth, height: cardHeight)
-            .background(Color.red)
+            .background(PixelTheme.warning)
         }
-        .accessibilityIdentifier("Delete")
     }
 }
 
-/// Card styling components
+/// Card styling components (Clean Card Style)
 struct TimelineNodeCardStyling {
     static func background(isCurrent: Bool) -> some View {
-        RoundedRectangle(cornerRadius: PixelTheme.cornerLarge)
-            .fill(
-                LinearGradient(
-                    colors: [PixelTheme.cardTop, PixelTheme.cardBottom],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
+        RoundedRectangle(cornerRadius: 16)
+            .fill(Color.white)
+            .shadow(
+                color: isCurrent ? PixelTheme.primary.opacity(0.2) : Color.black.opacity(0.04),
+                radius: isCurrent ? 12 : 6,
+                x: 0,
+                y: isCurrent ? 4 : 2
             )
     }
     
     static func border(isCurrent: Bool) -> some View {
-        RoundedRectangle(cornerRadius: PixelTheme.cornerLarge)
-            .stroke(isCurrent ? PixelTheme.cardGlow : PixelTheme.cardBorder, lineWidth: isCurrent ? PixelTheme.strokeBold : PixelTheme.strokeThin)
-            .shadow(
-                color: isCurrent ? PixelTheme.cardGlow.opacity(0.6) : .clear,
-                radius: PixelTheme.shadowRadius,
-                x: PixelTheme.shadowOffset.width,
-                y: PixelTheme.shadowOffset.height
+        RoundedRectangle(cornerRadius: 16)
+            .stroke(
+                isCurrent ? PixelTheme.primary : Color.black.opacity(0.03),
+                lineWidth: isCurrent ? 2 : 1
             )
     }
 }
@@ -404,7 +405,7 @@ struct TimelineNodeMainContent: View {
                     Text(titleText)
                         .font(.system(.subheadline, design: .rounded))
                         .fontWeight(.bold)
-                        .foregroundColor(PixelTheme.textPrimary)
+                        .foregroundColor(PixelTheme.textInverted)
                         .lineLimit(1)
                     
                     if let timeInfo {

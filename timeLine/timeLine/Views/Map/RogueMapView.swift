@@ -22,6 +22,7 @@ struct RogueMapView: View {
     @State private var showNodeEdit = false
     @State private var editingNodeTemplate: CardTemplate?
     @State private var editingNodeId: UUID?
+    @State private var selectedNodeId: UUID?
     
     private let bottomFocusPadding: CGFloat = 140
     private let bottomSheetInset: CGFloat = 96
@@ -31,11 +32,21 @@ struct RogueMapView: View {
     var body: some View {
         GeometryReader { proxy in
             ZStack {
-                // Background: Map content
-                mapContent(proxy: proxy)
+                // Background
+                Color(red: 0.95, green: 0.94, blue: 0.92)
+                    .ignoresSafeArea()
+                
+                // Main timeline view
+                VStack(spacing: 0) {
+                    // Header
+                    timelineHeader
+                    
+                    // Timeline scroll view
+                    timelineScrollView
+                }
             }
             .sheet(isPresented: $showStats) {
-                StatsView()
+                AdventurerLogView()
             }
             .sheet(isPresented: $showNodeEdit) {
                 TaskSheet(
@@ -55,131 +66,107 @@ struct RogueMapView: View {
         }
     }
     
-    // MARK: - Map Content
-    @ViewBuilder
-    private func mapContent(proxy: GeometryProxy) -> some View {
-        ScrollViewReader { scrollProxy in
-            ScrollView(.vertical, showsIndicators: false) {
-                VStack(spacing: 24) {
-                    mapTrack
-                    
-                    let inboxTemplates = stateManager.inbox.compactMap { cardStore.get(id: $0) }
-                    if !inboxTemplates.isEmpty {
-                        InboxListView(
-                            items: inboxTemplates,
-                            onAdd: { item in viewModel.addInboxItem(item) },
-                            onRemove: { item in viewModel.removeInboxItem(item.id) }
-                        )
-                        .padding(.horizontal, MapLayout.horizontalInset)
-                        .padding(.vertical, 16)
-                    }
-                }
-                .padding(.top, 16)
-                // Reserve space for collapsed bottom sheet
-                .padding(.bottom, bottomSheetInset)
-            }
-            .coordinateSpace(name: "mapScroll")
-            .safeAreaInset(edge: .top) {
-                HeaderView(
-                    focusedMinutes: Int(engine.totalFocusedToday / 60),
-                    progress: daySession.completionProgress,
-                    onDayTap: { showStats = true }
-                )
-            }
-            .background(PixelMapBackground())
-            .overlay(alignment: .top) {
-                if let banner = viewModel.banner {
-                    InfoBanner(data: banner)
-                        .padding(.top, 6)
+    // MARK: - Timeline Header
+    
+    private var timelineHeader: some View {
+        VStack(spacing: 0) {
+            // Chapter header
+            HStack {
+                Image(systemName: "book.fill")
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundColor(Color(red: 0.6, green: 0.5, blue: 0.4))
+                Text("CHAPTER \(currentChapter)")
+                    .font(.system(.caption, design: .rounded))
+                    .fontWeight(.bold)
+                    .foregroundColor(Color(red: 0.6, green: 0.5, blue: 0.4))
+                Spacer()
+                Button(action: { showStats = true }) {
+                    Image(systemName: "gearshape.fill")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundColor(Color(red: 0.6, green: 0.5, blue: 0.4))
                 }
             }
-            .animation(.spring(response: 0.3, dampingFraction: 0.9), value: viewModel.banner)
-            .onPreferenceChange(MapNodeAnchorKey.self) { value in
-                nodeAnchors = value
-            }
-            .onPreferenceChange(NodeFrameKey.self) { value in
-                nodeFrames = value
-            }
-            .onChange(of: dragCoordinator.dragLocation) { _, newValue in
-                guard dragCoordinator.activePayload != nil else { return }
-                var allowedIds = Set(daySession.nodes.map(\.id))
-                // Can filter allowedIds if needed (e.g. only unlock nodes?)
-                // For now allow reordering any node
-                dragCoordinator.updatePosition(newValue, nodeFrames: nodeFrames, allowedNodeIds: allowedIds)
-            }
-            .simultaneousGesture(
-                DragGesture(minimumDistance: 10)
-                    .onEnded { _ in
-                        snapToNearestNode(using: scrollProxy)
-                    }
-            )
-            .onReceive(coordinator.uiEvents) { event in
-                viewModel.handleUIEvent(event)
-            }
-            .onAppear {
-                viewModel.bind(
-                    engine: engine,
-                    daySession: daySession,
-                    stateManager: stateManager,
-                    cardStore: cardStore,
-                    use24HourClock: use24HourClock
-                )
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            
+            // Journey title and progress
+            VStack(alignment: .leading, spacing: 8) {
+                Text(journeyTitle)
+                    .font(.system(.title2, design: .rounded))
+                    .fontWeight(.bold)
+                    .foregroundColor(Color(red: 0.2, green: 0.15, blue: 0.1))
                 
-                viewportHeight = proxy.size.height
-                scrollToActive(using: scrollProxy)
+                HStack {
+                    Image(systemName: "diamond.fill")
+                        .font(.system(size: 12))
+                        .foregroundColor(Color(red: 0.3, green: 0.8, blue: 0.7))
+                    Text("\(Int(engine.totalFocusedToday / 60))m")
+                        .font(.system(.caption, design: .rounded))
+                        .fontWeight(.semibold)
+                        .foregroundColor(Color(red: 0.3, green: 0.8, blue: 0.7))
+                    
+                    Spacer()
+                    
+                    Text("LEVEL \(currentLevel)")
+                        .font(.system(.caption2, design: .rounded))
+                        .fontWeight(.bold)
+                        .foregroundColor(Color(red: 0.6, green: 0.5, blue: 0.4))
+                }
+                
+                // Progress bar
+                ProgressView(value: daySession.completionProgress)
+                    .progressViewStyle(LinearProgressViewStyle(tint: Color(red: 1.0, green: 0.6, blue: 0.2)))
+                    .scaleEffect(x: 1, y: 2, anchor: .center)
             }
-            .onChange(of: use24HourClock) { _, newValue in
-                viewModel.updatePreferences(use24HourClock: newValue)
-            }
-            .onChange(of: proxy.size.height) { _, newValue in
-                viewportHeight = newValue
-            }
-            .onChange(of: daySession.currentIndex) { _, _ in
-                scrollToActive(using: scrollProxy)
-            }
-            .onChange(of: engine.state) { _, _ in
-                scrollToActive(using: scrollProxy)
-            }
+            .padding(.horizontal, 16)
+            .padding(.bottom, 16)
         }
     }
-
-    private var mapTrack: some View {
-        let nodes = Array(daySession.nodes.enumerated().reversed())
-        let currentId = currentActiveId
-        let nextId = upcomingNodes.first?.id
-        
-        return VStack(spacing: 26) {
-            ForEach(nodes.indices, id: \.self) { offset in
-                let item = nodes[offset]
-                let index = item.offset
-                let node = item.element
-                let alignment: MapNodeAlignment = offset.isMultiple(of: 2) ? .left : .right
-                let isCurrent = currentId == node.id
-                let isNext = !isSessionActive && nextId == node.id
-                let isFinal = index == daySession.nodes.indices.last
-                let timeInfo = node.isCompleted ? nil : timeInfo(for: node)
-                
-                SwipeableTimelineNode(
-                    node: node,
-                    alignment: alignment,
-                    isCurrent: isCurrent,
-                    isNext: isNext,
-                    isFinal: isFinal,
-                    isPulsing: viewModel.pulseNextNodeId == node.id,
-                    timeInfo: timeInfo,
-                    onTap: { handleTap(on: node) },
-                    onLongPress: { handleLongPress(on: node) },
-                    onEdit: { handleEdit(on: node) },
-                    onDuplicate: { handleDuplicate(on: node) },
-                    onDelete: { handleDelete(on: node) },
-                    onMove: { direction in handleMove(node: node, direction: direction) },
-                    onDrop: { action in handleDrop(action: action) }
-                )
-                .id(node.id)
+    
+    // MARK: - Timeline Scroll View
+    
+    private var timelineScrollView: some View {
+        ScrollView(.vertical, showsIndicators: false) {
+            LazyVStack(spacing: 12) {
+                ForEach(Array(daySession.nodes.enumerated()), id: \.element.id) { index, node in
+                    TimelineNodeRow(
+                        node: node,
+                        index: index,
+                        isSelected: false,
+                        isCurrent: node.id == daySession.currentNode?.id && isSessionActive,
+                        onTap: { 
+                            handleTap(on: node) 
+                        },
+                        onEdit: { handleEdit(on: node) },
+                        timeInfo: timeInfo(for: node)
+                    )
+                }
             }
+            .padding(.horizontal, 16)
+            .padding(.bottom, 100)
         }
-        .padding(.horizontal, MapLayout.horizontalInset)
-        .padding(.bottom, bottomFocusPadding)
+    }
+    
+
+    
+    // MARK: - Helper Properties
+    
+    private var currentChapter: Int {
+        let calendar = Calendar.current
+        let weekOfYear = calendar.component(.weekOfYear, from: Date())
+        return weekOfYear
+    }
+    
+    private var currentLevel: Int {
+        let totalHours = Int(engine.totalFocusedToday / 3600)
+        return max(1, totalHours + 1)
+    }
+    
+    private var journeyTitle: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EEEE"
+        let dayName = formatter.string(from: Date())
+        return "The \(dayName) Dungeon"
     }
     
     private var isSessionActive: Bool {
@@ -203,6 +190,8 @@ struct RogueMapView: View {
         let anchor = 1 - (bottomFocusPadding / viewportHeight) - (bottomSheetInset / viewportHeight)
         return min(0.9, max(0.7, anchor))
     }
+    
+    // MARK: - Action Handlers
     
     private func handleTap(on node: TimelineNode) {
         guard !node.isCompleted else {
@@ -292,7 +281,7 @@ struct RogueMapView: View {
     }
     
     private func handleDuplicate(on node: TimelineNode) {
-        guard case .battle(let boss) = node.type else { return }
+        guard case .battle(_) = node.type else { return }
         let timelineStore = TimelineStore(daySession: daySession, stateManager: stateManager)
         timelineStore.duplicateNode(id: node.id)
     }
@@ -307,7 +296,6 @@ struct RogueMapView: View {
         let newIndex = currentIndex + direction
         guard newIndex >= 0 && newIndex < daySession.nodes.count else { return }
         
-        // 使用IndexSet进行移动，确保正确的重排序
         let sourceIndexSet = IndexSet(integer: currentIndex)
         let destinationIndex = newIndex > currentIndex ? newIndex + 1 : newIndex
         
@@ -327,19 +315,13 @@ struct RogueMapView: View {
                 destinationIndex = anchorIndex + 1
             }
             
-            // Adjust destination index if moving downwards (source < destination)
-            // The standard move logic handles this, but let's be precise.
-            // viewModel.moveNode uses the standard SwiftUI move logic where destination is insertion point.
-            
             let sourceIndexSet = IndexSet(integer: currentIndex)
             viewModel.moveNode(from: sourceIndexSet, to: destinationIndex)
             
             Haptics.impact(.medium)
             
-        case .placeCard(let cardTemplateId, let anchorNodeId, let placement):
-            // Existing logic or delegate to viewModel
+        case .placeCard(_, _, _):
             Haptics.impact(.light)
-            // Implement if needed for card drop
         default:
             break
         }
@@ -384,61 +366,19 @@ struct RogueMapView: View {
 
 private struct PixelMapBackground: View {
     var body: some View {
-        GeometryReader { _ in
-            ZStack {
-                LinearGradient(
-                    colors: [
-                        PixelTheme.backgroundTop,
-                        PixelTheme.backgroundBottom
-                    ],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-                
-                Canvas { context, size in
-                    let grid: CGFloat = PixelTheme.baseUnit * 5.5
-                    let dot: CGFloat = 2
-                    for y in stride(from: 0, through: size.height, by: grid) {
-                        for x in stride(from: 0, through: size.width, by: grid) {
-                            let rect = CGRect(x: x, y: y, width: dot, height: dot)
-                            context.fill(Path(rect), with: .color(PixelTheme.backgroundGrid))
-                        }
-                    }
-                    
-                    let tile: CGFloat = PixelTheme.baseUnit * 2
-                    for y in stride(from: grid * 0.6, to: size.height, by: grid * 2.6) {
-                        for x in stride(from: grid * 0.5, to: size.width, by: grid * 2.8) {
-                            let rect = CGRect(x: x, y: y, width: tile, height: tile)
-                            context.fill(Path(rect), with: .color(PixelTheme.backgroundTile))
-                        }
-                    }
-                }
-                
-                PixelTerrainBand()
-                    .frame(height: 90)
-                    .frame(maxHeight: .infinity, alignment: .bottom)
+        ZStack(alignment: .topLeading) {
+            // 1. Base Layer
+            PixelTheme.background
+                .ignoresSafeArea()
+            
+            // 2. Vertical Dashed Line
+            Path { path in
+                path.move(to: CGPoint(x: 68, y: 0))
+                path.addLine(to: CGPoint(x: 68, y: 3000))
             }
-        }
-        .ignoresSafeArea()
-    }
-}
-
-private struct PixelTerrainBand: View {
-    var body: some View {
-        GeometryReader { _ in
-            Canvas { context, size in
-                let tile: CGFloat = PixelTheme.baseUnit * 3
-                let rows = 3
-                let baseColor = PixelTheme.forest
-                for row in 0..<rows {
-                    let y = size.height - CGFloat(row + 1) * tile
-                    let opacity = 0.25 - (CGFloat(row) * 0.06)
-                    for x in stride(from: 0, to: size.width, by: tile) {
-                        let rect = CGRect(x: x, y: y, width: tile - 1, height: tile - 1)
-                        context.fill(Path(rect), with: .color(baseColor.opacity(opacity)))
-                    }
-                }
-            }
+            .stroke(style: StrokeStyle(lineWidth: 2, lineCap: .round, dash: [6, 10]))
+            .fill(PixelTheme.pathPixel)
+            .ignoresSafeArea()
         }
     }
 }

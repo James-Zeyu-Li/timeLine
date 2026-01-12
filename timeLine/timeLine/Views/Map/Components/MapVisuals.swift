@@ -5,37 +5,44 @@ import TimeLineCore
 
 struct PixelTrail: View {
     var body: some View {
-        Canvas { context, size in
-            let tile: CGFloat = 5
-            let step: CGFloat = 9
-            for y in stride(from: 0, to: size.height, by: step) {
-                let rect = CGRect(x: 0, y: y, width: tile, height: tile)
-                context.fill(Path(rect), with: .color(PixelTheme.pathPixel))
-            }
-        }
+        // Path is now drawn globally in RogueMapView
+        EmptyView()
     }
 }
 
 struct PixelHeroMarker: View {
     var body: some View {
-        VStack(spacing: 4) {
+        VStack(spacing: 0) {
+            // "Pixel Sprite" Adventurer
             ZStack {
-                RoundedRectangle(cornerRadius: 4)
-                    .fill(PixelTheme.petBody.opacity(0.25))
-                    .frame(width: 28, height: 28)
+                // Head
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(PixelTheme.woodDark)
+                    .frame(width: 14, height: 14)
+                    .offset(y: -10)
+                
+                // Body/Cape
+                RoundedRectangle(cornerRadius: 3)
+                    .fill(PixelTheme.vitality)
+                    .frame(width: 18, height: 16)
                     .overlay(
-                        RoundedRectangle(cornerRadius: 4)
-                            .stroke(PixelTheme.petBody.opacity(0.7), lineWidth: 1)
+                        RoundedRectangle(cornerRadius: 3)
+                            .stroke(PixelTheme.woodDark, lineWidth: 1.5)
                     )
-                Image(systemName: "figure.walk")
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundColor(PixelTheme.textPrimary)
+                
+                // Face Details (Bandana/Eyes)
+                HStack(spacing: 4) {
+                    Circle().fill(Color.white).frame(width: 2, height: 2)
+                    Circle().fill(Color.white).frame(width: 2, height: 2)
+                }
+                .offset(y: -10)
             }
-            RoundedRectangle(cornerRadius: 1)
-                .fill(PixelTheme.textPrimary.opacity(0.5))
-                .frame(width: 6, height: 6)
+            // Shadow
+            Ellipse()
+                .fill(Color.black.opacity(0.2))
+                .frame(width: 16, height: 4)
+                .offset(y: 4)
         }
-        .shadow(color: PixelTheme.petShadow, radius: 4, x: 0, y: 2)
     }
 }
 
@@ -50,56 +57,13 @@ struct PixelTerrainTile: View {
     let type: PixelTerrainType
     
     var body: some View {
-        GeometryReader { _ in
-            Canvas { context, size in
-                let tile = PixelTheme.baseUnit * 2
-                let rows = Int(size.height / tile)
-                let cols = Int(size.width / tile)
-                let palette = colors(for: type)
-                
-                for row in 0...rows {
-                    for col in 0...cols {
-                        if (row + col) % 2 == 0 {
-                            let rect = CGRect(
-                                x: CGFloat(col) * tile,
-                                y: CGFloat(row) * tile,
-                                width: tile - 1,
-                                height: tile - 1
-                            )
-                            context.fill(Path(rect), with: .color(palette.base.opacity(0.7)))
-                        }
-                    }
-                }
-                
-                for row in 0...rows {
-                    for col in 0...cols {
-                        if (row * col) % 7 == 0 {
-                            let rect = CGRect(
-                                x: CGFloat(col) * tile,
-                                y: CGFloat(row) * tile,
-                                width: tile,
-                                height: tile
-                            )
-                            context.fill(Path(rect), with: .color(palette.accent.opacity(0.4)))
-                        }
-                    }
-                }
-            }
-        }
-        .clipShape(RoundedRectangle(cornerRadius: PixelTheme.cornerLarge))
+        // Tile background logic moved to RogueMapView canvas
+        EmptyView()
     }
     
     private func colors(for type: PixelTerrainType) -> (base: Color, accent: Color) {
-        switch type {
-        case .forest:
-            return (PixelTheme.forest, PixelTheme.forest.opacity(0.6))
-        case .plains:
-            return (PixelTheme.plains, PixelTheme.plains.opacity(0.6))
-        case .cave:
-            return (PixelTheme.cave, PixelTheme.cave.opacity(0.6))
-        case .campfire:
-            return (PixelTheme.camp, PixelTheme.camp.opacity(0.7))
-        }
+        // Legacy support if needed
+        return (.clear, .clear)
     }
 }
 
