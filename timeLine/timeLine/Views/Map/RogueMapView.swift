@@ -20,9 +20,12 @@ struct RogueMapView: View {
     @State private var nodeFrames: [UUID: CGRect] = [:]
     @State private var viewportHeight: CGFloat = 0
     @State private var showNodeEdit = false
+    @State private var showNodeActionMenu = false
     @State private var editingNodeTemplate: CardTemplate?
     @State private var editingNodeId: UUID?
     @State private var selectedNodeId: UUID?
+    @State private var actionMenuNode: TimelineNode?
+    @State private var isEditMode = false
     
     private let bottomFocusPadding: CGFloat = 140
     private let bottomSheetInset: CGFloat = 96
@@ -45,6 +48,20 @@ struct RogueMapView: View {
                     timelineScrollView
                 }
             }
+            .onAppear {
+                // Bind viewModel to dependencies for time calculations
+                viewModel.bind(
+                    engine: engine,
+                    daySession: daySession,
+                    stateManager: stateManager,
+                    cardStore: cardStore,
+                    use24HourClock: use24HourClock
+                )
+            }
+            .onChange(of: use24HourClock) { _, newValue in
+                // Update viewModel preferences when clock format changes
+                viewModel.updatePreferences(use24HourClock: newValue)
+            }
             .sheet(isPresented: $showStats) {
                 AdventurerLogView()
             }
@@ -63,6 +80,35 @@ struct RogueMapView: View {
                     }
                 )
             }
+            .confirmationDialog(
+                actionMenuNode.map { nodeTitle(for: $0) } ?? "Task",
+                isPresented: $showNodeActionMenu,
+                titleVisibility: .visible
+            ) {
+                if let node = actionMenuNode {
+                    Button("Edit") {
+                        handleEdit(on: node)
+                    }
+                    Button("Duplicate") {
+                        handleDuplicate(on: node)
+                    }
+                    Button("Delete", role: .destructive) {
+                        handleDelete(on: node)
+                    }
+                    Button("Cancel", role: .cancel) { }
+                }
+            }
+        }
+    }
+    
+    private func nodeTitle(for node: TimelineNode) -> String {
+        switch node.type {
+        case .battle(let boss):
+            return boss.name
+        case .bonfire:
+            return "Rest Point"
+        case .treasure:
+            return "Treasure"
         }
     }
     
@@ -80,8 +126,17 @@ struct RogueMapView: View {
                     .fontWeight(.bold)
                     .foregroundColor(Color(red: 0.6, green: 0.5, blue: 0.4))
                 Spacer()
+                
+                // Edit button
+                Button(action: { isEditMode.toggle() }) {
+                    Text(isEditMode ? "Done" : "Edit")
+                        .font(.system(.subheadline, design: .rounded))
+                        .fontWeight(.semibold)
+                        .foregroundColor(PixelTheme.primary)
+                }
+                
                 Button(action: { showStats = true }) {
-                    Image(systemName: "gearshape.fill")
+                    Image(systemName: "chart.bar.fill")
                         .font(.system(size: 16, weight: .bold))
                         .foregroundColor(Color(red: 0.6, green: 0.5, blue: 0.4))
                 }
@@ -126,30 +181,159 @@ struct RogueMapView: View {
     // MARK: - Timeline Scroll View
     
     private var timelineScrollView: some View {
-        ScrollView(.vertical, showsIndicators: false) {
-            LazyVStack(spacing: 12) {
-                ForEach(Array(daySession.nodes.enumerated()), id: \.element.id) { index, node in
-                    TimelineNodeRow(
-                        node: node,
-                        index: index,
-                        isSelected: false,
-                        isCurrent: node.id == daySession.currentNode?.id && isSessionActive,
-                        onTap: { 
-                            handleTap(on: node) 
-                        },
-                        onEdit: { handleEdit(on: node) },
-                        timeInfo: timeInfo(for: node)
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(spacing: 0) {
+                    ForEach(daySession.nodes.reversed()) { node in
+                        TimelineNodeRow(
+                            node: node,
+                            index: daySession.nodes.firstIndex(where: { $0.id == node.id }) ?? 0,
+                            isSelected: false,
+                            isCurrent: shouldShowAsCurrentTask(node: node),
+                            isEditMode: isEditMode,
+                            onTap: { handleTap(on: node) },
+                            onEdit: { handleEdit(on: node) },
+                            onDuplicate: { handleDuplicate(on: node) },
+                            onDelete: { handleDelete(on: node) },
+                            onMoveUp: { handleMove(node: node, direction: -1) },
+                            onMoveDown: { handleMove(node: node, direction: 1) },
+                            onDrop: { _ in }, // Drop handling is centralized in RootView
+                            totalNodesCount: daySession.nodes.count,
+                            contentOffset: offsetForNode(node),
+                            estimatedTimeLabel: estimatedTimeLabel(for: node)
+                        )
+                        // .offset(y: offsetForNode(node)) -> Moved inside TimelineNodeRow to keep axis stationary
+                        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: dragCoordinator.hoveringNodeId)
+                        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: dragCoordinator.hoveringPlacement)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 6)
+                        .id(node.id) // Add ID for scrollTo
+                    }
+                }
+                .frame(maxWidth: .infinity) // Expand content to full width for better scrolling
+            }
+            .scrollDisabled(appMode.isDragging) // Disable scroll when dragging a node
+            .contentShape(Rectangle()) // Make entire scroll area interactive
+            .animation(.easeInOut(duration: 0.3), value: daySession.nodes.count)
+            .animation(.spring(response: 0.4, dampingFraction: 0.8), value: daySession.nodes.map(\.id))
+            .onPreferenceChange(NodeFrameKey.self) { frames in
+                nodeFrames = frames
+            }
+            .onChange(of: dragCoordinator.dragLocation) { _, newLocation in
+                // Update position when drag location changes
+                if dragCoordinator.activePayload != nil {
+                    let allowedNodeIds = Set(daySession.nodes.map(\.id))
+                    dragCoordinator.updatePosition(
+                        newLocation,
+                        nodeFrames: nodeFrames,
+                        allowedNodeIds: allowedNodeIds
                     )
                 }
             }
-            .padding(.horizontal, 16)
-            .padding(.bottom, 100)
+            .onChange(of: daySession.nodes.count) { _, _ in
+                // Auto-scroll to current task when nodes are added/removed
+                scrollToActive(using: proxy)
+            }
+            .onChange(of: daySession.currentIndex) { _, _ in
+                // Auto-scroll when current task changes
+                scrollToActive(using: proxy)
+            }
+            .onAppear {
+                // Initial scroll to current task
+                scrollToActive(using: proxy)
+            }
+        }
+    }
+    
+    private func moveNodes(from source: IndexSet, to destination: Int) {
+        // Wrap the move operation in animation
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+            // List displays nodes in reversed order, so we need to convert indices
+            // Display order: reversed (last node displayed first)
+            // Data order: normal (first node at index 0)
+            
+            let nodeCount = daySession.nodes.count
+            guard let sourceIndex = source.first else { return }
+            
+            // Convert from reversed display index to actual data index
+            let actualSourceIndex = nodeCount - 1 - sourceIndex
+            
+            // Destination index conversion is tricky because of how List.onMove works
+            // If moving down in display (up in data), destination needs adjustment
+            let actualDestination: Int
+            if destination > sourceIndex {
+                // Moving down in display = moving up in data
+                actualDestination = nodeCount - destination
+            } else {
+                // Moving up in display = moving down in data
+                actualDestination = nodeCount - destination
+            }
+            
+            // Perform the move
+            let timelineStore = TimelineStore(daySession: daySession, stateManager: stateManager)
+            timelineStore.moveNode(from: IndexSet(integer: actualSourceIndex), to: actualDestination)
         }
     }
     
 
     
     // MARK: - Helper Properties
+    
+    private func offsetForNode(_ node: TimelineNode) -> CGFloat {
+        // If no drag is active, no offset
+        guard let draggedNodeId = dragCoordinator.draggedNodeId,
+              let hoveringNodeId = dragCoordinator.hoveringNodeId,
+              draggedNodeId != node.id else {
+            return 0
+        }
+        
+        // SWAP BEHAVIOR: Only the node being hovered over moves to the dragged node's original position
+        // Other nodes stay in place
+        
+        // Only apply offset to the node we're hovering over
+        guard node.id == hoveringNodeId else {
+            return 0
+        }
+        
+        // Get indices for calculations
+        guard let draggedIndex = daySession.nodes.firstIndex(where: { $0.id == draggedNodeId }),
+              let hoveringIndex = daySession.nodes.firstIndex(where: { $0.id == hoveringNodeId }) else {
+            return 0
+        }
+        
+        // Calculate the height to offset (dragged card's height)
+        let draggedCardHeight: CGFloat = shouldShowAsCurrentTask(node: daySession.nodes[draggedIndex]) ? 200 : 80
+        let spacing: CGFloat = 20
+        let totalOffset = draggedCardHeight + spacing
+        
+        // The hovered node should move toward the dragged node's original position
+        // In reversed display:
+        // - Higher data index = higher visual position (top)
+        // - Lower data index = lower visual position (bottom)
+        //
+        // If dragged is above hovered (draggedIndex > hoveringIndex in data = dragged is higher visually)
+        // → hovered node should move UP (negative offset in our coordinate system)
+        //
+        // If dragged is below hovered (draggedIndex < hoveringIndex)
+        // → hovered node should move DOWN (positive offset)
+        
+        if draggedIndex > hoveringIndex {
+            // Dragged node was visually above → move hovered node UP
+            return -totalOffset
+        } else if draggedIndex < hoveringIndex {
+            // Dragged node was visually below → move hovered node DOWN
+            return totalOffset
+        }
+        
+        return 0
+    }
+    
+    private func shouldShowAsCurrentTask(node: TimelineNode) -> Bool {
+        // Only show the next upcoming (non-completed) task as large
+        // Don't show active session task as large unless it's also the next upcoming
+        let firstUpcoming = upcomingNodes.first
+        return node.id == firstUpcoming?.id
+    }
     
     private var currentChapter: Int {
         let calendar = Calendar.current
@@ -183,12 +367,14 @@ struct RogueMapView: View {
     }
     
     private var mapAnchorY: CGFloat {
+        // Anchor point for scrolling: 0.0 = top, 1.0 = bottom
+        // Using 0.35 to position NOW task in upper-middle area (not too high, not too low)
         if !isSessionActive {
-            return 0.5
+            return 0.35  // NOW task at ~35% from top when not in session
         }
-        guard viewportHeight > 0 else { return 0.82 }
+        guard viewportHeight > 0 else { return 0.35 }
         let anchor = 1 - (bottomFocusPadding / viewportHeight) - (bottomSheetInset / viewportHeight)
-        return min(0.9, max(0.7, anchor))
+        return min(0.45, max(0.3, anchor))  // Keep between 30-45% from top
     }
     
     // MARK: - Action Handlers
@@ -252,7 +438,8 @@ struct RogueMapView: View {
     }
     
     private func handleLongPress(on node: TimelineNode) {
-        handleEdit(on: node)
+        actionMenuNode = node
+        showNodeActionMenu = true
     }
     
     private func handleEdit(on node: TimelineNode) {
@@ -292,14 +479,16 @@ struct RogueMapView: View {
     }
     
     private func handleMove(node: TimelineNode, direction: Int) {
-        guard let currentIndex = daySession.nodes.firstIndex(where: { $0.id == node.id }) else { return }
-        let newIndex = currentIndex + direction
-        guard newIndex >= 0 && newIndex < daySession.nodes.count else { return }
-        
-        let sourceIndexSet = IndexSet(integer: currentIndex)
-        let destinationIndex = newIndex > currentIndex ? newIndex + 1 : newIndex
-        
-        viewModel.moveNode(from: sourceIndexSet, to: destinationIndex)
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+            guard let currentIndex = daySession.nodes.firstIndex(where: { $0.id == node.id }) else { return }
+            let newIndex = currentIndex + direction
+            guard newIndex >= 0 && newIndex < daySession.nodes.count else { return }
+            
+            let sourceIndexSet = IndexSet(integer: currentIndex)
+            let destinationIndex = newIndex > currentIndex ? newIndex + 1 : newIndex
+            
+            viewModel.moveNode(from: sourceIndexSet, to: destinationIndex)
+        }
     }
     
     private func handleDrop(action: DropAction) {
@@ -309,13 +498,21 @@ struct RogueMapView: View {
                   let anchorIndex = daySession.nodes.firstIndex(where: { $0.id == anchorId }) else { return }
             
             let destinationIndex: Int
+            // Since list is reversed:
+            // .before (Visual Top) -> Higher Index -> Insert at anchorIndex + 1
+            // .after (Visual Bottom) -> Lower Index -> Insert at anchorIndex
             if placement == .before {
-                destinationIndex = anchorIndex
-            } else {
                 destinationIndex = anchorIndex + 1
+            } else {
+                destinationIndex = anchorIndex
             }
             
+            // Don't move if it's the same position
+            guard destinationIndex != currentIndex && destinationIndex != currentIndex + 1 else { return }
+            
             let sourceIndexSet = IndexSet(integer: currentIndex)
+            
+            // Execute move without explicit animation block (let view animation handle it)
             viewModel.moveNode(from: sourceIndexSet, to: destinationIndex)
             
             Haptics.impact(.medium)
@@ -337,6 +534,55 @@ struct RogueMapView: View {
             relative: estimate.relative,
             isRecommended: false
         )
+    }
+    
+    private func estimatedTimeLabel(for node: TimelineNode) -> String? {
+        // Don't show time for current or completed tasks
+        guard !node.isCompleted else { return nil }
+        guard !shouldShowAsCurrentTask(node: node) else { return nil }
+        
+        // Calculate time directly without viewModel
+        // Get the index of this node in upcomingNodes
+        guard let nodeIndex = upcomingNodes.firstIndex(where: { $0.id == node.id }) else {
+            return nil
+        }
+        
+        // Calculate cumulative time from current task to this node
+        var secondsFromNow: TimeInterval = 0
+        
+        // If there's a current task and it has remaining time, add that first
+        if let currentNode = upcomingNodes.first {
+            // Add remaining time of current task (estimate or full duration)
+            if engine.state == .fighting, let remaining = engine.remainingTime {
+                secondsFromNow += remaining
+            } else {
+                secondsFromNow += duration(for: currentNode)
+            }
+        }
+        
+        // Add durations of all tasks between first (current) and this node
+        for i in 1..<nodeIndex {
+            secondsFromNow += duration(for: upcomingNodes[i])
+        }
+        
+        // Calculate estimated start time
+        let estimatedTime = Date().addingTimeInterval(secondsFromNow)
+        
+        // Format as time string (e.g., "8:30 PM" or "20:30")
+        let formatter = DateFormatter()
+        formatter.dateFormat = use24HourClock ? "HH:mm" : "h:mm a"
+        return formatter.string(from: estimatedTime)
+    }
+    
+    private func duration(for node: TimelineNode) -> TimeInterval {
+        switch node.type {
+        case .battle(let boss):
+            return boss.maxHp
+        case .bonfire(let dur):
+            return dur
+        case .treasure:
+            return 0
+        }
     }
     
     private func scrollToActive(using proxy: ScrollViewProxy) {

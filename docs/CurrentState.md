@@ -1,7 +1,7 @@
 # Current Project State: TimeLineApp
 
-> **Last Updated**: 2026-01-11
-> **Status**: V1 Core Complete + V2 Pixel Healing UI (Phases 16.1-16.4 Complete)
+> **Last Updated**: 2026-01-12
+> **Status**: V1 Core Complete + V2 Pixel Healing UI Complete (Phases 16.1-16.8 Complete)
 
 ---
 
@@ -28,7 +28,8 @@ A roguelike-inspired iOS focus app built with SwiftUI.
 - **Task behavior**: `.battle` (Focus/Strict/Flexible) vs `.reminder`. Flexible Tasks (`.passive` style) now behave as open-ended stopwatch battles.
 - **Insert Logic**: "Add to Timeline" prioritizes "Insert at Front" (Next Up) over deadline-based backlog placement.
 - **App mode**: `AppModeManager` enforces overlay/drag/edit exclusivity.
-- **Drag system**: Global "Lift and Drop" reordering fully implemented via `DragDropCoordinator` and Long-Press gesture.
+- **Drag system**: Global "Lift and Drop" reordering with **swap behavior** - dragged node swaps position with target node; timeline axis remains stationary.
+- **Time labels**: Each timeline node displays **estimated start time** (e.g., "7:45 PM"); current task shows "NOW" badge.
 - **Persistence + events**: `AppStateManager` saves; `TimelineEventCoordinator` advances on battle end.
 - **Exit rules**: Retreat offers Undo Start ≤60s (no record). Otherwise End & Record → incompleteExit. FocusGroupFlexible uses “End Exploring” and emits completedExploration (no Undo Start).
 - **Freeze tokens**: 3/day; Freeze suspends battle and returns to map, resume continues same task; logs duration.
@@ -36,14 +37,14 @@ A roguelike-inspired iOS focus app built with SwiftUI.
 
 ### UI Surfaces
 - **RootView**: map layer, Dual Entry Buttons (Strict/Todo), floating Settings + message.
-- **RogueMapView**: map route with node snapping, header, and banners. Uses `SwipeableTimelineNode` for swipe-to-edit interactions.
+- **RogueMapView**: map route with node snapping, header, and banners. Uses `SwipeableTimelineNode` for swipe-to-edit interactions. Task details now properly integrated into timeline rows with expanded current task information that scrolls with the timeline.
 - **GroupFocusView**: focus group nodes open a switchable task list with total focused timer.
 - **StrictSheet**: bottom sheet with Cards/Decks tabs for Strict Focus Mode.
-- **TodoSheet**: merged "Backlog" + "Quick Add" sheet for flexible tasks; supports multi-selection and "Start Group Focus".
+- **TodoSheet**: merged "Backlog" + "Quick Add" sheet for flexible tasks; supports multi-selection and "Start Group Focus". Updated with pixel healing theme - warm backgrounds, friendly Chinese text, natural UI elements.
 - **QuickBuilderSheet**: fast template creator (no direct timeline writes), supports Task Mode selection（任务模式选择）.
 - **DeckDetailEditSheet / CardDetailEditSheet**: long-press edit for Decks and CardTemplates, includes Task Mode selection（任务模式选择）and Library toggle.
 - **RoutinePickerView**: Routine Decks list + preview sheet.
-- **Exploration report sheet**: completedExploration triggers a finished report (per-task times).
+- **Exploration report sheet**: completedExploration triggers a finished report (per-task times). Updated with pixel healing style - treasure chest animation, achievement banners, Pokémon card-style task cards.
 - **Drag ghost + Undo**: deck hover preview + 2s undo toast.
 - **Empty drop zone**: drag-to-drop creates first node.
 - **SettingsView**: time format toggle.
@@ -199,6 +200,20 @@ A roguelike-inspired iOS focus app built with SwiftUI.
 - remindAt/leadTime 字段 + in-app ReminderBanner
 - 时间线倒计时（at HH:mm / in Xm）
 - Focus 界面倒计时提示（BattleView / GroupFocusView）
+
+---
+
+## 🎨 Recent UI Updates (Phase 16.7-16.8 Complete)
+
+### Pixel Healing Theme Consistency
+- **DeckOverlay**: Updated with Chapter theme colors (warm browns, forest greens, activity orange) for consistent pixel healing aesthetic throughout all UI components
+- **Task Card Integration**: Fixed floating card to properly scroll with timeline; enhanced TimelineNodeRow to show expanded details for current tasks
+- **Theme Colors**: All UI components now use consistent warm, inclusive color palette instead of dark cyber theme
+
+### Technical Fixes
+- **Compilation**: Fixed MapTimeInfo.displayText compilation error; updated TimelineNodeRow to use correct MapTimeInfo properties
+- **Build Status**: All 60 Core tests passing; build succeeds without warnings
+- **Cache Issues**: Cleared Xcode cache issues and phantom file references
 
 ---
 

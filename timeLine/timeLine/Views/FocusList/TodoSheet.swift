@@ -55,7 +55,7 @@ struct TodoSheet: View {
             if let errorMessage {
                 Text(errorMessage)
                     .font(.system(.caption, design: .rounded))
-                    .foregroundColor(Color(red: 0.941, green: 0.502, blue: 0.188)) // 活力橘 #F08030
+                    .foregroundColor(PixelTheme.vitality)
             }
             actionBar
         }
@@ -64,8 +64,8 @@ struct TodoSheet: View {
             // 温馨的草地背景渐变
             LinearGradient(
                 gradient: Gradient(colors: [
-                    Color(red: 0.992, green: 0.965, blue: 0.890), // 浅米色 #FDF6E3
-                    Color(red: 0.306, green: 0.486, blue: 0.196).opacity(0.1) // 淡森林绿
+                    PixelTheme.cream,
+                    PixelTheme.forest.opacity(0.1)
                 ]),
                 startPoint: .top,
                 endPoint: .bottom
@@ -108,12 +108,12 @@ struct TodoSheet: View {
                 // 添加像素风格的小图标
                 Image(systemName: "list.clipboard.fill")
                     .font(.system(size: 20, weight: .bold))
-                    .foregroundColor(Color(red: 0.306, green: 0.486, blue: 0.196)) // 森林绿 #4E7C32
+                    .foregroundColor(PixelTheme.forest)
                 
                 Text("任务清单")
                     .font(.system(.title3, design: .rounded))
                     .fontWeight(.semibold)
-                    .foregroundColor(Color(red: 0.2, green: 0.133, blue: 0.067)) // 深棕黑 #332211
+                    .foregroundColor(PixelTheme.textPrimary)
                 
                 Spacer()
                 
@@ -121,15 +121,15 @@ struct TodoSheet: View {
                     cleanDurationFormats()
                 }
                 .font(.system(.caption, design: .rounded))
-                .foregroundColor(Color(red: 0.306, green: 0.486, blue: 0.196)) // 森林绿
+                .foregroundColor(PixelTheme.forest)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
                 .background(
                     Capsule()
-                        .fill(Color(red: 0.306, green: 0.486, blue: 0.196).opacity(0.1))
+                        .fill(PixelTheme.forest.opacity(0.1))
                         .overlay(
                             Capsule()
-                                .stroke(Color(red: 0.306, green: 0.486, blue: 0.196).opacity(0.3), lineWidth: 1)
+                                .stroke(PixelTheme.forest.opacity(0.3), lineWidth: 1)
                         )
                 )
                 .buttonStyle(.plain)
@@ -137,21 +137,21 @@ struct TodoSheet: View {
             
             Text("🌱 每行一个任务，设置时长与截止时间")
                 .font(.system(.caption, design: .rounded))
-                .foregroundColor(Color(red: 0.2, green: 0.133, blue: 0.067).opacity(0.7))
+                .foregroundColor(PixelTheme.textPrimary.opacity(0.7))
             
             Text("💡 输入如 Math 45m 会自动填充时长（稍后可整理格式）")
                 .font(.system(.caption2, design: .rounded))
-                .foregroundColor(Color(red: 0.2, green: 0.133, blue: 0.067).opacity(0.6))
+                .foregroundColor(PixelTheme.textPrimary.opacity(0.6))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
         .background(
             RoundedRectangle(cornerRadius: 16)
-                .fill(Color.white.opacity(0.9))
-                .shadow(color: Color(red: 0.545, green: 0.369, blue: 0.235).opacity(0.2), radius: 4, x: 2, y: 2)
+                .fill(PixelTheme.cardBackground.opacity(0.9))
+                .shadow(color: PixelTheme.woodMedium.opacity(0.2), radius: 4, x: 2, y: 2)
                 .overlay(
                     RoundedRectangle(cornerRadius: 16)
-                        .stroke(Color(red: 0.306, green: 0.486, blue: 0.196).opacity(0.3), lineWidth: 2)
+                        .stroke(PixelTheme.forest.opacity(0.3), lineWidth: 2)
                 )
         )
     }
@@ -166,15 +166,15 @@ struct TodoSheet: View {
             HStack {
                 Text(summary)
                     .font(.system(.caption, design: .rounded))
-                    .foregroundColor(Color(red: 0.2, green: 0.133, blue: 0.067).opacity(0.8))
+                    .foregroundColor(PixelTheme.textPrimary.opacity(0.8))
                     .padding(.horizontal, 12)
                     .padding(.vertical, 6)
                     .background(
                         Capsule()
-                            .fill(Color(red: 0.992, green: 0.965, blue: 0.890).opacity(0.8)) // 浅米色背景
+                            .fill(PixelTheme.cream.opacity(0.8))
                             .overlay(
                                 Capsule()
-                                    .stroke(Color(red: 0.306, green: 0.486, blue: 0.196).opacity(0.2), lineWidth: 1)
+                                    .stroke(PixelTheme.forest.opacity(0.2), lineWidth: 1)
                             )
                     )
                 Spacer()
@@ -215,11 +215,11 @@ struct TodoSheet: View {
         .frame(minHeight: 200, maxHeight: 520)
         .background(
             RoundedRectangle(cornerRadius: 16)
-                .fill(Color.white.opacity(0.6))
-                .shadow(color: Color(red: 0.545, green: 0.369, blue: 0.235).opacity(0.2), radius: 6, x: 3, y: 3)
+                .fill(PixelTheme.cardBackground.opacity(0.6))
+                .shadow(color: PixelTheme.woodMedium.opacity(0.2), radius: 6, x: 3, y: 3)
                 .overlay(
                     RoundedRectangle(cornerRadius: 16)
-                        .stroke(Color(red: 0.306, green: 0.486, blue: 0.196).opacity(0.3), lineWidth: 2)
+                        .stroke(PixelTheme.forest.opacity(0.3), lineWidth: 2)
                 )
         )
     }
@@ -259,20 +259,20 @@ struct TodoSheet: View {
             HStack(spacing: 8) {
                 Image(systemName: "plus.circle.fill")
                     .font(.system(size: 16, weight: .bold))
-                    .foregroundColor(Color(red: 0.306, green: 0.486, blue: 0.196)) // 森林绿
+                    .foregroundColor(PixelTheme.forest)
                 Text("添加任务")
                     .font(.system(.subheadline, design: .rounded))
                     .fontWeight(.semibold)
-                    .foregroundColor(Color(red: 0.306, green: 0.486, blue: 0.196))
+                    .foregroundColor(PixelTheme.forest)
             }
             .padding(.vertical, 8)
             .padding(.horizontal, 12)
             .background(
                 RoundedRectangle(cornerRadius: 12)
-                    .fill(Color(red: 0.306, green: 0.486, blue: 0.196).opacity(0.1))
+                    .fill(PixelTheme.forest.opacity(0.1))
                     .overlay(
                         RoundedRectangle(cornerRadius: 12)
-                            .stroke(Color(red: 0.306, green: 0.486, blue: 0.196).opacity(0.3), style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
+                            .stroke(PixelTheme.forest.opacity(0.3), style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
                     )
             )
         }
@@ -286,18 +286,18 @@ struct TodoSheet: View {
         HStack {
             Image(systemName: sectionIcon(for: title))
                 .font(.system(size: 14, weight: .bold))
-                .foregroundColor(Color(red: 0.306, green: 0.486, blue: 0.196))
+                .foregroundColor(PixelTheme.forest)
             Text(title)
                 .font(.system(.subheadline, design: .rounded))
                 .fontWeight(.bold)
-                .foregroundColor(Color(red: 0.2, green: 0.133, blue: 0.067))
+                .foregroundColor(PixelTheme.textPrimary)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
         .background(
             Capsule()
-                .fill(Color.white.opacity(0.8))
-                .shadow(color: Color(red: 0.545, green: 0.369, blue: 0.235).opacity(0.1), radius: 2, x: 1, y: 1)
+                .fill(PixelTheme.cardBackground.opacity(0.8))
+                .shadow(color: PixelTheme.woodMedium.opacity(0.1), radius: 2, x: 1, y: 1)
         )
     }
     
@@ -310,15 +310,15 @@ struct TodoSheet: View {
             }
             .font(.system(.caption, design: .rounded))
             .fontWeight(.semibold)
-            .foregroundColor(Color(red: 0.2, green: 0.133, blue: 0.067)) // 深棕黑
+            .foregroundColor(PixelTheme.textPrimary)
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
             .background(
                 Capsule()
-                    .fill(Color.white.opacity(0.8))
+                    .fill(PixelTheme.cardBackground.opacity(0.8))
                     .overlay(
                         Capsule()
-                            .stroke(Color(red: 0.545, green: 0.369, blue: 0.235).opacity(0.3), lineWidth: 1)
+                            .stroke(PixelTheme.woodMedium.opacity(0.3), lineWidth: 1)
                     )
             )
             .accessibilityIdentifier("focusListCancelButton")
@@ -330,13 +330,13 @@ struct TodoSheet: View {
                 }
                 .font(.system(.caption, design: .rounded))
                 .fontWeight(.semibold)
-                .foregroundColor(.white)
+                .foregroundColor(PixelTheme.textInverted)
                 .padding(.horizontal, 16)
                 .padding(.vertical, 10)
                 .background(
                     Capsule()
-                        .fill(Color(red: 0.941, green: 0.502, blue: 0.188)) // 活力橘
-                        .shadow(color: Color(red: 0.941, green: 0.502, blue: 0.188).opacity(0.3), radius: 3, x: 2, y: 2)
+                        .fill(PixelTheme.vitality)
+                        .shadow(color: PixelTheme.vitality.opacity(0.3), radius: 3, x: 2, y: 2)
                 )
                 .accessibilityIdentifier("focusListSaveButton")
             }
@@ -348,13 +348,13 @@ struct TodoSheet: View {
                 }
                 .font(.system(.caption, design: .rounded))
                 .fontWeight(.semibold)
-                .foregroundColor(.white)
+                .foregroundColor(PixelTheme.textInverted)
                 .padding(.horizontal, 16)
                 .padding(.vertical, 10)
                 .background(
                     Capsule()
-                        .fill(Color(red: 0.306, green: 0.486, blue: 0.196)) // 森林绿
-                        .shadow(color: Color(red: 0.306, green: 0.486, blue: 0.196).opacity(0.3), radius: 3, x: 2, y: 2)
+                        .fill(PixelTheme.forest)
+                        .shadow(color: PixelTheme.forest.opacity(0.3), radius: 3, x: 2, y: 2)
                 )
                 .accessibilityIdentifier("focusListAddToTimelineButton")
             }
@@ -368,7 +368,7 @@ struct TodoSheet: View {
             }
             .font(.system(.caption, design: .rounded))
             .fontWeight(.bold)
-            .foregroundColor(.white)
+            .foregroundColor(PixelTheme.textInverted)
             .padding(.horizontal, 18)
             .padding(.vertical, 10)
             .background(
@@ -384,7 +384,7 @@ struct TodoSheet: View {
                             endPoint: .trailing
                         ) :
                         LinearGradient(
-                            gradient: Gradient(colors: [Color.gray.opacity(0.3), Color.gray.opacity(0.2)]),
+                            gradient: Gradient(colors: [PixelTheme.textSecondary.opacity(0.3), PixelTheme.textSecondary.opacity(0.2)]),
                             startPoint: .leading,
                             endPoint: .trailing
                         )
@@ -399,11 +399,11 @@ struct TodoSheet: View {
         .padding(.vertical, 12)
         .background(
             RoundedRectangle(cornerRadius: 20)
-                .fill(Color.white.opacity(0.9))
-                .shadow(color: Color(red: 0.545, green: 0.369, blue: 0.235).opacity(0.2), radius: 4, x: 2, y: 2)
+                .fill(PixelTheme.cardBackground.opacity(0.9))
+                .shadow(color: PixelTheme.woodMedium.opacity(0.2), radius: 4, x: 2, y: 2)
                 .overlay(
                     RoundedRectangle(cornerRadius: 20)
-                        .stroke(Color(red: 0.306, green: 0.486, blue: 0.196).opacity(0.3), lineWidth: 2)
+                        .stroke(PixelTheme.forest.opacity(0.3), lineWidth: 2)
                 )
         )
     }
@@ -566,12 +566,12 @@ struct TodoSheet: View {
                 VStack(spacing: 8) {
                     Image(systemName: "calendar")
                         .font(.system(size: 32, weight: .bold))
-                        .foregroundColor(Color(red: 0.306, green: 0.486, blue: 0.196)) // 森林绿
+                        .foregroundColor(PixelTheme.forest)
                     
                     Text("设置截止时间")
                         .font(.system(.headline, design: .rounded))
                         .fontWeight(.bold)
-                        .foregroundColor(Color(red: 0.2, green: 0.133, blue: 0.067))
+                        .foregroundColor(PixelTheme.textPrimary)
                 }
                 .padding(.top, 16)
                 
@@ -590,33 +590,33 @@ struct TodoSheet: View {
                             HStack(spacing: 12) {
                                 Image(systemName: icon)
                                     .font(.system(size: 16, weight: .bold))
-                                    .foregroundColor(.white)
+                                    .foregroundColor(PixelTheme.textInverted)
                                     .frame(width: 32, height: 32)
                                     .background(
                                         Circle()
-                                            .fill(Color(red: 0.306, green: 0.486, blue: 0.196))
+                                            .fill(PixelTheme.forest)
                                     )
                                 
                                 Text(title)
                                     .font(.system(.subheadline, design: .rounded))
                                     .fontWeight(.semibold)
-                                    .foregroundColor(Color(red: 0.2, green: 0.133, blue: 0.067))
+                                    .foregroundColor(PixelTheme.textPrimary)
                                 
                                 Spacer()
                                 
                                 Image(systemName: "chevron.right")
                                     .font(.system(size: 12, weight: .bold))
-                                    .foregroundColor(Color(red: 0.545, green: 0.369, blue: 0.235).opacity(0.6))
+                                    .foregroundColor(PixelTheme.woodMedium.opacity(0.6))
                             }
                             .padding(.horizontal, 16)
                             .padding(.vertical, 12)
                             .background(
                                 RoundedRectangle(cornerRadius: 16)
-                                    .fill(Color.white.opacity(0.8))
-                                    .shadow(color: Color(red: 0.545, green: 0.369, blue: 0.235).opacity(0.15), radius: 2, x: 1, y: 1)
+                                    .fill(PixelTheme.cardBackground.opacity(0.8))
+                                    .shadow(color: PixelTheme.woodMedium.opacity(0.15), radius: 2, x: 1, y: 1)
                                     .overlay(
                                         RoundedRectangle(cornerRadius: 16)
-                                            .stroke(Color(red: 0.306, green: 0.486, blue: 0.196).opacity(0.2), lineWidth: 1)
+                                            .stroke(PixelTheme.forest.opacity(0.2), lineWidth: 1)
                                     )
                             )
                         }
@@ -626,14 +626,14 @@ struct TodoSheet: View {
                 .padding(.horizontal, 16)
 
                 Divider()
-                    .background(Color(red: 0.545, green: 0.369, blue: 0.235).opacity(0.3))
+                    .background(PixelTheme.woodMedium.opacity(0.3))
 
                 // 自定义日期选择器
                 VStack(spacing: 12) {
                     Text("自定义日期")
                         .font(.system(.subheadline, design: .rounded))
                         .fontWeight(.semibold)
-                        .foregroundColor(Color(red: 0.2, green: 0.133, blue: 0.067))
+                        .foregroundColor(PixelTheme.textPrimary)
                     
                     DatePicker(
                         "选择日期",
@@ -644,7 +644,7 @@ struct TodoSheet: View {
                     .padding(.horizontal, 8)
                     .background(
                         RoundedRectangle(cornerRadius: 16)
-                            .fill(Color.white.opacity(0.8))
+                            .fill(PixelTheme.cardBackground.opacity(0.8))
                     )
 
                     Button("设置日期") {
@@ -652,13 +652,13 @@ struct TodoSheet: View {
                     }
                     .font(.system(.subheadline, design: .rounded))
                     .fontWeight(.bold)
-                    .foregroundColor(.white)
+                    .foregroundColor(PixelTheme.textInverted)
                     .padding(.horizontal, 20)
                     .padding(.vertical, 12)
                     .background(
                         RoundedRectangle(cornerRadius: 16)
-                            .fill(Color(red: 0.941, green: 0.502, blue: 0.188)) // 活力橘
-                            .shadow(color: Color(red: 0.941, green: 0.502, blue: 0.188).opacity(0.4), radius: 4, x: 2, y: 2)
+                            .fill(PixelTheme.vitality)
+                            .shadow(color: PixelTheme.vitality.opacity(0.4), radius: 4, x: 2, y: 2)
                     )
                 }
                 .padding(.horizontal, 16)
@@ -668,8 +668,8 @@ struct TodoSheet: View {
             .background(
                 LinearGradient(
                     gradient: Gradient(colors: [
-                        Color(red: 0.992, green: 0.965, blue: 0.890), // 浅米色
-                        Color(red: 0.306, green: 0.486, blue: 0.196).opacity(0.1) // 淡森林绿
+                        PixelTheme.cream,
+                        PixelTheme.forest.opacity(0.1)
                     ]),
                     startPoint: .top,
                     endPoint: .bottom
@@ -1092,11 +1092,11 @@ private struct FocusRowView: View {
                 // 小种子图标
                 Image(systemName: "leaf.fill")
                     .font(.system(size: 12, weight: .bold))
-                    .foregroundColor(Color(red: 0.306, green: 0.486, blue: 0.196)) // 森林绿
+                    .foregroundColor(PixelTheme.forest)
                 
                 TextField("种下一颗种子…", text: $title)
                     .font(.system(.body, design: .rounded))
-                    .foregroundColor(Color(red: 0.2, green: 0.133, blue: 0.067)) // 深棕黑
+                    .foregroundColor(PixelTheme.textPrimary)
                     .focused(focusedRowId, equals: rowId)
                     .submitLabel(.next)
                     .onSubmit {
@@ -1108,13 +1108,13 @@ private struct FocusRowView: View {
                     Text(parsedDuration)
                         .font(.system(.caption2, design: .rounded))
                         .fontWeight(.bold)
-                        .foregroundColor(.white)
+                        .foregroundColor(PixelTheme.textInverted)
                         .padding(.horizontal, 6)
                         .padding(.vertical, 4)
                         .background(
                             Capsule()
-                                .fill(Color(red: 0.306, green: 0.486, blue: 0.196)) // 森林绿
-                                .shadow(color: Color(red: 0.306, green: 0.486, blue: 0.196).opacity(0.3), radius: 2, x: 1, y: 1)
+                                .fill(PixelTheme.forest)
+                                .shadow(color: PixelTheme.forest.opacity(0.3), radius: 2, x: 1, y: 1)
                         )
                         .accessibilityIdentifier("focusRowParsedDuration_\(rowIndex)")
                 }
@@ -1129,16 +1129,16 @@ private struct FocusRowView: View {
                         .font(.system(.caption, design: .rounded))
                         .fontWeight(.semibold)
                 }
-                .foregroundColor(durationTitle == "—" ? Color(red: 0.2, green: 0.133, blue: 0.067).opacity(0.5) : .white)
+                .foregroundColor(durationTitle == "—" ? PixelTheme.textPrimary.opacity(0.5) : PixelTheme.textInverted)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 6)
                 .background(
                     Capsule()
                         .fill(durationTitle == "—" ? 
-                              Color.white.opacity(0.3) : 
-                              Color(red: 0.941, green: 0.502, blue: 0.188) // 活力橘
+                              PixelTheme.cardBackground.opacity(0.3) : 
+                              PixelTheme.vitality
                         )
-                        .shadow(color: durationTitle == "—" ? Color.clear : Color(red: 0.941, green: 0.502, blue: 0.188).opacity(0.3), radius: 2, x: 1, y: 1)
+                        .shadow(color: durationTitle == "—" ? Color.clear : PixelTheme.vitality.opacity(0.3), radius: 2, x: 1, y: 1)
                 )
             }
             .buttonStyle(.plain)
@@ -1152,16 +1152,16 @@ private struct FocusRowView: View {
                         .font(.system(.caption, design: .rounded))
                         .fontWeight(.semibold)
                 }
-                .foregroundColor(Color(red: 0.2, green: 0.133, blue: 0.067))
+                .foregroundColor(PixelTheme.textPrimary)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 6)
                 .background(
                     Capsule()
-                        .fill(Color.white.opacity(0.9))
-                        .shadow(color: Color(red: 0.545, green: 0.369, blue: 0.235).opacity(0.2), radius: 2, x: 1, y: 1)
+                        .fill(PixelTheme.cardBackground.opacity(0.9))
+                        .shadow(color: PixelTheme.woodMedium.opacity(0.2), radius: 2, x: 1, y: 1)
                         .overlay(
                             Capsule()
-                                .stroke(Color(red: 0.545, green: 0.369, blue: 0.235).opacity(0.3), lineWidth: 1)
+                                .stroke(PixelTheme.woodMedium.opacity(0.3), lineWidth: 1)
                         )
                 )
             }
@@ -1172,11 +1172,11 @@ private struct FocusRowView: View {
         .padding(.vertical, 12)
         .background(
             RoundedRectangle(cornerRadius: 16)
-                .fill(Color.white.opacity(0.8))
-                .shadow(color: Color(red: 0.545, green: 0.369, blue: 0.235).opacity(0.15), radius: 3, x: 2, y: 2)
+                .fill(PixelTheme.cardBackground.opacity(0.8))
+                .shadow(color: PixelTheme.woodMedium.opacity(0.15), radius: 3, x: 2, y: 2)
                 .overlay(
                     RoundedRectangle(cornerRadius: 16)
-                        .stroke(Color(red: 0.306, green: 0.486, blue: 0.196).opacity(0.2), lineWidth: 1)
+                        .stroke(PixelTheme.forest.opacity(0.2), lineWidth: 1)
                 )
         )
     }
@@ -1199,14 +1199,14 @@ private struct LibraryRowView: View {
     var body: some View {
         let now = Date()
         let isExpired = data.entry.deadlineStatus == .expired
-        let titleColor: Color = isExpired ? Color(red: 0.2, green: 0.133, blue: 0.067).opacity(0.4) : Color(red: 0.2, green: 0.133, blue: 0.067)
+        let titleColor: Color = isExpired ? PixelTheme.textPrimary.opacity(0.4) : PixelTheme.textPrimary
         let deadlineText = deadlineLabel(now: now)
 
         HStack(spacing: 12) {
             // 选择状态图标 (像素风格)
             Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                 .font(.system(size: 18, weight: .bold))
-                .foregroundColor(isSelected ? Color(red: 0.306, green: 0.486, blue: 0.196) : Color(red: 0.545, green: 0.369, blue: 0.235).opacity(0.5))
+                .foregroundColor(isSelected ? PixelTheme.forest : PixelTheme.woodMedium.opacity(0.5))
 
             // 任务图标 (像素小物件)
             Image(systemName: data.template.icon)
@@ -1231,20 +1231,20 @@ private struct LibraryRowView: View {
                     HStack(spacing: 2) {
                         Image(systemName: "clock.fill")
                             .font(.system(size: 8))
-                            .foregroundColor(Color(red: 0.941, green: 0.502, blue: 0.188))
+                            .foregroundColor(PixelTheme.vitality)
                         Text("\(Int(data.template.defaultDuration / 60)) 分钟")
                             .font(.system(.caption2, design: .rounded))
-                            .foregroundColor(Color(red: 0.2, green: 0.133, blue: 0.067).opacity(0.8))
+                            .foregroundColor(PixelTheme.textPrimary.opacity(0.8))
                     }
                     
                     if let deadlineText {
                         HStack(spacing: 2) {
                             Image(systemName: isExpired ? "exclamationmark.triangle.fill" : "calendar")
                                 .font(.system(size: 8))
-                                .foregroundColor(isExpired ? Color(red: 0.941, green: 0.502, blue: 0.188) : Color(red: 0.306, green: 0.486, blue: 0.196))
+                                .foregroundColor(isExpired ? PixelTheme.vitality : PixelTheme.forest)
                             Text(deadlineText)
                                 .font(.system(.caption2, design: .rounded))
-                                .foregroundColor(isExpired ? Color(red: 0.941, green: 0.502, blue: 0.188) : Color(red: 0.306, green: 0.486, blue: 0.196))
+                                .foregroundColor(isExpired ? PixelTheme.vitality : PixelTheme.forest)
                         }
                     }
                 }
@@ -1255,21 +1255,21 @@ private struct LibraryRowView: View {
             if isExpired {
                 Image(systemName: "leaf.fill")
                     .font(.system(size: 12))
-                    .foregroundColor(Color(red: 0.545, green: 0.369, blue: 0.235).opacity(0.3))
+                    .foregroundColor(PixelTheme.woodMedium.opacity(0.3))
             }
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
         .background(
             RoundedRectangle(cornerRadius: 16)
-                .fill(Color.white.opacity(isExpired ? 0.3 : 0.8))
-                .shadow(color: Color(red: 0.545, green: 0.369, blue: 0.235).opacity(isExpired ? 0.1 : 0.15), radius: 2, x: 1, y: 1)
+                .fill(PixelTheme.cardBackground.opacity(isExpired ? 0.3 : 0.8))
+                .shadow(color: PixelTheme.woodMedium.opacity(isExpired ? 0.1 : 0.15), radius: 2, x: 1, y: 1)
                 .overlay(
                     RoundedRectangle(cornerRadius: 16)
                         .stroke(
                             isSelected ? 
-                            Color(red: 0.306, green: 0.486, blue: 0.196).opacity(0.6) : 
-                            Color(red: 0.545, green: 0.369, blue: 0.235).opacity(0.2), 
+                            PixelTheme.forest.opacity(0.6) : 
+                            PixelTheme.woodMedium.opacity(0.2), 
                             lineWidth: isSelected ? 2 : 1
                         )
                 )
@@ -1314,9 +1314,9 @@ private struct LibraryRowView: View {
         // 像素治愈风格的自然色系
         let hash = templateId.hashValue
         let colors: [Color] = [
-            Color(red: 0.306, green: 0.486, blue: 0.196), // 森林绿 #4E7C32
-            Color(red: 0.941, green: 0.502, blue: 0.188), // 活力橘 #F08030
-            Color(red: 0.545, green: 0.369, blue: 0.235), // 木纹棕 #8B5E3C
+            PixelTheme.forest,     // 森林绿
+            PixelTheme.vitality,   // 活力橘
+            PixelTheme.woodDark,   // 木纹棕
             Color(red: 0.2, green: 0.6, blue: 0.8),       // 天蓝色 (学习)
             Color(red: 0.8, green: 0.4, blue: 0.6),       // 粉紫色 (创作)
             Color(red: 0.6, green: 0.8, blue: 0.4),       // 草绿色 (家务)
@@ -1344,12 +1344,12 @@ private struct DurationPickerSheet: View {
                 VStack(spacing: 8) {
                     Image(systemName: "clock.fill")
                         .font(.system(size: 32, weight: .bold))
-                        .foregroundColor(Color(red: 0.941, green: 0.502, blue: 0.188)) // 活力橘
+                        .foregroundColor(PixelTheme.vitality)
                     
                     Text("设置专注时长")
                         .font(.system(.headline, design: .rounded))
                         .fontWeight(.bold)
-                        .foregroundColor(Color(red: 0.2, green: 0.133, blue: 0.067))
+                        .foregroundColor(PixelTheme.textPrimary)
                 }
                 .padding(.top, 16)
 
@@ -1363,13 +1363,13 @@ private struct DurationPickerSheet: View {
                         }
                         .font(.system(.subheadline, design: .rounded))
                         .fontWeight(.semibold)
-                        .foregroundColor(.white)
+                        .foregroundColor(PixelTheme.textInverted)
                         .padding(.horizontal, 16)
                         .padding(.vertical, 12)
                         .background(
                             RoundedRectangle(cornerRadius: 12)
-                                .fill(Color(red: 0.306, green: 0.486, blue: 0.196)) // 森林绿
-                                .shadow(color: Color(red: 0.306, green: 0.486, blue: 0.196).opacity(0.3), radius: 3, x: 2, y: 2)
+                                .fill(PixelTheme.forest)
+                                .shadow(color: PixelTheme.forest.opacity(0.3), radius: 3, x: 2, y: 2)
                         )
                         .buttonStyle(.plain)
                     }
@@ -1377,14 +1377,14 @@ private struct DurationPickerSheet: View {
                 .padding(.horizontal, 16)
 
                 Divider()
-                    .background(Color(red: 0.545, green: 0.369, blue: 0.235).opacity(0.3))
+                    .background(PixelTheme.woodMedium.opacity(0.3))
 
                 // 自定义时长选择器
                 VStack(spacing: 12) {
                     Text("自定义时长")
                         .font(.system(.subheadline, design: .rounded))
                         .fontWeight(.semibold)
-                        .foregroundColor(Color(red: 0.2, green: 0.133, blue: 0.067))
+                        .foregroundColor(PixelTheme.textPrimary)
                     
                     Picker("自定义", selection: $customMinutes) {
                         ForEach(1...240, id: \.self) { minutes in
@@ -1395,7 +1395,7 @@ private struct DurationPickerSheet: View {
                     .frame(height: 140)
                     .background(
                         RoundedRectangle(cornerRadius: 12)
-                            .fill(Color.white.opacity(0.8))
+                            .fill(PixelTheme.cardBackground.opacity(0.8))
                     )
                 }
 
@@ -1407,15 +1407,15 @@ private struct DurationPickerSheet: View {
                     }
                     .font(.system(.subheadline, design: .rounded))
                     .fontWeight(.semibold)
-                    .foregroundColor(Color(red: 0.2, green: 0.133, blue: 0.067))
+                    .foregroundColor(PixelTheme.textPrimary)
                     .padding(.horizontal, 20)
                     .padding(.vertical, 12)
                     .background(
                         RoundedRectangle(cornerRadius: 16)
-                            .fill(Color.white.opacity(0.8))
+                            .fill(PixelTheme.cardBackground.opacity(0.8))
                             .overlay(
                                 RoundedRectangle(cornerRadius: 16)
-                                    .stroke(Color(red: 0.545, green: 0.369, blue: 0.235).opacity(0.3), lineWidth: 1)
+                                    .stroke(PixelTheme.woodMedium.opacity(0.3), lineWidth: 1)
                             )
                     )
 
@@ -1425,13 +1425,13 @@ private struct DurationPickerSheet: View {
                     }
                     .font(.system(.subheadline, design: .rounded))
                     .fontWeight(.bold)
-                    .foregroundColor(.white)
+                    .foregroundColor(PixelTheme.textInverted)
                     .padding(.horizontal, 20)
                     .padding(.vertical, 12)
                     .background(
                         RoundedRectangle(cornerRadius: 16)
-                            .fill(Color(red: 0.941, green: 0.502, blue: 0.188)) // 活力橘
-                            .shadow(color: Color(red: 0.941, green: 0.502, blue: 0.188).opacity(0.4), radius: 4, x: 2, y: 2)
+                            .fill(PixelTheme.vitality)
+                            .shadow(color: PixelTheme.vitality.opacity(0.4), radius: 4, x: 2, y: 2)
                     )
                 }
                 .padding(.horizontal, 16)
@@ -1441,8 +1441,8 @@ private struct DurationPickerSheet: View {
             .background(
                 LinearGradient(
                     gradient: Gradient(colors: [
-                        Color(red: 0.992, green: 0.965, blue: 0.890), // 浅米色
-                        Color(red: 0.306, green: 0.486, blue: 0.196).opacity(0.1) // 淡森林绿
+                        PixelTheme.cream,
+                        PixelTheme.forest.opacity(0.1)
                     ]),
                     startPoint: .top,
                     endPoint: .bottom

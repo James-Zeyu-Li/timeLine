@@ -10,6 +10,7 @@ struct CardFanView: View {
     @EnvironmentObject var libraryStore: LibraryStore
     @EnvironmentObject var stateManager: AppStateManager
     @EnvironmentObject var appMode: AppModeManager
+    @EnvironmentObject var dragCoordinator: DragDropCoordinator
     
     @State private var showQuickBuilder = false
     @State private var isSelecting = false
@@ -50,6 +51,7 @@ struct CardFanView: View {
                                 guard !appMode.isDragging else { return }
                                 appMode.enterCardEdit(cardTemplateId: card.id)
                             }
+                            .gesture(cardDragGesture(for: card))
                     }
                 }
                 .frame(height: 200)
@@ -168,7 +170,27 @@ struct CardFanView: View {
         return .degrees(offset * 3) // Less rotation
     }
     
-    // MARK: - Gestures
+    // MARK: - Gestures (Reuse existing implementation from DeckOverlay)
+    
+    private func cardDragGesture(for template: CardTemplate) -> some Gesture {
+        LongPressGesture(minimumDuration: 0.25)
+            .sequenced(before: DragGesture(minimumDistance: 0, coordinateSpace: .global))
+            .onChanged { value in
+                guard !isSelecting else { return }
+                switch value {
+                case .second(true, let drag?):
+                    if !appMode.isDragging {
+                        let payload = DragPayload(type: .cardTemplate(template.id), source: .cards)
+                        appMode.enter(.dragging(payload))
+                        dragCoordinator.startDrag(payload: payload)
+                    }
+                    dragCoordinator.dragLocation = drag.location
+                default:
+                    break
+                }
+            }
+            .onEnded { _ in }
+    }
 }
 
 // MARK: - Card View (Scroll/Spellbook Style)

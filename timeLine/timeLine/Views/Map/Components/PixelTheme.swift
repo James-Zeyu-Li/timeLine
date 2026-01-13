@@ -16,58 +16,88 @@ enum PixelTheme {
     static let shadowRadius: CGFloat = 4
     static let shadowOpacity: Double = 0.15
     
+    // Theme switching support
+    @AppStorage("usePixelTheme") private static var usePixelTheme = true
+    
     // Phase 16: Modern RPG Palette (V2.5)
     // Clean, Cream & Orange, High Readability
     
-    // Backgrounds
-    static let cream = Color(hex: "F9F5EC") // Soft Cream Base
-    static let background = cream
-    static let backgroundBoard = cream // Unified bg
+    // Backgrounds - Theme aware
+    static var cream: Color {
+        usePixelTheme ? Color(hex: "F9F5EC") : Color(hex: "F8F9FA")
+    }
     
-    // Card Surface
-    static let cardBackground = Color.white
-    static let cardShadow = Color.black.opacity(0.06)
+    static var background: Color { cream }
+    static var backgroundBoard: Color { cream }
     
-    // Accents
-    static let primary = Color(hex: "F5A623") // Golden Orange
-    static let secondary = Color(hex: "8B572A") // Leather Brown
-    static let success = Color(hex: "7ED321") // Quest Green
-    static let warning = Color(hex: "D0021B") // Alert Red
+    // Card Surface - Theme aware
+    static var cardBackground: Color {
+        usePixelTheme ? Color.white : Color(hex: "FFFFFF")
+    }
+    
+    static var cardShadow: Color {
+        usePixelTheme ? Color.black.opacity(0.06) : Color.black.opacity(0.04)
+    }
+    
+    // Accents - Theme aware
+    static var primary: Color {
+        usePixelTheme ? Color(hex: "F5A623") : Color(hex: "007AFF")
+    }
+    
+    static var secondary: Color {
+        usePixelTheme ? Color(hex: "8B572A") : Color(hex: "6C757D")
+    }
+    
+    static var success: Color {
+        usePixelTheme ? Color(hex: "7ED321") : Color(hex: "28A745")
+    }
+    
+    static var warning: Color {
+        usePixelTheme ? Color(hex: "D0021B") : Color(hex: "DC3545")
+    }
     
     // Re-map to existing semantic names
-    static let forest = success
-    static let vitality = primary
-    static let alert = warning
-    static let woodDark = secondary
-    static let woodMedium = secondary.opacity(0.8)
-    static let woodLight = secondary.opacity(0.6)
+    static var forest: Color { success }
+    static var vitality: Color { primary }
+    static var alert: Color { warning }
+    static var woodDark: Color { secondary }
+    static var woodMedium: Color { secondary.opacity(0.8) }
+    static var woodLight: Color { secondary.opacity(0.6) }
     
-    // Text
-    static let textPrimary = Color(hex: "4A4A4A") // Soft Black
-    static let textSecondary = Color(hex: "9B9B9B") // Medium Gray
-    static let textInverted = Color.white
+    // Text - Theme aware
+    static var textPrimary: Color {
+        usePixelTheme ? Color(hex: "4A4A4A") : Color(hex: "1C1C1E")
+    }
+    
+    static var textSecondary: Color {
+        usePixelTheme ? Color(hex: "9B9B9B") : Color(hex: "8E8E93")
+    }
+    
+    static let textInverted = Color(hex: "1a1b26")
+    static let surface = Color(hex: "1a1b26") // Dark background matching textInverted or slightly lighter
+    static let surfaceHighlight = Color(hex: "24283b")
         
     // Legacy / Compat
-    static let backgroundTop = background
-    static let backgroundBottom = background
-    static let backgroundGrid = secondary.opacity(0.05)
-    static let backgroundTile = secondary.opacity(0.03)
+    static var backgroundTop: Color { background }
+    static var backgroundBottom: Color { background }
+    static var backgroundGrid: Color { secondary.opacity(0.05) }
+    static var backgroundTile: Color { secondary.opacity(0.03) }
 
-    static let cardTop = Color.white
-    static let cardBottom = Color.white
-    static let cardBorder = Color.clear // Modern style uses shadows, not borders
-    static let cardGlow = primary.opacity(0.4)
+    static var cardTop: Color { Color.white }
+    static var cardBottom: Color { Color.white }
+    static var cardBorder: Color { Color.clear } // Modern style uses shadows, not borders
+    static var cardGlow: Color { primary.opacity(0.4) }
     
-    static let pathPixel = secondary.opacity(0.2) // Dashed line color
-    static let accent = primary // Primary branding
+    static var pathPixel: Color { secondary.opacity(0.2) } // Dashed line color
+    static var accent: Color { primary } // Primary branding
     
     // Terrain (Unused now, but kept for compat)
-    static let plains = success.opacity(0.2)
-    static let cave = textSecondary.opacity(0.2)
-    static let camp = primary
+    static var plains: Color { success.opacity(0.2) }
+    static var cave: Color { textSecondary.opacity(0.2) }
+    static var camp: Color { primary }
     
-    static let petBody = secondary
-    static let petShadow = Color.black.opacity(0.1)
+    static var petBody: Color { secondary }
+    static var petShadow: Color { Color.black.opacity(0.1) }
 
     // Helper for Hex
     static func color(hex: String) -> Color {
@@ -87,9 +117,9 @@ extension Color {
         
         self.init(
             .sRGB,
-            red: Double(r) / 0.255,
-            green: Double(g) / 0.255,
-            blue: Double(b) / 0.255,
+            red: Double(r) / 255.0,
+            green: Double(g) / 255.0,
+            blue: Double(b) / 255.0,
             opacity: 1
         )
     }

@@ -35,14 +35,26 @@ final class DragDropCoordinator: ObservableObject {
     // MARK: - Published State
     
     @Published var dragLocation: CGPoint = .zero
+    @Published var dragOffset: CGSize = .zero
     @Published var hoveringNodeId: UUID?
     @Published var activeDeckSummary: DeckDragSummary?
     @Published var hoveringPlacement: DropPlacement = .after
+    @Published var initialDragLocation: CGPoint? // Captured when drag mode starts
     
     // MARK: - Internal State
     
     private(set) var activePayload: DragPayload?
     private var axisDirection: DropAxisDirection = .bottomToTop
+    
+    // MARK: - Computed Properties
+    
+    var draggedNodeId: UUID? {
+        guard let payload = activePayload else { return nil }
+        if case .node(let nodeId) = payload.type {
+            return nodeId
+        }
+        return nil
+    }
     
     // MARK: - Drag Lifecycle
     
@@ -64,30 +76,29 @@ final class DragDropCoordinator: ObservableObject {
     func updatePosition(_ location: CGPoint, nodeFrames: [UUID: CGRect], allowedNodeIds: Set<UUID>) {
         dragLocation = location
         
-        // Find the nearest node center among frames that contain the drag location.
-        let candidates = nodeFrames.compactMap { (id, frame) -> (UUID, CGRect, CGPoint)? in
+        // Find the closest node to the drag location
+        let candidates = nodeFrames.compactMap { (id, frame) -> (UUID, CGRect, CGFloat)? in
             guard allowedNodeIds.contains(id) else { return nil }
-            guard frame.contains(location) else { return nil }
-            let center = CGPoint(x: frame.midX, y: frame.midY)
-            return (id, frame, center)
+            let distance = abs(frame.midY - location.y)
+            return (id, frame, distance)
         }
+        
         guard !candidates.isEmpty else {
             hoveringNodeId = nil
             hoveringPlacement = .after
             return
         }
-        let bestCandidate = candidates.min { lhs, rhs in
-            let left = (lhs.2.x - location.x) * (lhs.2.x - location.x)
-                + (lhs.2.y - location.y) * (lhs.2.y - location.y)
-            let right = (rhs.2.x - location.x) * (rhs.2.x - location.x)
-                + (rhs.2.y - location.y) * (rhs.2.y - location.y)
-            return left < right
+        
+        let closestCandidate = candidates.min { lhs, rhs in
+            lhs.2 < rhs.2
         }
-        guard let selected = bestCandidate else {
+        
+        guard let selected = closestCandidate else {
             hoveringNodeId = nil
             hoveringPlacement = .after
             return
         }
+        
         hoveringNodeId = selected.0
         let isAboveCenter = location.y < selected.1.midY
         switch axisDirection {
@@ -110,8 +121,8 @@ final class DragDropCoordinator: ObservableObject {
             return .placeDeck(deckId: deckId, anchorNodeId: nodeId, placement: hoveringPlacement)
         case .focusGroup(let memberTemplateIds):
             return .placeFocusGroup(memberTemplateIds: memberTemplateIds, anchorNodeId: nodeId, placement: hoveringPlacement)
-        case .node(let nodeId):
-            return .moveNode(nodeId: nodeId, anchorNodeId: nodeId, placement: hoveringPlacement)
+        case .node(let draggedNodeId):
+            return .moveNode(nodeId: draggedNodeId, anchorNodeId: nodeId, placement: hoveringPlacement)
         }
     }
     
@@ -125,5 +136,7 @@ final class DragDropCoordinator: ObservableObject {
         hoveringNodeId = nil
         hoveringPlacement = .after
         dragLocation = .zero
+        dragOffset = .zero
+        initialDragLocation = nil
     }
 }

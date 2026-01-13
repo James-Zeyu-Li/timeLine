@@ -9,6 +9,7 @@ struct SettingsView: View {
     @AppStorage("soundEnabled") private var soundEnabled = false
     @AppStorage("hapticsEnabled") private var hapticsEnabled = true
     @AppStorage("use24HourClock") private var use24HourClock = true
+    @AppStorage("usePixelTheme") private var usePixelTheme = true
     @State private var showResetConfirmation = false
     
     var body: some View {
@@ -36,6 +37,25 @@ struct SettingsView: View {
                 }
                 
                 Section(header: Text("App Behavior")) {
+                    HStack {
+                        Image(systemName: "paintbrush.fill")
+                            .foregroundColor(.orange)
+                            .frame(width: 24)
+                        
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Pixel Theme")
+                                .font(.headline)
+                            Text("Use warm pixel healing style vs smooth modern design")
+                                .font(.caption)
+                                .foregroundColor(.gray)
+                        }
+                        
+                        Spacer()
+                        
+                        Toggle("", isOn: $usePixelTheme)
+                    }
+                    .padding(.vertical, 4)
+                    
                     HStack {
                         Image(systemName: "square.and.arrow.down.fill")
                             .foregroundColor(.blue)

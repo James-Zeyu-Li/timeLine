@@ -21,12 +21,12 @@ struct DeckOverlay: View {
     var body: some View {
         GeometryReader { proxy in
             let maxHeight = proxy.size.height
-            let expandedHeight = min(maxHeight * 0.6, 520)
-            let collapsedHeight = min(maxHeight * 0.42, 360)
+            let expandedHeight = min(maxHeight * 0.5, 450)  // Reduced from 0.6 to 0.5, and from 520 to 450
+            let collapsedHeight = min(maxHeight * 0.35, 300)  // Reduced from 0.42 to 0.35, and from 360 to 300
             let sheetHeight = isDimmed ? collapsedHeight : expandedHeight
             
             ZStack(alignment: .bottom) {
-                Color.black.opacity(isDimmed ? 0.0 : 0.45)
+                Color.black.opacity(isDimmed ? 0.0 : 0.75)  // Increased from 0.45 to 0.75 for less transparency
                     .ignoresSafeArea()
                     .accessibilityIdentifier("deckOverlayBackground")
                     .allowsHitTesting(!isDimmed)
@@ -60,7 +60,7 @@ struct DeckOverlay: View {
     private var sheetContent: some View {
         VStack(spacing: 0) {
             Capsule()
-                .fill(Color(red: 0.545, green: 0.369, blue: 0.235).opacity(0.3)) // 木纹棕
+                .fill(Color(red: 0.6, green: 0.5, blue: 0.4).opacity(0.3)) // 温暖棕色
                 .frame(width: 36, height: 4)
                 .padding(.top, 8)
                 .padding(.bottom, 10)
@@ -99,8 +99,8 @@ struct DeckOverlay: View {
             .fill(
                 LinearGradient(
                     gradient: Gradient(colors: [
-                        Color(red: 0.992, green: 0.965, blue: 0.890), // 浅米色 #FDF6E3
-                        Color(red: 0.545, green: 0.369, blue: 0.235).opacity(0.1) // 淡木纹棕
+                        Color(red: 0.95, green: 0.94, blue: 0.92), // 浅米色背景 (Chapter theme)
+                        Color(red: 0.6, green: 0.5, blue: 0.4).opacity(0.1) // 温暖棕色
                     ]),
                     startPoint: .top,
                     endPoint: .bottom
@@ -142,12 +142,12 @@ struct DeckOverlay: View {
                     Text(tabTitle(t))
                         .font(.system(.subheadline, design: .rounded))
                         .fontWeight(activeTab == t ? .bold : .medium)
-                        .foregroundColor(activeTab == t ? Color(red: 0.2, green: 0.133, blue: 0.067) : Color(red: 0.6, green: 0.5, blue: 0.4)) // 深棕黑 vs 温暖棕
+                        .foregroundColor(activeTab == t ? Color(red: 0.2, green: 0.15, blue: 0.1) : Color(red: 0.6, green: 0.5, blue: 0.4)) // Chapter theme colors
                         .padding(.horizontal, 16)
                         .padding(.vertical, 8)
                         .background(
                             Capsule()
-                                .fill(activeTab == t ? Color(red: 1.0, green: 0.6, blue: 0.2).opacity(0.2) : Color.clear) // 活力橘背景
+                                .fill(activeTab == t ? Color(red: 1.0, green: 0.6, blue: 0.2).opacity(0.2) : Color.clear) // Chapter activity orange
                         )
                 }
             }
@@ -257,19 +257,17 @@ private struct DecksTabView: View {
         DragGesture(minimumDistance: 10, coordinateSpace: .global)
             .onChanged { value in
                 if appMode.draggingDeckId == nil && !appMode.isDragging {
-                    appMode.enter(.dragging(DragPayload(type: .deck(deck.id), source: .decks)))
-                    if appMode.draggingDeckId == deck.id {
-                        let summary = DeckDragSummary(
-                            count: deck.count,
-                            duration: deckStore.totalDuration(for: deck, using: cardStore)
-                        )
-                        dragCoordinator.startDeckDrag(
-                            payload: DragPayload(type: .deck(deck.id), source: .decks),
-                            summary: summary
-                        )
-                    } else {
-                        return
-                    }
+                    let payload = DragPayload(type: .deck(deck.id), source: .decks)
+                    appMode.enter(.dragging(payload))
+                    
+                    let summary = DeckDragSummary(
+                        count: deck.count,
+                        duration: deckStore.totalDuration(for: deck, using: cardStore)
+                    )
+                    dragCoordinator.startDeckDrag(
+                        payload: payload,
+                        summary: summary
+                    )
                 }
                 dragCoordinator.dragLocation = value.location
             }
@@ -305,7 +303,7 @@ private struct DecksTabView: View {
                 Text("ROUTINE DECKS")
                     .font(.system(size: 11, weight: .bold))
                     .tracking(1.5)
-                    .foregroundColor(.cyan.opacity(0.8))
+                    .foregroundColor(Color(red: 0.6, green: 0.5, blue: 0.4).opacity(0.8)) // Chapter brown
                 
                 Spacer()
                 
@@ -318,7 +316,7 @@ private struct DecksTabView: View {
                         Image(systemName: "chevron.right")
                             .font(.system(size: 10, weight: .bold))
                     }
-                    .foregroundColor(.cyan)
+                    .foregroundColor(Color(red: 1.0, green: 0.6, blue: 0.2)) // Chapter activity orange
                 }
                 .buttonStyle(.plain)
             }
@@ -826,11 +824,7 @@ private struct LibraryTabView: View {
                     if !appMode.isDragging {
                         let payload = DragPayload(type: .cardTemplate(template.id), source: .library)
                         appMode.enter(.dragging(payload))
-                        if appMode.isDragging {
-                            dragCoordinator.startDrag(payload: payload)
-                        } else {
-                            return
-                        }
+                        dragCoordinator.startDrag(payload: payload)
                     }
                     dragCoordinator.dragLocation = drag.location
                 default:

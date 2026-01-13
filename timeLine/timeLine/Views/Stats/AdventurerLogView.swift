@@ -7,6 +7,7 @@ struct AdventurerLogView: View {
     @Environment(\.presentationMode) var presentationMode
     
     @State private var selectedRange: LogRange = .week
+    @State private var showSettings = false
     
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
@@ -96,6 +97,9 @@ struct AdventurerLogView: View {
         .onAppear {
             viewModel.processHistory(engine.history)
         }
+        .sheet(isPresented: $showSettings) {
+            SettingsView()
+        }
     }
     
     private var navigationHeader: some View {
@@ -128,9 +132,9 @@ struct AdventurerLogView: View {
             Spacer()
             
             Button {
-                // Settings/Filter
+                showSettings = true
             } label: {
-                Image(systemName: "slider.horizontal.3")
+                Image(systemName: "gearshape.fill")
                     .font(.system(size: 16, weight: .bold))
                     .foregroundColor(PixelTheme.textPrimary)
                     .frame(width: 40, height: 40)

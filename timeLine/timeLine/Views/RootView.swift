@@ -53,11 +53,30 @@ struct RootView: View {
             DragGesture(minimumDistance: 0, coordinateSpace: .global)
                 .onChanged { value in
                     if appMode.isDragging {
+                        // Initialize start location if not set
+                        if dragCoordinator.initialDragLocation == nil {
+                            dragCoordinator.initialDragLocation = value.location
+                        }
+                        
+                        // Calculate offset relative to where drag mode STARTED
+                        if let start = dragCoordinator.initialDragLocation {
+                            dragCoordinator.dragOffset = CGSize(
+                                width: value.location.x - start.x,
+                                height: value.location.y - start.y
+                            )
+                        }
+                        
                         dragCoordinator.updatePosition(
                             value.location,
                             nodeFrames: nodeFrames,
                             allowedNodeIds: droppableNodeIds
                         )
+                    } else {
+                        // Ensure we reset if no longer dragging (safety)
+                        if dragCoordinator.initialDragLocation != nil {
+                            dragCoordinator.initialDragLocation = nil
+                            dragCoordinator.dragOffset = .zero
+                        }
                     }
                 }
                 .onEnded { _ in
@@ -183,9 +202,13 @@ struct RootView: View {
             StrictSheet(tab: tab, isDimmed: false)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
         case .dragging(let payload):
-            // Keep deck visible but dimmed during drag
-            StrictSheet(tab: payload.source, isDimmed: true)
-                .allowsHitTesting(false)
+            // Keep deck visible but dimmed during drag (only for card/deck drags, not node reordering)
+            if case .node = payload.type {
+                EmptyView()
+            } else {
+                StrictSheet(tab: payload.source, isDimmed: true)
+                    .allowsHitTesting(false)
+            }
         default:
             EmptyView()
         }
@@ -362,10 +385,55 @@ struct RootView: View {
                 success = false
             }
 
-        case .moveNode(nodeId: _, anchorNodeId: _, placement: _):
-            // Node moving not implemented yet
-            Haptics.impact(.light)
-            success = false
+        case .moveNode(let nodeId, let anchorNodeId, let placement):
+            let timelineStore = TimelineStore(daySession: daySession, stateManager: stateManager)
+            guard let currentIndex = daySession.nodes.firstIndex(where: { $0.id == nodeId }),
+                  let anchorIndex = daySession.nodes.firstIndex(where: { $0.id == anchorNodeId }) else {
+                Haptics.impact(.light)
+                success = false
+                break
+            }
+            
+            // Timeline is displayed in REVERSED order: visual top = highest data index
+            // DragDropCoordinator with axisDirection=.bottomToTop:
+            //   - .before = cursor is BELOW target center (user wants to place BELOW target visually)
+            //   - .after = cursor is ABOVE target center (user wants to place ABOVE target visually)
+            //
+            // In reversed display:
+            //   - "above" visually = HIGHER data index
+            //   - "below" visually = LOWER data index
+            //
+            // So:
+            //   - .after (place above visual) → insert at higher data index = anchorIndex + 1
+            //   - .before (place below visual) → insert at anchorIndex
+            
+            let destinationIndex: Int
+            if placement == .after {
+                // Place ABOVE anchor visually = HIGHER data index
+                destinationIndex = anchorIndex + 1
+            } else {
+                // Place BELOW anchor visually = AT or BEFORE anchor in data
+                destinationIndex = anchorIndex
+            }
+            
+            print("DEBUG moveNode: currentIndex=\(currentIndex), anchorIndex=\(anchorIndex), placement=\(placement)")
+            print("DEBUG moveNode: destinationIndex=\(destinationIndex)")
+            
+            // Check if move would actually change anything
+            // For Array.move: moving from X to X or X+1 results in no change
+            let wouldActuallyMove = !(destinationIndex == currentIndex || destinationIndex == currentIndex + 1)
+            
+            if wouldActuallyMove {
+                print("DEBUG moveNode: Executing move from \(currentIndex) to \(destinationIndex)")
+                let sourceIndexSet = IndexSet(integer: currentIndex)
+                timelineStore.moveNode(from: sourceIndexSet, to: destinationIndex)
+                Haptics.impact(.medium)
+                success = true
+            } else {
+                print("DEBUG moveNode: Skipping - no actual movement would occur")
+                Haptics.impact(.light)
+                success = false
+            }
 
         case .cancel:
             success = handleEmptyDropFallback()

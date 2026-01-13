@@ -41,9 +41,13 @@ final class AppModeManager: ObservableObject {
             }
             
         case .dragging(let payload):
-            // Only allowed from deckOverlay
-            guard case .deckOverlay = mode else { return }
-            mode = .dragging(payload)
+            // Allow dragging from deckOverlay (card/deck drags) or home modes (node reordering)
+            switch mode {
+            case .deckOverlay, .homeCollapsed, .homeExpanded:
+                mode = .dragging(payload)
+            default:
+                return
+            }
             
         case .cardEdit(let id, _):
             // Allowed from deckOverlay or home (timeline card action)
@@ -94,7 +98,12 @@ final class AppModeManager: ObservableObject {
     func exitDrag(success: Bool) {
         switch mode {
         case .dragging(let payload):
-            mode = .deckOverlay(payload.source)  // return to deck for chain-add
+            // Node drags return to home, deck/card drags return to deck overlay
+            if case .node = payload.type {
+                mode = .homeCollapsed
+            } else {
+                mode = .deckOverlay(payload.source)  // return to deck for chain-add
+            }
         default:
             return
         }

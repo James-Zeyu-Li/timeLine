@@ -36,19 +36,16 @@
 - **Decks UI**：`timeLine/timeLine/Views/Deck/DeckOverlay.swift`
 
 ### 拖拽与放置
-- **拖拽 payload / hover**：`timeLine/timeLine/State/DragPayload.swift` / `timeLine/timeLine/State/DragDropCoordinator.swift`
-- **拖拽落点与 placement**：`timeLine/timeLine/Views/RootView.swift`
+- **拖拽 payload / state**：`timeLine/timeLine/State/DragPayload.swift` / `timeLine/timeLine/State/DragDropCoordinator.swift`
+- **拖拽落点与 placement**：`timeLine/timeLine/Views/RootView.swift` (Drop Handling) & `RogueMapView.swift` (Visual Feedback)
 - **放置写入**：`timeLine/timeLine/State/TimelineStore.swift`
 - **路线结构**：`TimeLineCore/Sources/TimeLineCore/Domain/DaySession.swift`
 
 ### Focus Group / Rest Prompt
 - **FocusGroup payload**：`TimeLineCore/Sources/TimeLineCore/Domain/FocusGroupPayload.swift`
-- **FocusGroup 分账**：`TimeLineCore/Sources/TimeLineCore/Services/FocusGroupSessionCoordinator.swift`
 - **Group Focus UI**：`timeLine/timeLine/Views/FocusGroup/GroupFocusView.swift`
 - **完成/报告协调**：`timeLine/timeLine/TimelineEventCoordinator.swift`
-- **RestPrompt 逻辑**：`TimeLineCore/Sources/TimeLineCore/Services/RestPromptService.swift`
 - **RestPrompt UI**：`timeLine/timeLine/Views/Shared/RestSuggestionBanner.swift`
-- **Reminder 触发**：`TimeLineCore/Sources/TimeLineCore/Services/ReminderScheduler.swift`
 - **Reminder UI**：`timeLine/timeLine/Views/Shared/ReminderBanner.swift`
 
 ---
@@ -89,17 +86,20 @@ Map route UI + drop target feedback.
 |---|---|---|
 | **Node Frames** | `NodeFrameKey` | global frames for drop hit-testing |
 | **Drop Rings** | MapNodeRow overlay | highlight nodes during drag |
-| **Insert Hint** | MapNodeRow overlay | Hover shows insert before/after |
+| **Visual Swap** | `offsetForNode()` | Dragging node swaps position with hovered node (Timeline axis static) |
+| **Time Labels** | `TimelineNodeRow` | Displays estimated start time (e.g. "20:00") or "NOW" |
 | **Drop Rules** | MapNodeRow overlay | only upcoming (non-completed) nodes are droppable |
+
+### Gesture System (Current)
 
 ### Gesture System (Current)
 
 | Gesture | Action | Notes |
 |---|---|---|
 | **Tap** | Start task | Reminder task tap completes immediately; battle/rest otherwise |
+| **Long Press + Drag Node** | Reorder Task | **Swap Behavior**: Dragged node swaps with target; timeline axis static |
 | **Drag Library/Deck** | Place on node | Empty map creates first node |
 | **Drag Group Token** | Place group occurrence | Select ≥2 in Library |
-| **Scroll Drag** | Map snap | Drag ends → snaps to nearest node |
 
 ---
 

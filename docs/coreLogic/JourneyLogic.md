@@ -15,8 +15,9 @@
 - **CardTemplate**：`TimeLineCore/Sources/TimeLineCore/Domain/CardTemplate.swift`
 - **LibraryEntry**：`TimeLineCore/Sources/TimeLineCore/Domain/LibraryEntry.swift`
 - **TimelineNode / DaySession**：`TimeLineCore/Sources/TimeLineCore/Domain/TimelineNode.swift` / `TimeLineCore/Sources/TimeLineCore/Domain/DaySession.swift`
-- **FocusGroup**：`TimeLineCore/Sources/TimeLineCore/Domain/FocusGroupPayload.swift` / `TimeLineCore/Sources/TimeLineCore/Services/FocusGroupSessionCoordinator.swift`
-- **App 层放置**：`timeLine/timeLine/State/TimelineStore.swift`
+- **FocusGroup**：`TimeLineCore/Sources/TimeLineCore/Domain/FocusGroupPayload.swift`
+- **App 层放置**：`timeLine/timeLine/State/TimelineStore.swift` - Single source of truth for modify/insert operations.
+- **拖拽逻辑**：`timeLine/timeLine/State/DragDropCoordinator.swift` & `RogueMapView.swift` (Visuals)
 
 ## 1. Core Metaphor
 The app models a day as a linear **Journey** composed of **Timeline Nodes**.
@@ -26,6 +27,10 @@ The app models a day as a linear **Journey** composed of **Timeline Nodes**.
 - **Progress**: `currentIndex` + per-node completion/lock state.
 
 The UI is a projection of `DaySession` plus transient UI state.
+
+**Recent Enhancements (Jan 2026):**
+- **Visual Swap**: Dragging a node visibly swaps positions with the hovered node (timeline axis remains stationary).
+- **Time Labels**: Nodes display estimated start times (e.g., "20:00") calculated dynamically from the current task's remaining time + intervening task durations.
 
 ---
 
