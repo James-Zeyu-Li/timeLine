@@ -142,8 +142,8 @@ struct RootView: View {
                 GeometryReader { proxy in
                     HUDControlsView(
                         onZap: handleZapTap,
-                        onBackpack: { appMode.enter(.deckOverlay(.cards)) },
-                        onSettings: { showSettings = true }
+                        onPlan: { showFocusList = true },
+                        onBackpack: { appMode.enter(.deckOverlay(.library)) }
                     )
                     .padding(.trailing, 16)
                     .padding(.bottom, proxy.safeAreaInsets.bottom + 16)
@@ -216,15 +216,6 @@ struct RootView: View {
     
     @ViewBuilder
     private var draggingLayer: some View {
-        if appMode.isDragging {
-            // Sparkle Emitter following the finger
-            SparkleEmitter()
-                .frame(width: 200, height: 200)
-                .position(dragCoordinator.dragLocation)
-                .allowsHitTesting(false)
-                .zIndex(0) // Behind the card
-        }
-        
         switch appMode.mode {
         case .dragging(let payload):
             switch payload.type {
@@ -567,7 +558,7 @@ struct RootView: View {
             return false
         }
     }
-    }
+
 
     private func handleZapTap() {
         // Quick Entry: "Quick Focus", 25m, @focus
@@ -645,281 +636,7 @@ struct NodeFrameKey: PreferenceKey {
     }
 }
 
-// MARK: - Card Detail Edit Sheet (Placeholder)
 
-struct CardDetailEditSheet: View {
-    let cardTemplateId: UUID
-    
-    @EnvironmentObject var engine: BattleEngine
-    @EnvironmentObject var cardStore: CardTemplateStore
-    @EnvironmentObject var libraryStore: LibraryStore
-    @EnvironmentObject var daySession: DaySession
-    @EnvironmentObject var stateManager: AppStateManager
-    @EnvironmentObject var appMode: AppModeManager
-
-    @State private var draft: CardTemplate?
-    @State private var cardMissing = false
-    
-    var body: some View {
-        NavigationStack {
-            Group {
-                if cardMissing {
-                    VStack(spacing: 12) {
-                        Image(systemName: "exclamationmark.triangle")
-                            .font(.system(size: 28, weight: .bold))
-                        Text("Card not found")
-                            .font(.system(.headline, design: .rounded))
-                    }
-                    .foregroundColor(.secondary)
-                } else if draft != nil {
-                    Form {
-                        Section("Title") {
-                            TextField("Card title", text: titleBinding)
-                                .textInputAutocapitalization(.sentences)
-                                .accessibilityIdentifier("cardDetailTitleField")
-                        }
-                        
-                        if taskModeBinding.wrappedValue != .reminderOnly {
-                            Section("Duration") {
-                                Stepper(value: durationMinutesBinding, in: 5...240, step: 5) {
-                                    Text("\(Int(durationMinutesBinding.wrappedValue)) min")
-                                }
-                            }
-                        }
-                        
-                        Section("Task Mode") {
-                            Picker("Task Mode", selection: taskModeBinding) {
-                                ForEach(taskModeOptions, id: \.rawValue) { mode in
-                                    Text(taskModeLabel(mode)).tag(mode)
-                                }
-                            }
-                            .pickerStyle(.segmented)
-                            .accessibilityIdentifier("cardDetailTaskModePicker")
-                            .accessibilityValue(taskModeLabel(taskModeBinding.wrappedValue))
-                            .disabled(isTaskModeLocked)
-                            if isTaskModeLocked {
-                                Text("Locked during active battle.")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-                        }
-
-                        if taskModeBinding.wrappedValue == .reminderOnly {
-                            Section("Remind At") {
-                                DatePicker(
-                                    "Time",
-                                    selection: reminderDateBinding,
-                                    displayedComponents: [.date, .hourAndMinute]
-                                )
-                            }
-                            
-                            Section("Lead Time") {
-                                Picker("Lead Time", selection: leadTimeBinding) {
-                                    ForEach(leadTimeOptions, id: \.self) { minutes in
-                                        Text(leadTimeLabel(minutes)).tag(minutes)
-                                    }
-                                }
-                                .pickerStyle(.segmented)
-                            }
-                        } else {
-                            Section("Complete Within") {
-                                Picker("Complete Within", selection: deadlineWindowBinding) {
-                                    ForEach(deadlineOptions, id: \.self) { option in
-                                        Text(deadlineLabel(option)).tag(option)
-                                    }
-                                }
-                                .pickerStyle(.segmented)
-                            }
-                        }
-                        
-                        Section("Backlog") {
-                            Toggle("Save to Backlog", isOn: libraryBinding)
-                        }
-                    }
-                } else {
-                    ProgressView()
-                }
-            }
-            .navigationTitle("Edit Card")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        appMode.exitCardEdit()
-                    }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
-                        saveChanges()
-                        appMode.exitCardEdit()
-                    }
-                    .disabled(isSaveDisabled)
-                }
-            }
-        }
-        .onAppear {
-            loadCardIfNeeded()
-        }
-    }
-    
-    private var titleBinding: Binding<String> {
-        Binding(
-            get: { draft?.title ?? "" },
-            set: { newValue in
-                guard var current = draft else { return }
-                current.title = newValue
-                draft = current
-            }
-        )
-    }
-    
-    private var durationMinutesBinding: Binding<Double> {
-        Binding(
-            get: { (draft?.defaultDuration ?? 1500) / 60 },
-            set: { newValue in
-                guard var current = draft else { return }
-                let clamped = min(240, max(5, newValue))
-                current.defaultDuration = clamped * 60
-                draft = current
-            }
-        )
-    }
-    
-    private var taskModeBinding: Binding<TaskMode> {
-        Binding(
-            get: { draft?.taskMode ?? .focusStrictFixed },
-            set: { newValue in
-                guard var current = draft else { return }
-                current.taskMode = newValue
-                if newValue == .reminderOnly {
-                    if current.remindAt == nil {
-                        current.remindAt = Date().addingTimeInterval(3600)
-                    }
-                    current.deadlineWindowDays = nil
-                } else {
-                    current.remindAt = nil
-                    current.leadTimeMinutes = 0
-                }
-                draft = current
-            }
-        )
-    }
-    
-    private var taskModeOptions: [TaskMode] {
-        [.focusStrictFixed, .focusGroupFlexible, .reminderOnly]
-    }
-
-    private var leadTimeOptions: [Int] {
-        [0, 5, 10, 30, 60]
-    }
-
-    private var reminderDateBinding: Binding<Date> {
-        Binding(
-            get: { draft?.remindAt ?? Date().addingTimeInterval(3600) },
-            set: { newValue in
-                guard var current = draft else { return }
-                current.remindAt = newValue
-                draft = current
-            }
-        )
-    }
-
-    private var leadTimeBinding: Binding<Int> {
-        Binding(
-            get: { draft?.leadTimeMinutes ?? 0 },
-            set: { newValue in
-                guard var current = draft else { return }
-                current.leadTimeMinutes = newValue
-                draft = current
-            }
-        )
-    }
-
-    private var deadlineOptions: [Int?] {
-        [nil, 1, 3, 5, 7]
-    }
-
-    private var deadlineWindowBinding: Binding<Int?> {
-        Binding(
-            get: { draft?.deadlineWindowDays },
-            set: { newValue in
-                guard var current = draft else { return }
-                current.deadlineWindowDays = newValue
-                draft = current
-            }
-        )
-    }
-
-    private var libraryBinding: Binding<Bool> {
-        Binding(
-            get: { libraryStore.entry(for: cardTemplateId) != nil },
-            set: { isOn in
-                if isOn {
-                    libraryStore.add(templateId: cardTemplateId)
-                } else {
-                    libraryStore.remove(templateId: cardTemplateId)
-                }
-                stateManager.requestSave()
-            }
-        )
-    }
-    
-    private func taskModeLabel(_ mode: TaskMode) -> String {
-        switch mode {
-        case .focusStrictFixed:
-            return "Focus Fixed"
-        case .focusGroupFlexible:
-            return "Focus Flex"
-        case .reminderOnly:
-            return "Reminder"
-        }
-    }
-
-    private func leadTimeLabel(_ minutes: Int) -> String {
-        if minutes == 0 {
-            return "On Time"
-        }
-        return "\(minutes)m early"
-    }
-
-    private func deadlineLabel(_ option: Int?) -> String {
-        guard let option else { return "Off" }
-        return "\(option)d"
-    }
-    
-    private var isSaveDisabled: Bool {
-        let trimmed = draft?.title.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        return trimmed.isEmpty
-    }
-    
-    private func loadCardIfNeeded() {
-        guard draft == nil, !cardMissing else { return }
-        guard let card = cardStore.get(id: cardTemplateId) else {
-            cardMissing = true
-            return
-        }
-        draft = card
-    }
-    
-    private func saveChanges() {
-        guard let draft else { return }
-        cardStore.update(draft)
-        updateOccurrences(for: draft)
-    }
-    
-    private func updateOccurrences(for template: CardTemplate) {
-        let timelineStore = TimelineStore(daySession: daySession, stateManager: stateManager)
-        for node in daySession.nodes where !node.isCompleted {
-            guard case .battle(let boss) = node.type,
-                  boss.templateId == template.id else { continue }
-            timelineStore.updateNode(id: node.id, payload: template)
-        }
-    }
-
-    private var isTaskModeLocked: Bool {
-        engine.state == .fighting || engine.state == .paused || engine.state == .frozen
-    }
-}
 
 struct FocusGroupReportSheet: View {
     @EnvironmentObject var cardStore: CardTemplateStore
@@ -1104,18 +821,6 @@ struct FocusGroupReportSheet: View {
                                                 .frame(width: geometry.size.width * progress, height: 12)
                                                 .animation(.easeInOut(duration: 1.2), value: progress)
                                             
-                                            // Sparkle Effect
-                                            if progress > 0 {
-                                                HStack(spacing: 4) {
-                                                    ForEach(0..<Int(progress * 10), id: \.self) { _ in
-                                                        Image(systemName: "sparkle")
-                                                            .font(.system(size: 6))
-                                                            .foregroundColor(.white)
-                                                    }
-                                                    Spacer()
-                                                }
-                                                .padding(.horizontal, 4)
-                                            }
                                         }
                                     }
                                     .frame(height: 12)

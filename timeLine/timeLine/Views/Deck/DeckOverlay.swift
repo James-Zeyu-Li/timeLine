@@ -157,11 +157,11 @@ struct DeckOverlay: View {
     private func tabTitle(_ tab: DeckTab) -> String {
         switch tab {
         case .cards:
-            return "Cards"
+            return "Items"
         case .library:
             return "Backlog"
         case .decks:
-            return "Decks"
+            return "Plans"
         }
     }
 }
@@ -441,6 +441,7 @@ private struct LibraryTabView: View {
     @State private var wasDragging = false
     @State private var showExpired = true
     @State private var showExpiredBanner = false
+    @State private var showTodoSheet = false
     
     var body: some View {
         let buckets = libraryStore.bucketedEntries(using: cardStore)
@@ -535,6 +536,23 @@ private struct LibraryTabView: View {
             }
             Spacer()
             HStack(spacing: 8) {
+                Button("Quick List") {
+                    showTodoSheet = true
+                }
+                .font(.system(.caption, design: .rounded))
+                .fontWeight(.semibold)
+                .foregroundColor(.green)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(
+                    Capsule()
+                        .fill(Color.green.opacity(0.15))
+                        .overlay(
+                            Capsule()
+                                .stroke(Color.green.opacity(0.3), lineWidth: 1)
+                        )
+                )
+
                 Button("Add from Cards") {
                     showCardPicker = true
                 }
@@ -577,6 +595,9 @@ private struct LibraryTabView: View {
             }
         }
         .padding(.horizontal, 24)
+        .sheet(isPresented: $showTodoSheet) {
+            TodoSheet(dragCoordinator: dragCoordinator)
+        }
     }
     
     private var selectionBar: some View {

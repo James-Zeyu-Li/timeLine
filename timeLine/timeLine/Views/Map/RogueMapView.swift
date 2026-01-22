@@ -19,10 +19,8 @@ struct RogueMapView: View {
     @State private var nodeAnchors: [UUID: CGFloat] = [:]
     @State private var nodeFrames: [UUID: CGRect] = [:]
     @State private var viewportHeight: CGFloat = 0
-    @State private var showNodeEdit = false
+
     @State private var showNodeActionMenu = false
-    @State private var editingNodeTemplate: CardTemplate?
-    @State private var editingNodeId: UUID?
     @State private var selectedNodeId: UUID?
     @State private var actionMenuNode: TimelineNode?
     @State private var isEditMode = false
@@ -65,21 +63,7 @@ struct RogueMapView: View {
             .sheet(isPresented: $showStats) {
                 AdventurerLogView()
             }
-            .sheet(isPresented: $showNodeEdit) {
-                TaskSheet(
-                    templateToEdit: $editingNodeTemplate,
-                    isEditingNode: true,
-                    onSaveNode: { template in
-                        guard let nodeId = editingNodeId else { return }
-                        let timelineStore = TimelineStore(daySession: daySession, stateManager: stateManager)
-                        if template.remindAt != nil {
-                            timelineStore.updateNodeByTime(id: nodeId, payload: template, engine: engine)
-                        } else {
-                            timelineStore.updateNode(id: nodeId, payload: template)
-                        }
-                    }
-                )
-            }
+
             .confirmationDialog(
                 actionMenuNode.map { nodeTitle(for: $0) } ?? "Task",
                 isPresented: $showNodeActionMenu,
@@ -462,10 +446,14 @@ struct RogueMapView: View {
     
     private func handleEdit(on node: TimelineNode) {
         guard case .battle(let boss) = node.type else { return }
+        
+        let templateToEdit: CardTemplate
+        
         if let templateId = boss.templateId, let template = cardStore.get(id: templateId) {
-            editingNodeTemplate = template
+            templateToEdit = template
         } else {
-            editingNodeTemplate = CardTemplate(
+            // Transient or missing template: create one and add to store
+            let newTemplate = CardTemplate(
                 id: boss.templateId ?? UUID(),
                 title: boss.name,
                 icon: "bolt.fill",
@@ -480,9 +468,12 @@ struct RogueMapView: View {
                 remindAt: boss.remindAt,
                 leadTimeMinutes: boss.leadTimeMinutes
             )
+            cardStore.add(newTemplate)
+            templateToEdit = newTemplate
         }
-        editingNodeId = node.id
-        showNodeEdit = true
+        
+        // Enter global edit mode
+        appMode.enterCardEdit(cardTemplateId: templateToEdit.id)
     }
     
     private func handleDuplicate(on node: TimelineNode) {

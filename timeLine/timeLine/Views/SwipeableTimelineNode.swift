@@ -1,1 +1,0 @@
-    let onDelete: () -> Void

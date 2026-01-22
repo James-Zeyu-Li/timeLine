@@ -13,14 +13,14 @@ struct ZapButton: View {
         }) {
             ZStack {
                 // Outer glow/pulse
-                Circle()
+                RoundedRectangle(cornerRadius: 16)
                     .fill(Color.yellow.opacity(0.3))
                     .frame(width: 64, height: 64)
-                    .scaleEffect(isPulsing ? 1.1 : 1.0)
+                    .scaleEffect(isPulsing ? 1.08 : 1.0)
                     .opacity(isPulsing ? 0.6 : 0.0)
                 
                 // Main Button Background
-                Circle()
+                RoundedRectangle(cornerRadius: 16)
                     .fill(
                         LinearGradient(
                             colors: [.yellow, .orange],
@@ -31,7 +31,7 @@ struct ZapButton: View {
                     .frame(width: 56, height: 56)
                     .shadow(color: .orange.opacity(0.4), radius: 6, x: 0, y: 4)
                     .overlay(
-                        Circle()
+                        RoundedRectangle(cornerRadius: 16)
                             .stroke(Color.white.opacity(0.4), lineWidth: 1)
                     )
                 

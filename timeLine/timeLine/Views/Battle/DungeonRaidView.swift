@@ -14,7 +14,7 @@ struct DungeonRaidView: View {
                     .fontWeight(.bold)
                     .foregroundColor(.white.opacity(0.8))
                 
-                Text(engine.formattedTime)
+                Text(timeDisplayString)
                     .font(.system(size: 64, weight: .bold, design: .rounded))
                     .foregroundColor(.white)
                     .monospacedDigit()
@@ -46,5 +46,10 @@ struct DungeonRaidView: View {
             Spacer()
         }
         .background(Color.black.opacity(0.8)) // Dark dungeon bg
+    }
+
+    private var timeDisplayString: String {
+        let time = engine.remainingTime ?? 0
+        return TimeFormatter.formatTimer(time)
     }
 }

@@ -1,6 +1,6 @@
 import Foundation
 
-public struct EnemyNode: Identifiable, Codable, Equatable {
+public struct EnemyNode: Identifiable, Codable, Equatable, Hashable {
     public let id: UUID
     public var title: String
     public var isDefeated: Bool
@@ -14,7 +14,7 @@ public struct EnemyNode: Identifiable, Codable, Equatable {
     }
 }
 
-public enum TaskMode: Codable, Equatable {
+public enum TaskMode: Codable, Equatable, Hashable {
     case focusStrictFixed
     case focusGroupFlexible
     case reminderOnly

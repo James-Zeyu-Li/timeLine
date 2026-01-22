@@ -10,12 +10,12 @@ struct BackpackButton: View {
         }) {
             ZStack {
                 // Background
-                Circle()
+                RoundedRectangle(cornerRadius: 16)
                     .fill(Color(red: 0.2, green: 0.15, blue: 0.1)) // Leather Brown
                     .frame(width: 56, height: 56)
                     .shadow(color: .black.opacity(0.2), radius: 4, x: 0, y: 2)
                     .overlay(
-                        Circle()
+                        RoundedRectangle(cornerRadius: 16)
                             .stroke(Color(red: 0.35, green: 0.25, blue: 0.15), lineWidth: 2)
                     )
                 

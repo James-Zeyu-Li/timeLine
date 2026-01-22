@@ -369,10 +369,10 @@ struct TodoSheet: View {
                         .stroke(PixelTheme.woodMedium.opacity(0.3), lineWidth: 1)
                 )
         )
-        .onChange(of: appMode.isDragging) { isDragging in
+        .onChange(of: appMode.isDragging) { _, isDragging in
              if !isDragging { draggingFocusRowId = nil }
         }
-        .onChange(of: dragCoordinator.draggedNodeId) { id in
+        .onChange(of: dragCoordinator.draggedNodeId) { _, id in
             if id == nil { draggingFocusRowId = nil }
         }
         .accessibilityIdentifier("focusListCancelButton")

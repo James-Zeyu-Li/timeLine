@@ -328,7 +328,7 @@ struct QuickBuilderSheet: View {
                 }
             )
         ) {
-            ForEach(taskModeOptions, id: \.rawValue) { mode in
+            ForEach(taskModeOptions, id: \.self) { mode in
                 Text(taskModeLabel(mode)).tag(mode)
             }
         }
@@ -390,6 +390,8 @@ struct QuickBuilderSheet: View {
             return "Focus Flex"
         case .reminderOnly:
             return "Reminder"
+        case .dungeonRaid:
+            return "Dungeon Raid"
         }
     }
     
