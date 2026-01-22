@@ -140,9 +140,9 @@ struct RootView: View {
         .overlay(alignment: .bottomTrailing) {
             if showsFloatingControls {
                 GeometryReader { proxy in
-                    DualEntryControlsView(
-                        onStrict: { appMode.enter(.deckOverlay(.cards)) },
-                        onTodo: { showFocusList = true },
+                    HUDControlsView(
+                        onZap: handleZapTap,
+                        onBackpack: { appMode.enter(.deckOverlay(.cards)) },
                         onSettings: { showSettings = true }
                     )
                     .padding(.trailing, 16)
@@ -156,7 +156,7 @@ struct RootView: View {
             SettingsView()
         }
         .sheet(isPresented: $showFocusList) {
-            TodoSheet()
+            TodoSheet(dragCoordinator: dragCoordinator)
                 .presentationDetents([.large])
         }
         .sheet(item: explorationReportBinding) { report in
@@ -216,15 +216,27 @@ struct RootView: View {
     
     @ViewBuilder
     private var draggingLayer: some View {
+        if appMode.isDragging {
+            // Sparkle Emitter following the finger
+            SparkleEmitter()
+                .frame(width: 200, height: 200)
+                .position(dragCoordinator.dragLocation)
+                .allowsHitTesting(false)
+                .zIndex(0) // Behind the card
+        }
+        
         switch appMode.mode {
         case .dragging(let payload):
             switch payload.type {
             case .cardTemplate(let id):
                 DraggingCardView(cardId: id)
+                    .zIndex(1)
             case .deck(let deckId):
                 DraggingDeckView(deckId: deckId)
+                    .zIndex(1)
             case .focusGroup(let memberTemplateIds):
                 DraggingGroupView(memberTemplateIds: memberTemplateIds)
+                    .zIndex(1)
             case .node:
                 EmptyView() // Node dragging not implemented in UI layer
             }
@@ -555,6 +567,26 @@ struct RootView: View {
             return false
         }
     }
+    }
+
+    private func handleZapTap() {
+        // Quick Entry: "Quick Focus", 25m, @focus
+        let input = "Zap Focus 25m @focus"
+        guard let result = QuickEntryParser.parseDetailed(input: input) else { return }
+        
+        let template = result.template
+        // Add transient template to store first
+        cardStore.add(template)
+        
+        let timelineStore = TimelineStore(daySession: daySession, stateManager: stateManager)
+        if timelineStore.placeCardOccurrenceAtStart(
+            cardTemplateId: template.id,
+            using: cardStore,
+            engine: engine
+        ) != nil {
+             Haptics.impact(.heavy)
+        }
+    }
 }
 
 private struct EmptyDropZoneView: View {
@@ -590,111 +622,7 @@ private struct EmptyDropZoneView: View {
     }
 }
 
-private struct DualEntryControlsView: View {
-    let onStrict: () -> Void
-    let onTodo: () -> Void
-    let onSettings: () -> Void
-    
-    var body: some View {
-        HStack(spacing: 12) {
-            // Strict 按钮 (紫色宝石风格)
-            Button(action: onStrict) {
-                HStack(spacing: 6) {
-                    Image(systemName: "square.stack.3d.up.fill")
-                        .font(.system(size: 12, weight: .bold))
-                    Text("严格模式")
-                        .font(.system(.caption, design: .rounded))
-                        .fontWeight(.bold)
-                }
-                .foregroundColor(.white)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
-                .background(
-                    RoundedRectangle(cornerRadius: 16)
-                        .fill(
-                            LinearGradient(
-                                gradient: Gradient(colors: [
-                                    Color.purple.opacity(0.9),
-                                    Color.purple.opacity(0.7)
-                                ]),
-                                startPoint: .top,
-                                endPoint: .bottom
-                            )
-                        )
-                        .shadow(color: Color.purple.opacity(0.4), radius: 4, x: 2, y: 2)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 16)
-                                .stroke(Color.white.opacity(0.3), lineWidth: 1)
-                        )
-                )
-            }
-            .accessibilityIdentifier("strictEntryButton")
-            .buttonStyle(.plain)
 
-            // Todo 按钮 (青绿色自然风格)
-            Button(action: onTodo) {
-                HStack(spacing: 6) {
-                    Image(systemName: "list.clipboard.fill")
-                        .font(.system(size: 12, weight: .bold))
-                    Text("任务清单")
-                        .font(.system(.caption, design: .rounded))
-                        .fontWeight(.bold)
-                }
-                .foregroundColor(.white)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
-                .background(
-                    RoundedRectangle(cornerRadius: 16)
-                        .fill(
-                            LinearGradient(
-                                gradient: Gradient(colors: [
-                                    Color(red: 0.306, green: 0.486, blue: 0.196), // 森林绿
-                                    Color(red: 0.2, green: 0.4, blue: 0.15)
-                                ]),
-                                startPoint: .top,
-                                endPoint: .bottom
-                            )
-                        )
-                        .shadow(color: Color(red: 0.306, green: 0.486, blue: 0.196).opacity(0.4), radius: 4, x: 2, y: 2)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 16)
-                                .stroke(Color.white.opacity(0.3), lineWidth: 1)
-                        )
-                )
-            }
-            .accessibilityIdentifier("todoEntryButton")
-            .buttonStyle(.plain)
-
-            // Settings 按钮 (木纹风格)
-            Button(action: onSettings) {
-                Image(systemName: "gearshape.fill")
-                    .font(.system(size: 16, weight: .bold))
-                    .foregroundColor(.white)
-                    .frame(width: 44, height: 44)
-                    .background(
-                        Circle()
-                            .fill(
-                                LinearGradient(
-                                    gradient: Gradient(colors: [
-                                        Color(red: 0.545, green: 0.369, blue: 0.235), // 木纹棕
-                                        Color(red: 0.4, green: 0.27, blue: 0.17)
-                                    ]),
-                                    startPoint: .top,
-                                    endPoint: .bottom
-                                )
-                            )
-                            .shadow(color: Color(red: 0.545, green: 0.369, blue: 0.235).opacity(0.4), radius: 4, x: 2, y: 2)
-                            .overlay(
-                                Circle()
-                                    .stroke(Color.white.opacity(0.3), lineWidth: 1)
-                            )
-                    )
-            }
-            .accessibilityIdentifier("settingsButton")
-            .buttonStyle(.plain)
-        }
-    }
-}
 
 private struct StrictSheet: View {
     let tab: DeckTab

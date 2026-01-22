@@ -56,6 +56,20 @@ final class DragDropCoordinator: ObservableObject {
         return nil
     }
     
+    var isDragging: Bool {
+        activePayload != nil
+    }
+    
+    func destinationIndex(in nodes: [TimelineNode]) -> Int? {
+        guard let hoveringId = hoveringNodeId,
+              let index = nodes.firstIndex(where: { $0.id == hoveringId }) else { return nil }
+        
+        switch hoveringPlacement {
+        case .before: return index
+        case .after: return index + 1
+        }
+    }
+    
     // MARK: - Drag Lifecycle
     
     func startDrag(payload: DragPayload) {

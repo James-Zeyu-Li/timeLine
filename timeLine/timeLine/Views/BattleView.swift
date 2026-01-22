@@ -397,7 +397,7 @@ struct BattleView: View {
     
     private var exitDialogTitle: String {
         switch currentTaskMode {
-        case .focusGroupFlexible:
+        case .focusGroupFlexible, .dungeonRaid:
             return "End exploring?"
         case .focusStrictFixed, .reminderOnly:
             return "Exit session?"
@@ -406,7 +406,7 @@ struct BattleView: View {
     
     private var exitDialogMessage: String {
         switch currentTaskMode {
-        case .focusGroupFlexible:
+        case .focusGroupFlexible, .dungeonRaid:
             return "End exploring will record this session."
         case .focusStrictFixed:
             return "Undo Start is only available within 60 seconds. Otherwise, exit will be recorded as incomplete."
@@ -417,7 +417,7 @@ struct BattleView: View {
     
     private var endAndRecordLabel: String {
         switch currentTaskMode {
-        case .focusGroupFlexible:
+        case .focusGroupFlexible, .dungeonRaid:
             return "End Exploring"
         case .focusStrictFixed, .reminderOnly:
             return "End & Record"
@@ -426,7 +426,7 @@ struct BattleView: View {
 
     private func handleRetreatTap() {
         switch currentTaskMode {
-        case .focusGroupFlexible, .focusStrictFixed:
+        case .focusGroupFlexible, .focusStrictFixed, .dungeonRaid:
             showExitOptions = true
         case .reminderOnly:
             engine.retreat()

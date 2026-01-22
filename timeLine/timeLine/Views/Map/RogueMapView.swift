@@ -184,10 +184,20 @@ struct RogueMapView: View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(spacing: 0) {
+                    // Ghost at Top (End of Data List)
+                    if dragCoordinator.isDragging, 
+                       dragCoordinator.destinationIndex(in: daySession.nodes) == daySession.nodes.count {
+                        GhostNodeView()
+                            .transition(.scale.combined(with: .opacity))
+                            .padding(.vertical, 6)
+                    }
+
                     ForEach(daySession.nodes.reversed()) { node in
+                        let index = daySession.nodes.firstIndex(where: { $0.id == node.id }) ?? 0
+                        
                         TimelineNodeRow(
                             node: node,
-                            index: daySession.nodes.firstIndex(where: { $0.id == node.id }) ?? 0,
+                            index: index,
                             isSelected: false,
                             isCurrent: shouldShowAsCurrentTask(node: node),
                             isEditMode: isEditMode,
@@ -208,6 +218,14 @@ struct RogueMapView: View {
                         .padding(.horizontal, 8)
                         .padding(.vertical, 6)
                         .id(node.id) // Add ID for scrollTo
+                        
+                        // Ghost In-Between / Bottom
+                        if dragCoordinator.isDragging,
+                           dragCoordinator.destinationIndex(in: daySession.nodes) == index {
+                            GhostNodeView()
+                                .transition(.scale.combined(with: .opacity))
+                                .padding(.vertical, 6)
+                        }
                     }
                 }
                 .frame(maxWidth: .infinity) // Expand content to full width for better scrolling

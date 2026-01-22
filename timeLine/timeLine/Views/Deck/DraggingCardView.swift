@@ -13,7 +13,20 @@ struct DraggingCardView: View {
         if let template = cardStore.get(id: cardId) {
             CardView(template: template)
                 .scaleEffect(1.15)
-                .shadow(color: .purple.opacity(0.5), radius: 20, x: 0, y: 10)
+                .rotation3DEffect(
+                    .degrees(5),
+                    axis: (x: 1, y: 0, z: 0)
+                )
+                .rotationEffect(
+                    .degrees(Double(dragCoordinator.dragOffset.width) / 20.0),
+                    anchor: .center
+                )
+                .shadow(
+                    color: PixelTheme.primary.opacity(0.3),
+                    radius: 20,
+                    x: 0,
+                    y: 20
+                )
                 .position(dragCoordinator.dragLocation)
                 .animation(.interactiveSpring(), value: dragCoordinator.dragLocation)
         }

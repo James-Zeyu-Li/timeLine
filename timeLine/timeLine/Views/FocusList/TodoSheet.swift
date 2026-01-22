@@ -12,6 +12,14 @@ struct TodoSheet: View {
     @State private var rows: [FocusRow] = [FocusRow()]
     @State private var selectedLibraryIds: Set<UUID> = []
     @State private var errorMessage: String?
+    
+    // Drag Support
+    // Drag Support
+    @EnvironmentObject var appMode: AppModeManager
+    // Fix: Use @ObservedObject + explicit init to prevent crash from environment loss
+    @ObservedObject var dragCoordinator: DragDropCoordinator
+    
+    @State private var draggingFocusRowId: UUID?
     @State private var showActiveBattleConfirm = false
     @State private var durationPickerTarget: RowPickerTarget?
     @State private var finishPickerTarget: RowPickerTarget?
@@ -191,24 +199,7 @@ struct TodoSheet: View {
             }
 
             // Library sections
-            ForEach(librarySections, id: \.title) { section in
-                if !section.rows.isEmpty {
-                    Section {
-                        ForEach(section.rows) { row in
-                            LibraryRowView(
-                                data: row,
-                                isSelected: selectedLibraryIds.contains(row.id),
-                                onToggle: { toggleLibrarySelection(row.id, isExpired: row.entry.deadlineStatus == .expired) }
-                            )
-                            .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
-                            .listRowSeparator(.hidden)
-                            .listRowBackground(Color.clear)
-                        }
-                    } header: {
-                        sectionHeader(for: section.title)
-                    }
-                }
-            }
+            libraryRowsSection
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
@@ -224,31 +215,59 @@ struct TodoSheet: View {
         )
     }
     
+    private var libraryRowsSection: some View {
+        ForEach(librarySections, id: \.title) { section in
+            if !section.rows.isEmpty {
+                Section {
+                    ForEach(section.rows) { row in
+                        LibraryRowView(
+                            data: row,
+                            isSelected: selectedLibraryIds.contains(row.id),
+                            onToggle: { toggleLibrarySelection(row.id, isExpired: row.entry.deadlineStatus == .expired) }
+                        )
+                        .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Color.clear)
+                    }
+                } header: {
+                    sectionHeader(for: section.title)
+                }
+            }
+        }
+    }
+    
     private var taskInputRows: some View {
         ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
-            FocusRowView(
-                title: titleBinding(for: row),
-                parsedDuration: parsedDurationLabel(for: row),
-                durationTitle: durationButtonTitle(for: row),
-                finishByTitle: finishByTitle(for: row),
-                onDurationTap: { durationPickerTarget = RowPickerTarget(id: row.id) },
-                onFinishTap: { openFinishPicker(for: row.id) },
-                onSubmit: { handleSubmit(for: row.id) },
-                focusedRowId: $focusedRowId,
-                rowId: row.id,
-                rowIndex: index
-            )
-            .listRowInsets(EdgeInsets(top: 6, leading: 0, bottom: 6, trailing: 0))
-            .listRowSeparator(.hidden)
-            .listRowBackground(Color.clear)
-            .swipeActions(edge: .trailing) {
-                Button(role: .destructive) {
-                    deleteRow(row.id)
-                } label: {
-                    Label("删除", systemImage: "trash")
-                }
-                .tint(Color(red: 0.941, green: 0.502, blue: 0.188)) // 活力橘
+            makeFocusRowView(index: index, row: row)
+        }
+    }
+
+    private func makeFocusRowView(index: Int, row: FocusRow) -> some View {
+        FocusRowView(
+            title: titleBinding(for: row),
+            parsedDuration: parsedDurationLabel(for: row),
+            durationTitle: durationButtonTitle(for: row),
+            finishByTitle: finishByTitle(for: row),
+            onDurationTap: { durationPickerTarget = RowPickerTarget(id: row.id) },
+            onFinishTap: { openFinishPicker(for: row.id) },
+            onSubmit: { handleSubmit(for: row.id) },
+            onDragStart: { startDrag(for: row) },
+            isDragged: draggingFocusRowId == row.id,
+            dragOffset: (draggingFocusRowId == row.id) ? dragCoordinator.dragOffset : .zero,
+            focusedRowId: $focusedRowId,
+            rowId: row.id,
+            rowIndex: index
+        )
+        .listRowInsets(EdgeInsets(top: 6, leading: 0, bottom: 6, trailing: 0))
+        .listRowSeparator(.hidden)
+        .listRowBackground(Color.clear)
+        .swipeActions(edge: .trailing) {
+            Button(role: .destructive) {
+                deleteRow(row.id)
+            } label: {
+                Label("删除", systemImage: "trash")
             }
+            .tint(Color(red: 0.941, green: 0.502, blue: 0.188)) // 活力橘
         }
     }
     
@@ -305,94 +324,19 @@ struct TodoSheet: View {
 
     private var actionBar: some View {
         HStack(spacing: 12) {
-            Button("取消") {
-                dismiss()
-            }
-            .font(.system(.caption, design: .rounded))
-            .fontWeight(.semibold)
-            .foregroundColor(PixelTheme.textPrimary)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
-            .background(
-                Capsule()
-                    .fill(PixelTheme.cardBackground.opacity(0.8))
-                    .overlay(
-                        Capsule()
-                            .stroke(PixelTheme.woodMedium.opacity(0.3), lineWidth: 1)
-                    )
-            )
-            .accessibilityIdentifier("focusListCancelButton")
-
+            cancelButton
+            
             // Save to Library button (收藏种子)
             if canSaveToLibrary {
-                Button("🌱 收藏种子") {
-                    saveToLibrary()
-                }
-                .font(.system(.caption, design: .rounded))
-                .fontWeight(.semibold)
-                .foregroundColor(PixelTheme.textInverted)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
-                .background(
-                    Capsule()
-                        .fill(PixelTheme.vitality)
-                        .shadow(color: PixelTheme.vitality.opacity(0.3), radius: 3, x: 2, y: 2)
-                )
-                .accessibilityIdentifier("focusListSaveButton")
+                saveToLibraryButton
             }
 
             // Add to Timeline button (种植到农场)
             if canAddToTimeline {
-                Button("🌾 种植到农场") {
-                    addToTimeline()
-                }
-                .font(.system(.caption, design: .rounded))
-                .fontWeight(.semibold)
-                .foregroundColor(PixelTheme.textInverted)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
-                .background(
-                    Capsule()
-                        .fill(PixelTheme.forest)
-                        .shadow(color: PixelTheme.forest.opacity(0.3), radius: 3, x: 2, y: 2)
-                )
-                .accessibilityIdentifier("focusListAddToTimelineButton")
+                addToTimelineButton
             }
 
-            Button(startButtonTitle) {
-                if isActiveBattle {
-                    showActiveBattleConfirm = true
-                } else {
-                    startFocus()
-                }
-            }
-            .font(.system(.caption, design: .rounded))
-            .fontWeight(.bold)
-            .foregroundColor(PixelTheme.textInverted)
-            .padding(.horizontal, 18)
-            .padding(.vertical, 10)
-            .background(
-                Capsule()
-                    .fill(
-                        canStart ? 
-                        LinearGradient(
-                            gradient: Gradient(colors: [
-                                Color(red: 0.2, green: 0.8, blue: 0.8),
-                                Color(red: 0.1, green: 0.7, blue: 0.9)
-                            ]),
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        ) :
-                        LinearGradient(
-                            gradient: Gradient(colors: [PixelTheme.textSecondary.opacity(0.3), PixelTheme.textSecondary.opacity(0.2)]),
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                    )
-                    .shadow(color: canStart ? Color.cyan.opacity(0.4) : Color.clear, radius: 4, x: 2, y: 2)
-            )
-            .disabled(!canStart)
-            .accessibilityIdentifier("focusListStartButton")
+            startButton
         }
         .frame(maxWidth: .infinity, alignment: .trailing)
         .padding(.horizontal, 16)
@@ -406,6 +350,103 @@ struct TodoSheet: View {
                         .stroke(PixelTheme.forest.opacity(0.3), lineWidth: 2)
                 )
         )
+    }
+    
+    private var cancelButton: some View {
+        Button("取消") {
+            dismiss()
+        }
+        .font(.system(.caption, design: .rounded))
+        .fontWeight(.semibold)
+        .foregroundColor(PixelTheme.textPrimary)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(
+            Capsule()
+                .fill(PixelTheme.cardBackground.opacity(0.8))
+                .overlay(
+                    Capsule()
+                        .stroke(PixelTheme.woodMedium.opacity(0.3), lineWidth: 1)
+                )
+        )
+        .onChange(of: appMode.isDragging) { isDragging in
+             if !isDragging { draggingFocusRowId = nil }
+        }
+        .onChange(of: dragCoordinator.draggedNodeId) { id in
+            if id == nil { draggingFocusRowId = nil }
+        }
+        .accessibilityIdentifier("focusListCancelButton")
+    }
+    
+    private var saveToLibraryButton: some View {
+        Button("🌱 收藏种子") {
+            saveToLibrary()
+        }
+        .font(.system(.caption, design: .rounded))
+        .fontWeight(.semibold)
+        .foregroundColor(PixelTheme.textInverted)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(
+            Capsule()
+                .fill(PixelTheme.vitality)
+                .shadow(color: PixelTheme.vitality.opacity(0.3), radius: 3, x: 2, y: 2)
+        )
+        .accessibilityIdentifier("focusListSaveButton")
+    }
+    
+    private var addToTimelineButton: some View {
+        Button("🌾 种植到农场") {
+            addToTimeline()
+        }
+        .font(.system(.caption, design: .rounded))
+        .fontWeight(.semibold)
+        .foregroundColor(PixelTheme.textInverted)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(
+            Capsule()
+                .fill(PixelTheme.forest)
+                .shadow(color: PixelTheme.forest.opacity(0.3), radius: 3, x: 2, y: 2)
+        )
+        .accessibilityIdentifier("focusListAddToTimelineButton")
+    }
+    
+    private var startButton: some View {
+        Button(startButtonTitle) {
+            if isActiveBattle {
+                showActiveBattleConfirm = true
+            } else {
+                startFocus()
+            }
+        }
+        .font(.system(.caption, design: .rounded))
+        .fontWeight(.bold)
+        .foregroundColor(PixelTheme.textInverted)
+        .padding(.horizontal, 18)
+        .padding(.vertical, 10)
+        .background(
+            Capsule()
+                .fill(
+                    canStart ?
+                    LinearGradient(
+                        gradient: Gradient(colors: [
+                            Color(red: 0.2, green: 0.8, blue: 0.8),
+                            Color(red: 0.1, green: 0.7, blue: 0.9)
+                        ]),
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    ) :
+                    LinearGradient(
+                        gradient: Gradient(colors: [PixelTheme.textSecondary.opacity(0.3), PixelTheme.textSecondary.opacity(0.2)]),
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                )
+                .shadow(color: canStart ? Color.cyan.opacity(0.4) : Color.clear, radius: 4, x: 2, y: 2)
+        )
+        .disabled(!canStart)
+        .accessibilityIdentifier("focusListStartButton")
     }
 
     private var validRows: [FocusRow] {
@@ -854,6 +895,20 @@ struct TodoSheet: View {
         focusedRowId = rows.first?.id
         dismiss()
     }
+    
+    private func startDrag(for row: FocusRow) {
+        guard !row.title.isEmpty else { return }
+        
+        // Create ephemeral template for dragging
+        let ids = materializeTemplates(from: [row], isEphemeral: true)
+        guard let templateId = ids.first else { return }
+        
+        draggingFocusRowId = row.id
+        let payload = DragPayload(type: .cardTemplate(templateId), source: .library)
+        appMode.enter(.dragging(payload))
+        dragCoordinator.startDrag(payload: payload)
+        Haptics.impact(.medium)
+    }
 
     private func sectionIcon(for title: String) -> String {
         switch title {
@@ -1082,103 +1137,130 @@ private struct FocusRowView: View {
     let onDurationTap: () -> Void
     let onFinishTap: () -> Void
     let onSubmit: () -> Void
+    let onDragStart: () -> Void
+    let isDragged: Bool
+    let dragOffset: CGSize
     let focusedRowId: FocusState<UUID?>.Binding
     let rowId: UUID
     let rowIndex: Int
 
     var body: some View {
+        mainContent
+            .padding(.horizontal, 12)
+            .padding(.vertical, 12)
+            .background(backgroundView)
+            .scaleEffect(isDragged ? 1.05 : 1.0)
+            .shadow(color: isDragged ? Color.black.opacity(0.2) : .clear, radius: isDragged ? 8 : 0)
+            .offset(
+                x: isDragged ? dragOffset.width : 0,
+                y: isDragged ? dragOffset.height : 0
+            )
+            .zIndex(isDragged ? 100 : 0)
+            .onLongPressGesture(minimumDuration: 0.4, maximumDistance: 10) {
+                onDragStart()
+            }
+    }
+    
+    private var mainContent: some View {
         HStack(spacing: 10) {
-            HStack(spacing: 6) {
-                // 小种子图标
-                Image(systemName: "leaf.fill")
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundColor(PixelTheme.forest)
-                
-                TextField("种下一颗种子…", text: $title)
-                    .font(.system(.body, design: .rounded))
-                    .foregroundColor(PixelTheme.textPrimary)
-                    .focused(focusedRowId, equals: rowId)
-                    .submitLabel(.next)
-                    .onSubmit {
-                        onSubmit()
-                    }
-                    .accessibilityIdentifier("focusRowTitle_\(rowIndex)")
-                
-                if let parsedDuration {
-                    Text(parsedDuration)
-                        .font(.system(.caption2, design: .rounded))
-                        .fontWeight(.bold)
-                        .foregroundColor(PixelTheme.textInverted)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 4)
-                        .background(
-                            Capsule()
-                                .fill(PixelTheme.forest)
-                                .shadow(color: PixelTheme.forest.opacity(0.3), radius: 2, x: 1, y: 1)
-                        )
-                        .accessibilityIdentifier("focusRowParsedDuration_\(rowIndex)")
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-
-            Button(action: onDurationTap) {
-                HStack(spacing: 4) {
-                    Image(systemName: "clock.fill")
-                        .font(.system(size: 10, weight: .bold))
-                    Text(durationTitle)
-                        .font(.system(.caption, design: .rounded))
-                        .fontWeight(.semibold)
-                }
-                .foregroundColor(durationTitle == "—" ? PixelTheme.textPrimary.opacity(0.5) : PixelTheme.textInverted)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background(
-                    Capsule()
-                        .fill(durationTitle == "—" ? 
-                              PixelTheme.cardBackground.opacity(0.3) : 
-                              PixelTheme.vitality
-                        )
-                        .shadow(color: durationTitle == "—" ? Color.clear : PixelTheme.vitality.opacity(0.3), radius: 2, x: 1, y: 1)
-                )
-            }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier("focusRowDuration_\(rowIndex)")
-
-            Button(action: onFinishTap) {
-                HStack(spacing: 4) {
-                    Image(systemName: "calendar")
-                        .font(.system(size: 10, weight: .bold))
-                    Text(finishByTitle)
-                        .font(.system(.caption, design: .rounded))
-                        .fontWeight(.semibold)
-                }
-                .foregroundColor(PixelTheme.textPrimary)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background(
-                    Capsule()
-                        .fill(PixelTheme.cardBackground.opacity(0.9))
-                        .shadow(color: PixelTheme.woodMedium.opacity(0.2), radius: 2, x: 1, y: 1)
-                        .overlay(
-                            Capsule()
-                                .stroke(PixelTheme.woodMedium.opacity(0.3), lineWidth: 1)
-                        )
-                )
-            }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier("focusRowFinish_\(rowIndex)")
+            inputSection
+            durationButton
+            finishButton
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 12)
-        .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(PixelTheme.cardBackground.opacity(0.8))
-                .shadow(color: PixelTheme.woodMedium.opacity(0.15), radius: 3, x: 2, y: 2)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16)
-                        .stroke(PixelTheme.forest.opacity(0.2), lineWidth: 1)
-                )
-        )
+    }
+    
+    private var inputSection: some View {
+        HStack(spacing: 6) {
+            // Seed Icon
+            Image(systemName: "leaf.fill")
+                .font(.system(size: 12, weight: .bold))
+                .foregroundColor(PixelTheme.forest)
+            
+            TextField("种下一颗种子…", text: $title)
+                .font(.system(.body, design: .rounded))
+                .foregroundColor(PixelTheme.textPrimary)
+                .focused(focusedRowId, equals: rowId)
+                .submitLabel(.next)
+                .onSubmit {
+                    onSubmit()
+                }
+                .accessibilityIdentifier("focusRowTitle_\(rowIndex)")
+            
+            if let parsedDuration {
+                Text(parsedDuration)
+                    .font(.system(.caption2, design: .rounded))
+                    .fontWeight(.bold)
+                    .foregroundColor(PixelTheme.textInverted)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 4)
+                    .background(
+                        Capsule()
+                            .fill(PixelTheme.forest)
+                            .shadow(color: PixelTheme.forest.opacity(0.3), radius: 2, x: 1, y: 1)
+                    )
+                    .accessibilityIdentifier("focusRowParsedDuration_\(rowIndex)")
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+    
+    private var durationButton: some View {
+        let isSet = durationTitle != "—"
+        return Button(action: onDurationTap) {
+            HStack(spacing: 4) {
+                Image(systemName: "clock.fill")
+                    .font(.system(size: 10, weight: .bold))
+                Text(durationTitle)
+                    .font(.system(.caption, design: .rounded))
+                    .fontWeight(.semibold)
+            }
+            .foregroundColor(isSet ? PixelTheme.textInverted : PixelTheme.textPrimary.opacity(0.5))
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(
+                Capsule()
+                    .fill(isSet ? PixelTheme.vitality : PixelTheme.cardBackground.opacity(0.3))
+                    .shadow(color: isSet ? PixelTheme.vitality.opacity(0.3) : Color.clear, radius: 2, x: 1, y: 1)
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("focusRowDuration_\(rowIndex)")
+    }
+    
+    private var finishButton: some View {
+        Button(action: onFinishTap) {
+            HStack(spacing: 4) {
+                Image(systemName: "calendar")
+                    .font(.system(size: 10, weight: .bold))
+                Text(finishByTitle)
+                    .font(.system(.caption, design: .rounded))
+                    .fontWeight(.semibold)
+            }
+            .foregroundColor(PixelTheme.textPrimary)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(
+                Capsule()
+                    .fill(PixelTheme.cardBackground.opacity(0.9))
+                    .shadow(color: PixelTheme.woodMedium.opacity(0.2), radius: 2, x: 1, y: 1)
+                    .overlay(
+                        Capsule()
+                            .stroke(PixelTheme.woodMedium.opacity(0.3), lineWidth: 1)
+                    )
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("focusRowFinish_\(rowIndex)")
+    }
+    
+    private var backgroundView: some View {
+        RoundedRectangle(cornerRadius: 16)
+            .fill(PixelTheme.cardBackground.opacity(0.8))
+            .shadow(color: PixelTheme.woodMedium.opacity(0.15), radius: 3, x: 2, y: 2)
+            .overlay(
+                RoundedRectangle(cornerRadius: 16)
+                    .stroke(PixelTheme.forest.opacity(0.2), lineWidth: 1)
+            )
     }
 }
 
@@ -1195,20 +1277,51 @@ private struct LibraryRowView: View {
     let data: LibraryRowData
     let isSelected: Bool
     let onToggle: () -> Void
+    
+    @EnvironmentObject var appMode: AppModeManager
+    @EnvironmentObject var dragCoordinator: DragDropCoordinator
+
+    private var isDraggingThis: Bool {
+        if let payload = dragCoordinator.activePayload,
+           case .cardTemplate(let id) = payload.type,
+           id == data.template.id {
+            return true
+        }
+        return false
+    }
+    
+    private var isExpired: Bool {
+        data.entry.deadlineStatus == .expired
+    }
 
     var body: some View {
-        let now = Date()
-        let isExpired = data.entry.deadlineStatus == .expired
-        let titleColor: Color = isExpired ? PixelTheme.textPrimary.opacity(0.4) : PixelTheme.textPrimary
-        let deadlineText = deadlineLabel(now: now)
-
+        mainContent
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background(backgroundView)
+            .scaleEffect(isDraggingThis ? 1.05 : 1.0)
+            .shadow(color: isDraggingThis ? Color.black.opacity(0.2) : .clear, radius: isDraggingThis ? 8 : 0)
+            .offset(
+                x: isDraggingThis ? dragCoordinator.dragOffset.width : 0,
+                y: isDraggingThis ? dragCoordinator.dragOffset.height : 0
+            )
+            .zIndex(isDraggingThis ? 100 : 0)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                guard !isExpired else { return }
+                onToggle()
+            }
+            .onLongPressGesture(minimumDuration: 0.4, maximumDistance: 10, perform: handleDrag)
+    }
+    
+    private var mainContent: some View {
         HStack(spacing: 12) {
-            // 选择状态图标 (像素风格)
+            // Checkbox
             Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                 .font(.system(size: 18, weight: .bold))
                 .foregroundColor(isSelected ? PixelTheme.forest : PixelTheme.woodMedium.opacity(0.5))
 
-            // 任务图标 (像素小物件)
+            // Icon
             Image(systemName: data.template.icon)
                 .font(.system(size: 14, weight: .bold))
                 .foregroundColor(.white)
@@ -1219,66 +1332,75 @@ private struct LibraryRowView: View {
                         .shadow(color: pixelColor(for: data.template.id).opacity(0.3), radius: 2, x: 1, y: 1)
                 )
 
-            VStack(alignment: .leading, spacing: 4) {
-                Text(data.template.title)
-                    .font(.system(.subheadline, design: .rounded))
-                    .fontWeight(.semibold)
-                    .foregroundColor(titleColor)
-                    .lineLimit(1)
-                
-                HStack(spacing: 8) {
-                    // 时长标签
-                    HStack(spacing: 2) {
-                        Image(systemName: "clock.fill")
-                            .font(.system(size: 8))
-                            .foregroundColor(PixelTheme.vitality)
-                        Text("\(Int(data.template.defaultDuration / 60)) 分钟")
-                            .font(.system(.caption2, design: .rounded))
-                            .foregroundColor(PixelTheme.textPrimary.opacity(0.8))
-                    }
-                    
-                    if let deadlineText {
-                        HStack(spacing: 2) {
-                            Image(systemName: isExpired ? "exclamationmark.triangle.fill" : "calendar")
-                                .font(.system(size: 8))
-                                .foregroundColor(isExpired ? PixelTheme.vitality : PixelTheme.forest)
-                            Text(deadlineText)
-                                .font(.system(.caption2, design: .rounded))
-                                .foregroundColor(isExpired ? PixelTheme.vitality : PixelTheme.forest)
-                        }
-                    }
-                }
-            }
+            // Text Info
+            textInfoView
+            
             Spacer()
             
-            // 过期状态指示
+            // Expired Indicator
             if isExpired {
                 Image(systemName: "leaf.fill")
                     .font(.system(size: 12))
                     .foregroundColor(PixelTheme.woodMedium.opacity(0.3))
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(PixelTheme.cardBackground.opacity(isExpired ? 0.3 : 0.8))
-                .shadow(color: PixelTheme.woodMedium.opacity(isExpired ? 0.1 : 0.15), radius: 2, x: 1, y: 1)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16)
-                        .stroke(
-                            isSelected ? 
-                            PixelTheme.forest.opacity(0.6) : 
-                            PixelTheme.woodMedium.opacity(0.2), 
-                            lineWidth: isSelected ? 2 : 1
-                        )
-                )
-        )
-        .contentShape(Rectangle())
-        .onTapGesture {
-            guard !isExpired else { return }
-            onToggle()
+    }
+    
+    private var textInfoView: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(data.template.title)
+                .font(.system(.subheadline, design: .rounded))
+                .fontWeight(.semibold)
+                .foregroundColor(isExpired ? PixelTheme.textPrimary.opacity(0.4) : PixelTheme.textPrimary)
+                .lineLimit(1)
+            
+            HStack(spacing: 8) {
+                // Duration
+                HStack(spacing: 2) {
+                    Image(systemName: "clock.fill")
+                        .font(.system(size: 8))
+                        .foregroundColor(PixelTheme.vitality)
+                    Text("\(Int(data.template.defaultDuration / 60)) 分钟")
+                        .font(.system(.caption2, design: .rounded))
+                        .foregroundColor(PixelTheme.textPrimary.opacity(0.8))
+                }
+                
+                // Deadline
+                if let deadlineText = deadlineLabel(now: Date()) {
+                    HStack(spacing: 2) {
+                        Image(systemName: isExpired ? "exclamationmark.triangle.fill" : "calendar")
+                            .font(.system(size: 8))
+                            .foregroundColor(isExpired ? PixelTheme.vitality : PixelTheme.forest)
+                        Text(deadlineText)
+                            .font(.system(.caption2, design: .rounded))
+                            .foregroundColor(isExpired ? PixelTheme.vitality : PixelTheme.forest)
+                    }
+                }
+            }
         }
+    }
+    
+    private var backgroundView: some View {
+        RoundedRectangle(cornerRadius: 16)
+            .fill(PixelTheme.cardBackground.opacity(isExpired ? 0.3 : 0.8))
+            .shadow(color: PixelTheme.woodMedium.opacity(isExpired ? 0.1 : 0.15), radius: 2, x: 1, y: 1)
+            .overlay(
+                RoundedRectangle(cornerRadius: 16)
+                    .stroke(
+                        isSelected ?
+                        PixelTheme.forest.opacity(0.6) :
+                        PixelTheme.woodMedium.opacity(0.2),
+                        lineWidth: isSelected ? 2 : 1
+                    )
+            )
+    }
+
+    private func handleDrag() {
+        guard !isExpired else { return }
+        let payload = DragPayload(type: .cardTemplate(data.template.id), source: .library)
+        appMode.enter(.dragging(payload))
+        dragCoordinator.startDrag(payload: payload)
+        Haptics.impact(.medium)
     }
 
     private func deadlineLabel(now: Date) -> String? {

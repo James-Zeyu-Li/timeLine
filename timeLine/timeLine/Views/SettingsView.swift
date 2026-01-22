@@ -15,6 +15,10 @@ struct SettingsView: View {
     var body: some View {
         NavigationView {
             List {
+                Section {
+                    UserProfileHeader()
+                }
+                
                 Section(header: Text("Focus Settings")) {
                     HStack {
                         Image(systemName: "shield.fill")

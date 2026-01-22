@@ -17,7 +17,8 @@ struct BattleExitPolicy {
     
     static func options(elapsedSeconds: TimeInterval?, taskMode: TaskMode) -> [BattleExitOption] {
         var options: [BattleExitOption] = []
-        if taskMode != .focusGroupFlexible, allowsUndoStart(elapsedSeconds: elapsedSeconds) {
+        // Treat dungeonRaid same as focusGroupFlexible (no simple undo start)
+        if taskMode != .focusGroupFlexible && taskMode.id != "dungeonRaid", allowsUndoStart(elapsedSeconds: elapsedSeconds) {
             options.append(.undoStart)
         }
         options.append(.endAndRecord)
@@ -41,7 +42,7 @@ struct BattleExitController {
             engine.abortSession()
             stateSaver.requestSave()
         case .endAndRecord:
-            if taskMode == .focusGroupFlexible {
+            if taskMode == .focusGroupFlexible || taskMode.id == "dungeonRaid" {
                 engine.endExploration(summary: focusGroupSummary)
             } else {
                 engine.retreat()

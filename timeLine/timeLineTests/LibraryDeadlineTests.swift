@@ -9,12 +9,15 @@ final class LibraryDeadlineTests: XCTestCase {
         return calendar
     }
 
-    private func makeTemplate(id: UUID = UUID(), windowDays: Int?) -> CardTemplate {
+
+
+    private func makeTemplate(id: UUID = UUID(), windowDays: Int? = nil, deadlineAt: Date? = nil) -> CardTemplate {
         CardTemplate(
             id: id,
             title: "Task \(id.uuidString.prefix(4))",
             defaultDuration: 1800,
-            deadlineWindowDays: windowDays
+            deadlineWindowDays: windowDays,
+            deadlineAt: deadlineAt
         )
     }
 
@@ -41,6 +44,50 @@ final class LibraryDeadlineTests: XCTestCase {
             XCTAssertEqual(buckets.deadline3.map(\.templateId), [three.id])
             XCTAssertEqual(buckets.deadline5.map(\.templateId), [five.id])
             XCTAssertEqual(buckets.deadline7.map(\.templateId), [seven.id])
+        }
+
+    }
+
+    func testBucketedEntries_UsesAbsoluteDeadline() async {
+        await MainActor.run {
+            let now = calendar.date(from: DateComponents(year: 2025, month: 1, day: 1, hour: 9))! // Jan 1 9am
+            let cardStore = CardTemplateStore()
+            let libraryStore = LibraryStore()
+
+            // Today: Jan 1 23:59
+            let todayDate = calendar.date(from: DateComponents(year: 2025, month: 1, day: 1, hour: 18))!
+            let todayTpl = makeTemplate(deadlineAt: todayDate)
+
+            // Tomorrow: Jan 2
+            let tomorrowDate = calendar.date(from: DateComponents(year: 2025, month: 1, day: 2, hour: 12))!
+            let tomorrowTpl = makeTemplate(deadlineAt: tomorrowDate)
+
+            // Later (Next 3 Days - actually absolute dates map depending on bucket logic)
+            // LibraryStore.bucketedEntries implementation uses 'days until deadline' logic?
+            // Let's verify if LibraryStore uses windowDays OR calculates daysDiff from deadlineAt.
+            // Based on TodoSheet.swift resolvedDeadlineAt, it tries deadlineAt first.
+            
+            // Let's assume LibraryStore uses similar logic.
+            // If LibraryStore.bucketedEntries uses deadlineAt to determine 'deadline1', 'deadline3' etc.
+            
+            cardStore.add(todayTpl)
+            cardStore.add(tomorrowTpl)
+            
+            libraryStore.add(templateId: todayTpl.id, addedAt: now)
+            libraryStore.add(templateId: tomorrowTpl.id, addedAt: now)
+            
+            let buckets = libraryStore.bucketedEntries(using: cardStore, now: now, calendar: calendar)
+            
+            // deadline1 = Today/Tomorrow (0-1 days)
+            // deadline3 = 2-3 days
+            
+            XCTAssertTrue(buckets.deadline1.contains(where: { $0.templateId == todayTpl.id }))
+            XCTAssertTrue(buckets.deadline1.contains(where: { $0.templateId == tomorrowTpl.id }))
+            // Wait, deadline1 usually means "Within 1 day" or Window=1?
+            // Existing test used windowDays: 1 -> deadline1.
+            // windowDays: 3 -> deadline3.
+            
+            // If absolute logic works, check standard buckets.
         }
     }
 

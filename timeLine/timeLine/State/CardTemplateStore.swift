@@ -141,9 +141,9 @@ final class LibraryStore: ObservableObject {
                     let startDeadline = calendar.startOfDay(for: deadlineAt)
                     let dayDiff = calendar.dateComponents([.day], from: startNow, to: startDeadline).day ?? 0
                     switch dayDiff {
-                    case ...0:
+                    case ...1:
                         buckets.deadline1.append(entry)
-                    case 1...3:
+                    case 2...3:
                         buckets.deadline3.append(entry)
                     case 4...7:
                         buckets.deadline7.append(entry)
