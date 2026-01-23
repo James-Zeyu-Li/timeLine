@@ -1,8 +1,6 @@
 import Foundation
 import Combine
-
-
-// MARK: - Session Result Event
+// ActivityKit removed from import to avoid build issues (wrapped in Manager): - Session Result Event
 /// Emitted when a battle session ends. Contains all data needed for UI/Stats.
 /// This is the "atomic" event that carries session context.
 public enum SessionEndReason: String, Codable, Equatable {
@@ -39,6 +37,11 @@ public struct SessionResult: Equatable {
 
 public class BattleEngine: ObservableObject {
     @Published public var state: BattleState = .idle
+    // Live Activity Manager (Type Erased for Availability)
+    private var liveActivityManager: Any?
+    
+    // Dependencies
+    // private let timelineStore: TimelineStore // Removed due to missing type definition in Core
     @Published public var currentBoss: Boss?
     
     // Internal state for time tracking
@@ -127,6 +130,15 @@ public class BattleEngine: ObservableObject {
         self.focusGroupSummaryOverride = nil
         self.freezeStartTime = nil
         print("[Engine] Battle Started: \(boss.name) at \(time)")
+        
+        // Start Live Activity
+        // Start Live Activity
+        if #available(iOS 26.0, *) {
+            if liveActivityManager == nil {
+                liveActivityManager = LiveActivityManager()
+            }
+            (liveActivityManager as? LiveActivityManager)?.startActivity(boss: boss, at: time)
+        }
     }
     
     public func pause(at time: Date = Date()) {
@@ -466,6 +478,12 @@ public class BattleEngine: ObservableObject {
         self.remainingSecondsAtExit = nil
         self.focusGroupSummaryOverride = nil
         print("[Engine] Session Finalized. Added \(focusedThisSession)s to daily total. History now has \(history.count) days.")
+        
+        // End Live Activity
+        // End Live Activity
+        if #available(iOS 26.0, *) {
+           (liveActivityManager as? LiveActivityManager)?.endActivity()
+        }
     }
 
     private func finalizeDistraction(at time: Date) {
@@ -569,4 +587,10 @@ public class BattleEngine: ObservableObject {
             wastedTime += timeDead
         }
     }
+
+    
+    // MARK: - Live Activity Setup
+
+    
+    // Live Activity helper methods removed (moved to LiveActivityManager)
 }

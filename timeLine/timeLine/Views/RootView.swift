@@ -18,7 +18,7 @@ struct RootView: View {
     @State private var showDeckToast = false
     @State private var deckPlacementCooldownUntil: Date?
     @State private var showSettings = false
-    @State private var showFocusList = false
+    @State private var showPlanSheet = false
     @State private var reminderTimer = Timer.publish(every: 30, on: .main, in: .common).autoconnect()
     
     var body: some View {
@@ -142,7 +142,7 @@ struct RootView: View {
                 GeometryReader { proxy in
                     HUDControlsView(
                         onZap: handleZapTap,
-                        onPlan: { showFocusList = true },
+                        onPlan: { showPlanSheet = true },
                         onBackpack: { appMode.enter(.deckOverlay(.library)) }
                     )
                     .padding(.trailing, 16)
@@ -155,9 +155,11 @@ struct RootView: View {
         .sheet(isPresented: $showSettings) {
             SettingsView()
         }
-        .sheet(isPresented: $showFocusList) {
-            TodoSheet(dragCoordinator: dragCoordinator)
-                .presentationDetents([.large])
+        .sheet(isPresented: $showPlanSheet) {
+            PlanSheetView()
+                .environmentObject(TimelineStore(daySession: daySession, stateManager: stateManager))
+                .environmentObject(cardStore)
+                .presentationDetents([.fraction(0.9)]) // Large but not full? Or .large?
         }
         .sheet(item: explorationReportBinding) { report in
             FocusGroupReportSheet(report: report)

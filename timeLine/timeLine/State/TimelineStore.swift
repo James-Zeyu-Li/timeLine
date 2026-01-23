@@ -245,6 +245,53 @@ final class TimelineStore: ObservableObject {
         stateManager.requestSave()
     }
     
+    // MARK: - Inbox Operations (Phase 17.2)
+    
+    var inbox: [TimelineNode] {
+        daySession.inbox
+    }
+    
+    func addToInbox(
+        cardTemplateId: UUID,
+        using cardStore: CardTemplateStore
+    ) -> UUID? {
+        guard let card = cardStore.get(id: cardTemplateId) else { return nil }
+        var node = makeNode(from: card)
+        node.isUnscheduled = true
+        daySession.inbox.append(node)
+        stateManager.requestSave()
+        return node.id
+    }
+    
+    func deleteFromInbox(nodeId: UUID) {
+        if let index = daySession.inbox.firstIndex(where: { $0.id == nodeId }) {
+            daySession.inbox.remove(at: index)
+            stateManager.requestSave()
+        }
+    }
+    
+    func moveFromInboxToStart(nodeId: UUID) {
+        // Find and remove from inbox
+        guard let index = daySession.inbox.firstIndex(where: { $0.id == nodeId }) else { return }
+        let node = daySession.inbox.remove(at: index)
+        
+        // Reset unscheduled flag
+        var activeNode = node
+        activeNode.isUnscheduled = false
+        
+        // Insert at current index (next up)
+        // Ensure index is valid
+        let insertIndex = min(daySession.currentIndex, daySession.nodes.count)
+        daySession.nodes.insert(activeNode, at: insertIndex)
+        
+        // If we inserted at currentIndex, ensure it is unlocked
+        if daySession.nodes.indices.contains(insertIndex) {
+            daySession.nodes[insertIndex].isLocked = false
+        }
+        
+        stateManager.requestSave()
+    }
+    
     private func makeNode(from card: CardTemplate) -> TimelineNode {
         let boss = Boss(
             id: UUID(),

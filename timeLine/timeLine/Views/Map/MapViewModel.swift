@@ -1,5 +1,6 @@
 import Foundation
 import Combine
+import UIKit
 import TimeLineCore
 
 @MainActor
@@ -14,6 +15,59 @@ class MapViewModel: ObservableObject {
     // Published State for UI
     @Published var banner: BannerData?
     @Published var pulseNextNodeId: UUID?
+    @Published var magicInputText: String = ""
+    
+    // MARK: - Magic Input Handler
+    func handleMagicInput() {
+        let trimmed = magicInputText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        
+        // Parse input using QuickEntryParser
+        let parsed = QuickEntryParser.parseDetailed(input: trimmed)
+        let title = parsed?.template.title ?? trimmed
+        let duration = parsed?.template.defaultDuration ?? 25 * 60
+        
+        // Create ephemeral template
+        let newTemplate = CardTemplate(
+            id: UUID(),
+            title: title,
+            defaultDuration: duration,
+            energyColor: parsed?.template.energyColor ?? .focus,
+            style: parsed?.template.style ?? .focus,
+            taskMode: .focusStrictFixed, // Default to strict for single tasks
+            remindAt: nil, // Handle suggested time separately
+            isEphemeral: true // Mark as ephemeral (ad-hoc)
+        )
+        
+        // If parsed.suggestedTime (DateComponents) is present, we might want to convert to Date.
+        // QuickEntryParser returns DateComponents. CardTemplate.remindAt is Date?.
+        // For simplicity, we can let addInboxItem handle placement strategies. 
+        // If the parser detected "tonight", it set suggestedTime.
+        // We'll update addInboxItem or handle it here.
+        // Actually, let's create a Helper to convert components to next occurrence?
+        // But CardTemplate expects a specific Date for remindAt.
+        // Let's rely on addInboxItem's placement logic for now, or if parser gave specific time, use it.
+        // QuickEntryParser result has `suggestedTime: DateComponents?`.
+        
+        var templateToAdd = newTemplate
+        if let components = parsed?.suggestedTime {
+             let calendar = Calendar.current
+             let now = Date()
+             let date = calendar.date(bySettingHour: components.hour ?? 20, minute: components.minute ?? 0, second: 0, of: now)
+             if let d = date, d < now {
+                 // If time passed today, move to tomorrow? Or keep today for history?
+                 // "Tonight" usually implies upcoming.
+                 // Let's assume user inputs valid future time or accepts immediate past.
+                 // For now, simple binding.
+             }
+             templateToAdd.fixedTime = components // CardTemplate has fixedTime: DateComponents?
+        }
+        
+        addInboxItem(templateToAdd)
+        magicInputText = ""
+        
+        Haptics.impact(.medium)
+    }
     
     private var pulseClearTask: DispatchWorkItem?
     private let allowsPulseClear: Bool

@@ -3,28 +3,33 @@ import Foundation
 public class DaySession: ObservableObject, Codable {
     @Published public var nodes: [TimelineNode]
     @Published public var currentIndex: Int
+    @Published public var inbox: [TimelineNode]
     
-    public init(nodes: [TimelineNode], currentIndex: Int = 0) {
+    public init(nodes: [TimelineNode], currentIndex: Int = 0, inbox: [TimelineNode] = []) {
         self.nodes = nodes
         self.currentIndex = currentIndex
+        self.inbox = inbox
     }
     
     // Codable conformance for @Published properties
     enum CodingKeys: CodingKey {
         case nodes
         case currentIndex
+        case inbox
     }
     
     public required init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         self.nodes = try container.decode([TimelineNode].self, forKey: .nodes)
         self.currentIndex = try container.decode(Int.self, forKey: .currentIndex)
+        self.inbox = try container.decodeIfPresent([TimelineNode].self, forKey: .inbox) ?? []
     }
     
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(nodes, forKey: .nodes)
         try container.encode(currentIndex, forKey: .currentIndex)
+        try container.encode(inbox, forKey: .inbox)
     }
     
     public var currentNode: TimelineNode? {

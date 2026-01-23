@@ -3,10 +3,11 @@ import PackageDescription
 
 let package = Package(
     name: "TimeLineCore",
-    platforms: [.iOS(.v16), .macOS(.v13)],
+    platforms: [.iOS("26.0"), .macOS("16.0")],
     products: [
         .library(
             name: "TimeLineCore",
+            type: .dynamic,
             targets: ["TimeLineCore"]),
     ],
     targets: [

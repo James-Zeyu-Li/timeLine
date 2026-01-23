@@ -25,6 +25,10 @@ struct RogueMapView: View {
     @State private var actionMenuNode: TimelineNode?
     @State private var isEditMode = false
     
+    // Auto-Scroll State
+    @State private var autoScrollTimer: Timer?
+    @State private var autoScrollDirection: Int = 0 // 1 = Up (Future), -1 = Down (Past)
+    
     private let bottomFocusPadding: CGFloat = 140
     private let bottomSheetInset: CGFloat = 96
     
@@ -47,6 +51,8 @@ struct RogueMapView: View {
                 }
             }
             .onAppear {
+                viewportHeight = proxy.size.height
+                
                 // Bind viewModel to dependencies for time calculations
                 viewModel.bind(
                     engine: engine,
@@ -55,6 +61,9 @@ struct RogueMapView: View {
                     cardStore: cardStore,
                     use24HourClock: use24HourClock
                 )
+            }
+            .onChange(of: proxy.size) { _, newSize in
+                viewportHeight = newSize.height
             }
             .onChange(of: use24HourClock) { _, newValue in
                 // Update viewModel preferences when clock format changes
@@ -230,6 +239,22 @@ struct RogueMapView: View {
                         nodeFrames: nodeFrames,
                         allowedNodeIds: allowedNodeIds
                     )
+                }
+                
+                // Auto-Scroll Logic
+                guard dragCoordinator.isDragging else {
+                    stopAutoScroll()
+                    return
+                }
+                
+                let threshold: CGFloat = 120
+                // Global coordinates: Top is near 0
+                if newLocation.y < threshold {
+                    startAutoScroll(direction: 1, proxy: proxy) // 1 = Up (Future)
+                } else if newLocation.y > (viewportHeight - threshold) {
+                    startAutoScroll(direction: -1, proxy: proxy) // -1 = Down (Past)
+                } else {
+                    stopAutoScroll()
                 }
             }
             .onChange(of: daySession.nodes.count) { _, _ in
@@ -616,6 +641,44 @@ struct RogueMapView: View {
                 proxy.scrollTo(id, anchor: UnitPoint(x: 0.5, y: mapAnchorY))
             }
         }
+    }
+    
+    // MARK: - Auto Scroll
+    
+    private func startAutoScroll(direction: Int, proxy: ScrollViewProxy) {
+        if let current = autoScrollTimer, autoScrollDirection == direction, current.isValid {
+            return
+        }
+        
+        stopAutoScroll()
+        autoScrollDirection = direction
+        
+        autoScrollTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { _ in
+            let centerY = viewportHeight / 2
+            // Find visible node closest to center
+            // Note: nodeFrames are global coordinates
+            let visibleNode = nodeFrames.min { abs($0.value.midY - centerY) < abs($1.value.midY - centerY) }
+            
+            guard let anchorId = visibleNode?.key,
+                  let currentIndex = daySession.nodes.firstIndex(where: { $0.id == anchorId }) else { return }
+            
+            // Direction 1 = Up (Future) = Higher Index
+            // Direction -1 = Down (Past) = Lower Index
+            let nextIndex = currentIndex + direction
+            
+            if nextIndex >= 0 && nextIndex < daySession.nodes.count {
+                let targetId = daySession.nodes[nextIndex].id
+                withAnimation(.linear(duration: 0.1)) {
+                    proxy.scrollTo(targetId, anchor: .center)
+                }
+            }
+        }
+    }
+    
+    private func stopAutoScroll() {
+        autoScrollTimer?.invalidate()
+        autoScrollTimer = nil
+        autoScrollDirection = 0
     }
 }
 
