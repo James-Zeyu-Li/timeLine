@@ -40,3 +40,13 @@ fastlane/test_output
 # Documentation (User Request)
 
 AGENTS.md
+docs/resume/ResumeSummary.md
+docs/resume/Resume_Variations.md
+gemini.md
+docs/idea/idea.md
+docs/AppPlanning.md
+docs/coreLogic/updatedUI.md
+docs/ProgressPlan.md
+docs/coreLogic/CoreLogicDescription.md
+timeLine/timeLineTests/test_organization_summary.md
+docs/walkthrough.md

@@ -33,9 +33,9 @@ final class PlanDomainTests: XCTestCase {
         XCTAssertEqual(viewModel.stagedTemplates.count, 1)
         
         let template = viewModel.stagedTemplates.first!
-        XCTAssertEqual(template.title, "Coding")
-        XCTAssertEqual(template.defaultDuration, 45 * 60)
-        XCTAssertTrue(template.isEphemeral)
+        XCTAssertEqual(template.template.title, "Coding")
+        XCTAssertEqual(template.template.defaultDuration, 45 * 60)
+        XCTAssertTrue(template.template.isEphemeral)
         
         XCTAssertTrue(viewModel.draftText.isEmpty)
     }
@@ -92,8 +92,8 @@ final class PlanDomainTests: XCTestCase {
         XCTAssertEqual(viewModel.stagedTemplates.count, 1)
         let staged = viewModel.stagedTemplates.first!
         
-        XCTAssertEqual(staged.title, "Recurring")
-        XCTAssertNotEqual(staged.id, template.id, "Should clone ID") 
-        XCTAssertTrue(staged.isEphemeral)
+        XCTAssertEqual(staged.template.title, "Recurring")
+        XCTAssertNotEqual(staged.template.id, template.id, "Should clone ID") 
+        XCTAssertTrue(staged.template.isEphemeral)
     }
 }
