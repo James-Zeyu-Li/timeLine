@@ -52,6 +52,7 @@ public class DaySession: ObservableObject, Codable {
         
         // Mark current as complete
         nodes[currentIndex].isCompleted = true
+        nodes[currentIndex].completedAt = Date()
         
         // Move to next
         currentIndex += 1
@@ -66,6 +67,7 @@ public class DaySession: ObservableObject, Codable {
         guard let index = nodes.firstIndex(where: { $0.id == id }) else { return }
         guard !nodes[index].isCompleted else { return }
         nodes[index].isCompleted = true
+        nodes[index].completedAt = Date()
         resetCurrentToFirstUpcoming()
     }
     

@@ -68,6 +68,9 @@ public class BattleEngine: ObservableObject {
     // Long-term history
     @Published public var history: [DailyFunctionality] = []
     
+    // Phase 2: Naturalist Mechanics (Stamina)
+    @Published public var stamina = StaminaSystem()
+    
     // MARK: - Session Complete Publisher
     /// Emits when a session ends (victory or retreat). Use this for event-driven architecture.
     private let sessionCompleteSubject = PassthroughSubject<SessionResult, Never>()
@@ -264,7 +267,8 @@ public class BattleEngine: ObservableObject {
         self.state = .resting
         self.startTime = Date()
         self.elapsedBeforeCurrentSession = 0
-        print("[Engine] Resting at Bonfire for \(Int(duration / 60))m")
+        self.stamina.refill() // Refill canteen
+        print("[Engine] Resting at Scenic Spot. Canteen refilled.")
     }
     
     /// Ends the current rest period and returns to idle state.
@@ -307,9 +311,20 @@ public class BattleEngine: ObservableObject {
             // Was distracted
             if let start = distractionStartTime {
                 let distractedDuration = time.timeIntervalSince(start)
-                wastedTime += distractedDuration
+                
+                // Grace Period Logic (Naturalist: The "Shh..." moment)
+                // If the user returns quickly (e.g. < 10s), the bird is not scared.
+                let gracePeriod: TimeInterval = 10.0
+                
+                if distractedDuration < gracePeriod {
+                    print("[Engine] Grace Period Saved! Duration: \(distractedDuration)s < \(gracePeriod)s. Bird stays.")
+                    // Do NOT add to wastedTime
+                } else {
+                    wastedTime += distractedDuration
+                    print("[Engine] Bird Scared! Wasted: \(distractedDuration)s. Total Wasted: \(wastedTime)s")
+                }
+                
                 distractionStartTime = nil
-                print("[Engine] Foregrounded. Wasted: \(distractedDuration)s. Total Wasted: \(wastedTime)s")
             }
         }
     }
@@ -463,6 +478,9 @@ public class BattleEngine: ObservableObject {
         
         totalFocusedHistoryToday += focusedThisSession
         
+        // Consume stamina
+        stamina.consume(duration: focusedThisSession)
+        
         // Update long-term history
         let sessionStats = DailyFunctionality(
             date: Date(),
@@ -547,7 +565,10 @@ public class BattleEngine: ObservableObject {
             freezeHistory: freezeHistory,
             freezeStartTime: freezeStartTime,
             totalFocusedHistoryToday: totalFocusedHistoryToday,
-            history: history
+            freezeStartTime: freezeStartTime,
+            totalFocusedHistoryToday: totalFocusedHistoryToday,
+            history: history,
+            stamina: stamina
         )
     }
     
@@ -567,7 +588,9 @@ public class BattleEngine: ObservableObject {
         self.freezeHistory = snapshot.freezeHistory ?? []
         self.freezeStartTime = snapshot.state == .frozen ? snapshot.freezeStartTime : nil
         self.totalFocusedHistoryToday = snapshot.totalFocusedHistoryToday ?? 0
+        self.totalFocusedHistoryToday = snapshot.totalFocusedHistoryToday ?? 0
         self.history = snapshot.history ?? []
+        self.stamina = snapshot.stamina ?? StaminaSystem()
         
         print("[Engine] State Restored. History Count: \(history.count)")
     }

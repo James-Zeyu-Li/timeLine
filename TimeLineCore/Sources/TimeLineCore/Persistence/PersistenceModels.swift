@@ -88,6 +88,7 @@ public struct BattleSnapshot: Codable {
     public let freezeStartTime: Date?
     public let totalFocusedHistoryToday: TimeInterval?
     public let history: [DailyFunctionality]?
+    public let stamina: StaminaSystem?
     
     private enum CodingKeys: String, CodingKey {
         case boss
@@ -103,6 +104,7 @@ public struct BattleSnapshot: Codable {
         case freezeStartTime
         case totalFocusedHistoryToday
         case history
+        case stamina
     }
     
     public init(
@@ -118,7 +120,8 @@ public struct BattleSnapshot: Codable {
         freezeHistory: [FreezeRecord]? = nil,
         freezeStartTime: Date? = nil,
         totalFocusedHistoryToday: TimeInterval?,
-        history: [DailyFunctionality]?
+        history: [DailyFunctionality]?,
+        stamina: StaminaSystem? = nil
     ) {
         self.boss = boss
         self.state = state
@@ -133,6 +136,7 @@ public struct BattleSnapshot: Codable {
         self.freezeStartTime = freezeStartTime
         self.totalFocusedHistoryToday = totalFocusedHistoryToday
         self.history = history
+        self.stamina = stamina
     }
     
     public init(from decoder: Decoder) throws {
@@ -150,6 +154,7 @@ public struct BattleSnapshot: Codable {
         self.freezeStartTime = try container.decodeIfPresent(Date.self, forKey: .freezeStartTime)
         self.totalFocusedHistoryToday = try container.decodeIfPresent(TimeInterval.self, forKey: .totalFocusedHistoryToday)
         self.history = try container.decodeIfPresent([DailyFunctionality].self, forKey: .history)
+        self.stamina = try container.decodeIfPresent(StaminaSystem.self, forKey: .stamina)
     }
     
     public func encode(to encoder: Encoder) throws {
@@ -167,6 +172,7 @@ public struct BattleSnapshot: Codable {
         try container.encodeIfPresent(freezeStartTime, forKey: .freezeStartTime)
         try container.encodeIfPresent(totalFocusedHistoryToday, forKey: .totalFocusedHistoryToday)
         try container.encodeIfPresent(history, forKey: .history)
+        try container.encodeIfPresent(stamina, forKey: .stamina)
     }
 }
 

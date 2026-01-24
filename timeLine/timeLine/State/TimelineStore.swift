@@ -100,6 +100,30 @@ final class TimelineStore: ObservableObject {
         appendNodes([node], engine: engine)
         return node.id
     }
+    
+    func placeCardOccurrenceAtCurrent(
+        cardTemplateId: UUID,
+        using cardStore: CardTemplateStore,
+        engine: BattleEngine
+    ) -> UUID? {
+        guard let card = cardStore.get(id: cardTemplateId) else { return nil }
+        var node = makeNode(from: card)
+        
+        // Insert at current position (queue jump)
+        let insertIndex = min(daySession.currentIndex, daySession.nodes.count)
+        node.isLocked = false // Immediately available for execution
+        node.isCompleted = false
+        
+        daySession.nodes.insert(node, at: insertIndex)
+        
+        // Update current index if we're in idle state to point to the new node
+        if engine.state == .idle || engine.state == .victory || engine.state == .retreat {
+            daySession.currentIndex = insertIndex
+        }
+        
+        stateManager.requestSave()
+        return node.id
+    }
 
     func placeCardOccurrenceByTime(
         cardTemplateId: UUID,

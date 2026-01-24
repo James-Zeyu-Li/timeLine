@@ -209,7 +209,7 @@ struct RogueMapView: View {
                         .animation(.spring(response: 0.3, dampingFraction: 0.7), value: dragCoordinator.hoveringNodeId)
                         .animation(.spring(response: 0.3, dampingFraction: 0.7), value: dragCoordinator.hoveringPlacement)
                         .padding(.horizontal, 8)
-                        .padding(.vertical, 6)
+                        .padding(.vertical, 3)
                         .id(node.id) // Add ID for scrollTo
                         
                         // Ghost In-Between / Bottom
@@ -307,51 +307,10 @@ struct RogueMapView: View {
     // MARK: - Helper Properties
     
     private func offsetForNode(_ node: TimelineNode) -> CGFloat {
-        // If no drag is active, no offset
-        guard let draggedNodeId = dragCoordinator.draggedNodeId,
-              let hoveringNodeId = dragCoordinator.hoveringNodeId,
-              draggedNodeId != node.id else {
-            return 0
-        }
-        
-        // SWAP BEHAVIOR: Only the node being hovered over moves to the dragged node's original position
-        // Other nodes stay in place
-        
-        // Only apply offset to the node we're hovering over
-        guard node.id == hoveringNodeId else {
-            return 0
-        }
-        
-        // Get indices for calculations
-        guard let draggedIndex = daySession.nodes.firstIndex(where: { $0.id == draggedNodeId }),
-              let hoveringIndex = daySession.nodes.firstIndex(where: { $0.id == hoveringNodeId }) else {
-            return 0
-        }
-        
-        // Calculate the height to offset (dragged card's height)
-        let draggedCardHeight: CGFloat = shouldShowAsCurrentTask(node: daySession.nodes[draggedIndex]) ? 200 : 80
-        let spacing: CGFloat = 20
-        let totalOffset = draggedCardHeight + spacing
-        
-        // The hovered node should move toward the dragged node's original position
-        // In reversed display:
-        // - Higher data index = higher visual position (top)
-        // - Lower data index = lower visual position (bottom)
-        //
-        // If dragged is above hovered (draggedIndex > hoveringIndex in data = dragged is higher visually)
-        // → hovered node should move UP (negative offset in our coordinate system)
-        //
-        // If dragged is below hovered (draggedIndex < hoveringIndex)
-        // → hovered node should move DOWN (positive offset)
-        
-        if draggedIndex > hoveringIndex {
-            // Dragged node was visually above → move hovered node UP
-            return -totalOffset
-        } else if draggedIndex < hoveringIndex {
-            // Dragged node was visually below → move hovered node DOWN
-            return totalOffset
-        }
-        
+        // SIMPLIFICATION: We now rely on the GhostNodeView insertion (lines 181/216) to create space 
+        // during drag-and-drop. The manual offset calculation was conflicting with the physical 
+        // insertion of the ghost view, causing the "clumping" visual artifact.
+        // Letting SwiftUI's standard layout engine handle the displacement is smoother and less error-prone.
         return 0
     }
     
@@ -571,8 +530,15 @@ struct RogueMapView: View {
     }
     
     private func estimatedTimeLabel(for node: TimelineNode) -> String? {
-        // Don't show time for current or completed tasks
-        guard !node.isCompleted else { return nil }
+        // Show completion time for completed tasks
+        if node.isCompleted {
+            guard let completedAt = node.completedAt else { return "Finished" }
+            let formatter = DateFormatter()
+            formatter.dateFormat = use24HourClock ? "HH:mm" : "h:mm a"
+            let timeString = formatter.string(from: completedAt)
+            return "Finished\n\(timeString)"
+        }
+        
         guard !shouldShowAsCurrentTask(node: node) else { return nil }
         
         // Calculate time directly without viewModel

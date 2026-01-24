@@ -563,8 +563,10 @@ struct RootView: View {
 
 
     private func handleZapTap() {
-        // Quick Entry: "Quick Focus", 25m, @focus
-        let input = "Zap Focus 25m @focus"
+        // Quick Entry: "Focus", 25m, @focus
+        // User requested ability to have "no name" or easily editable name.
+        // We use a generic "Focus" which acts as a placeholder.
+        let input = "Focus 25m @focus"
         guard let result = QuickEntryParser.parseDetailed(input: input) else { return }
         
         let template = result.template
@@ -572,12 +574,40 @@ struct RootView: View {
         cardStore.add(template)
         
         let timelineStore = TimelineStore(daySession: daySession, stateManager: stateManager)
-        if timelineStore.placeCardOccurrenceAtStart(
-            cardTemplateId: template.id,
-            using: cardStore,
-            engine: engine
-        ) != nil {
-             Haptics.impact(.heavy)
+        
+        // Choose insertion method based on timeline state
+        let nodeId: UUID?
+        if daySession.nodes.isEmpty {
+            // If timeline is empty, use the original "at start" method
+            nodeId = timelineStore.placeCardOccurrenceAtStart(
+                cardTemplateId: template.id,
+                using: cardStore,
+                engine: engine
+            )
+        } else {
+            // Use queue-jumping insertion for non-empty timeline
+            nodeId = timelineStore.placeCardOccurrenceAtCurrent(
+                cardTemplateId: template.id,
+                using: cardStore,
+                engine: engine
+            )
+        }
+        
+        if let nodeId = nodeId {
+            // Lightning effect haptic feedback
+            Haptics.impact(.heavy)
+            
+            // Transition to "Ready to Fight" state - select the node but don't auto-start
+            if let _ = daySession.nodes.first(where: { $0.id == nodeId }) {
+                // Set as current node and enter battle view in ready state
+                if let nodeIndex = daySession.nodes.firstIndex(where: { $0.id == nodeId }) {
+                    daySession.currentIndex = nodeIndex
+                }
+                
+                // Enter battle view but don't start timer automatically
+                // The user will see the "Ready to Fight" interface with START button
+                appMode.enter(.homeCollapsed) // This will show the battle view since we have a current node
+            }
         }
     }
 }

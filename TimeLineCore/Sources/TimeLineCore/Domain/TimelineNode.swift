@@ -13,6 +13,7 @@ public struct TimelineNode: Identifiable, Equatable, Codable {
     public var isLocked: Bool
     public var taskModeOverride: TaskMode?
     public var isUnscheduled: Bool
+    public var completedAt: Date?
     
     public init(
         id: UUID = UUID(),
@@ -20,7 +21,8 @@ public struct TimelineNode: Identifiable, Equatable, Codable {
         isCompleted: Bool = false,
         isLocked: Bool,
         taskModeOverride: TaskMode? = nil,
-        isUnscheduled: Bool = false
+        isUnscheduled: Bool = false,
+        completedAt: Date? = nil
     ) {
         self.id = id
         self.type = type
@@ -28,6 +30,7 @@ public struct TimelineNode: Identifiable, Equatable, Codable {
         self.isLocked = isLocked
         self.taskModeOverride = taskModeOverride
         self.isUnscheduled = isUnscheduled
+        self.completedAt = completedAt
     }
     
     public func effectiveTaskMode(templateLookup: (UUID) -> CardTemplate?) -> TaskMode {
@@ -68,7 +71,7 @@ public struct TimelineNode: Identifiable, Equatable, Codable {
     // MARK: - Codable Conformance
     
     enum CodingKeys: String, CodingKey {
-        case id, type, isCompleted, isLocked, taskModeOverride, isUnscheduled
+        case id, type, isCompleted, isLocked, taskModeOverride, isUnscheduled, completedAt
     }
     
     public init(from decoder: Decoder) throws {
@@ -79,6 +82,7 @@ public struct TimelineNode: Identifiable, Equatable, Codable {
         self.isLocked = try container.decode(Bool.self, forKey: .isLocked)
         self.taskModeOverride = try container.decodeIfPresent(TaskMode.self, forKey: .taskModeOverride)
         self.isUnscheduled = try container.decodeIfPresent(Bool.self, forKey: .isUnscheduled) ?? false
+        self.completedAt = try container.decodeIfPresent(Date.self, forKey: .completedAt)
     }
     
     public func encode(to encoder: Encoder) throws {
@@ -89,5 +93,6 @@ public struct TimelineNode: Identifiable, Equatable, Codable {
         try container.encode(isLocked, forKey: .isLocked)
         try container.encodeIfPresent(taskModeOverride, forKey: .taskModeOverride)
         try container.encode(isUnscheduled, forKey: .isUnscheduled)
+        try container.encodeIfPresent(completedAt, forKey: .completedAt)
     }
 }

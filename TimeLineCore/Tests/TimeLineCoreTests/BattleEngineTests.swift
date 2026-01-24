@@ -240,4 +240,34 @@ final class BattleEngineTests: XCTestCase {
         XCTAssertFalse(engine.isImmune)
         XCTAssertEqual(engine.immunityCount, 1)
     }
+    
+    func testBirdScareGracePeriod() {
+        let boss = Boss(name: "Bird Task", maxHp: 600)
+        let startTime = Date()
+        engine.startBattle(boss: boss, at: startTime)
+        
+        // 1. Short distraction (Within 10s grace)
+        // Background at T+10
+        let bgTime1 = startTime.addingTimeInterval(10)
+        engine.handleBackgrounding(at: bgTime1)
+        
+        // Foreground at T+15 (Duration 5s)
+        let fgTime1 = startTime.addingTimeInterval(15)
+        engine.handleForegrounding(at: fgTime1)
+        
+        // Should be ignored
+        XCTAssertEqual(engine.wastedTime, 0, "Grace period should prevent wasted time for short distractions")
+        
+        // 2. Long distraction (Exceeds 10s grace)
+        // Background at T+20
+        let bgTime2 = startTime.addingTimeInterval(20)
+        engine.handleBackgrounding(at: bgTime2)
+        
+        // Foreground at T+35 (Duration 15s)
+        let fgTime2 = startTime.addingTimeInterval(35)
+        engine.handleForegrounding(at: fgTime2)
+        
+        // Should be penalized
+        XCTAssertEqual(engine.wastedTime, 15, accuracy: 0.1, "Exceeding grace period should add to wasted time")
+    }
 }

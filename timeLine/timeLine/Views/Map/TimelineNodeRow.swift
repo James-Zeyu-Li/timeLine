@@ -29,17 +29,25 @@ struct TimelineNodeRow: View {
     
     var body: some View {
         HStack(alignment: .top, spacing: 0) {
-            // MARK: - Left Timeline Axis (Static)
-            timelineLine
-            
-            // MARK: - Draggable Content
-            HStack(alignment: .top, spacing: 0) {
-                // Node Icon (moves with drag)
-                ZStack {
+            // MARK: - Left Axis (Timeline + Icon)
+            ZStack {
+                // 1. The vertical line (background, full height)
+                timelineLineOnly
+                
+                // 2. Icon + Time Marker stacked vertically (Icon on Top)
+                VStack(spacing: 4) { // Reduced spacing slightly since Icon is top
                     nodeIconView
+                    timeMarkerView
                 }
-                .frame(width: 40)
-                .padding(.top, isCurrent ? 40 : 20) // Align visually with where it would be on the line
+                .padding(.top, isCurrent ? 24 : 12) // Keep padding logic
+            }
+            .frame(width: 50) // Increased from 44 to 50 to fit "Finished" text
+
+            
+            
+            // MARK: - Draggable Content (Card Body)
+            HStack(alignment: .top, spacing: 0) {
+                // OLD Icon position removed from here
                 
                 // MARK: - Main Content
                 if isCurrent {
@@ -53,15 +61,14 @@ struct TimelineNodeRow: View {
                     editModeButtons
                 }
             }
-            .contentShape(Rectangle())
-            // Apply the reorder offset ONLY to the content, not the timeline line
-            .offset(y: contentOffset)
-            .onTapGesture {
-                onTap()
-            }
-            // Long press to start drag mode - scroll is disabled when dragging via scrollDisabled
+            // Interaction Logic:
+            // 1. Current Task: No row-level tap. User uses the Play Button.
+            // 2. Future Task: Tap allowed via compactTaskCard credential.
+            // Long press to start drag mode.
+            // NOTE: We apply LongPress to the content, but we must ensure it doesn't swallow Button touches.
+            // Removing contentShape(Rectangle()) to avoid capturing empty space touches unnecessarily.
             .onLongPressGesture(minimumDuration: 0.4, maximumDistance: 8) {
-                // Start drag mode - RootView's global DragGesture will track movement
+                // Start drag mode
                 let payload = DragPayload(type: .node(node.id), source: .library)
                 appMode.enter(.dragging(payload))
                 dragCoordinator.startDrag(payload: payload)
@@ -98,23 +105,13 @@ struct TimelineNodeRow: View {
         }
     }
     
-    // MARK: - Timeline Axis (Static Line)
     
-    private var timelineLine: some View {
-        GeometryReader { geo in
-            ZStack(alignment: .topLeading) {
-                // Continuous vertical dashed line - extends full height
-                VerticalDashedLine(color: PixelTheme.primary.opacity(0.4))
-                    .frame(width: 2)
-                    .frame(maxHeight: .infinity)
-                    .position(x: 20, y: geo.size.height / 2)
-                
-                // Time Marker
-                timeMarkerView
-                    .position(x: 20, y: isCurrent ? 60 : 40)
-            }
-        }
-        .frame(width: 40)
+    // MARK: - Timeline Line Only (Background)
+    
+    private var timelineLineOnly: some View {
+        PathLine(isCompleted: node.isCompleted, isCurrent: isCurrent)
+            .frame(width: 40)
+            .frame(maxHeight: .infinity)
     }
     
     private var timeMarkerView: some View {
@@ -135,12 +132,15 @@ struct TimelineNodeRow: View {
                             .stroke(PixelTheme.accent, lineWidth: 1)
                     )
             } else if let timeInfo = estimatedTimeInfo {
-                // Future tasks: Show estimated time
+                // Future tasks or Completed tasks
                 Text(timeInfo)
                     .font(.system(size: 8, weight: .medium, design: .monospaced))
-                    .foregroundColor(PixelTheme.textSecondary)
+                    .multilineTextAlignment(.center) // Center align for multi-line
+                    .foregroundColor(node.isCompleted ? PixelTheme.textSecondary : PixelTheme.textSecondary.opacity(0.8))
                     .padding(.horizontal, 3)
                     .padding(.vertical, 1)
+                    // Remove background for cleaner look on completed tasks? 
+                    // Or keep it consistent. Let's keep consistent.
                     .background(
                         RoundedRectangle(cornerRadius: 2)
                             .fill(PixelTheme.cardBackground.opacity(0.8))
@@ -151,7 +151,7 @@ struct TimelineNodeRow: View {
     
     private var estimatedTimeInfo: String? {
         // Return the passed-in estimated time label
-        guard !isCurrent, !node.isCompleted else { return nil }
+        // Allow simplified return since RogueMapView handles the logic (including nil for current)
         return estimatedTimeLabel
     }
     
@@ -179,10 +179,20 @@ struct TimelineNodeRow: View {
     
     private var nodeIconView: some View {
         ZStack {
-            // Background circle
+            // Shadow for depth
+            Circle()
+                .fill(Color.black.opacity(0.15))
+                .frame(width: iconSize + 4, height: iconSize + 4)
+                .offset(y: 2)
+            
+            // Background circle with border
             Circle()
                 .fill(iconBackgroundColor)
                 .frame(width: iconSize, height: iconSize)
+                .overlay(
+                    Circle()
+                        .stroke(PixelTheme.primary.opacity(0.1), lineWidth: 1)
+                )
             
             // Icon
             Image(systemName: iconName)
@@ -256,7 +266,9 @@ struct TimelineNodeRow: View {
                             .foregroundColor(.white)
                             .offset(x: 2) // Slight offset for visual balance
                     }
+                    .contentShape(Circle())
                 }
+                .buttonStyle(BounceButtonStyle()) // Adds press effect
             }
         }
         .padding(20)
@@ -265,9 +277,12 @@ struct TimelineNodeRow: View {
                 .fill(PixelTheme.cardBackground)
                 .stroke(PixelTheme.primary, lineWidth: 2)
         )
-        .padding(.leading, 16)
-        .padding(.trailing, 16)
-        .padding(.bottom, 20)
+        // Reduced horizontal padding to 16 only (removed duplicate)
+        .padding(.horizontal, 16)
+        // Applied negative top padding to raise the card closer to the next task
+        // REVERTED: Negative padding caused overlap. Using standard padding.
+        .padding(.top, 0)
+        .padding(.bottom, 12)
     }
     
     // MARK: - Compact Task Card (Small, Less Detail)
@@ -304,6 +319,8 @@ struct TimelineNodeRow: View {
             RoundedRectangle(cornerRadius: 12)
                 .fill(PixelTheme.cardBackground.opacity(compactTaskOpacity))
         )
+        // REMOVED Tap Gesture for compact/future nodes to force sequential progression
+        // User rule: Only "Play" button on current task starts activity.
         .padding(.leading, 16)
         .padding(.trailing, 16)
         .padding(.bottom, 8)
@@ -424,7 +441,7 @@ struct TimelineNodeRow: View {
         if isCurrent {
             return PixelTheme.primary
         } else if node.isCompleted {
-            return PixelTheme.success.opacity(compactTaskOpacity)
+            return PixelTheme.secondary // Use Secondary (Brown/Wood) for completed instead of faded Green
         } else {
             return PixelTheme.textSecondary.opacity(0.3 * compactTaskOpacity)
         }
@@ -432,7 +449,7 @@ struct TimelineNodeRow: View {
     
     private var iconForegroundColor: Color {
         if isCurrent || node.isCompleted {
-            return .white.opacity(isCurrent ? 1.0 : compactTaskOpacity)
+            return .white // Always white, no opacity fade for completed
         } else {
             return PixelTheme.textSecondary.opacity(compactTaskOpacity)
         }
@@ -460,16 +477,52 @@ struct TimelineNodeRow: View {
 
 // MARK: - Helper Views
 
-private struct VerticalDashedLine: View {
-    var color: Color
+// MARK: - Helper Views
+
+private struct PathLine: View {
+    let isCompleted: Bool
+    let isCurrent: Bool
     
     var body: some View {
         GeometryReader { proxy in
-            Path { path in
-                path.move(to: CGPoint(x: proxy.size.width / 2, y: 0))
-                path.addLine(to: CGPoint(x: proxy.size.width / 2, y: proxy.size.height))
+            ZStack {
+                // Background track (always faint dashed)
+                Path { path in
+                    path.move(to: CGPoint(x: proxy.size.width / 2, y: 0))
+                    path.addLine(to: CGPoint(x: proxy.size.width / 2, y: proxy.size.height))
+                }
+                .stroke(PixelTheme.primary.opacity(0.15), style: StrokeStyle(lineWidth: 4, lineCap: .round, dash: [8, 10]))
+                
+                // Progress track (Solid if completed)
+                if isCompleted || isCurrent {
+                    Path { path in
+                        path.move(to: CGPoint(x: proxy.size.width / 2, y: 0))
+                        // If current, only draw half way (to the node center)
+                        // If completed, draw full way? 
+                        // Visual choice: Completed nodes show full path TRAVERSED.
+                        // Current node shows path reaching it.
+                        let endY = isCurrent ? proxy.size.height / 2 : proxy.size.height
+                        path.addLine(to: CGPoint(x: proxy.size.width / 2, y: endY))
+                    }
+                    .stroke(PixelTheme.primary, style: StrokeStyle(lineWidth: 4, lineCap: .round))
+                }
+                
+                // For completed nodes, we want the path to continue THROUGH them to the next one
+                // But since line is drawn from Top to Bottom, and we are in a reversed list...
+                // Actually, just ensuring the line itself is fully opaque is enough.
+                // The PathLine stroke above uses PixelTheme.primary which is opaque.
             }
-            .stroke(color, style: StrokeStyle(lineWidth: 3, lineCap: .round, dash: [8, 12]))
+            .opacity(1.0) // Force full opacity for the line, ignoring parent opacity
         }
+    }
+}
+
+// MARK: - Helper Styles
+
+struct BounceButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.9 : 1.0)
+            .animation(.easeOut(duration: 0.1), value: configuration.isPressed)
     }
 }
