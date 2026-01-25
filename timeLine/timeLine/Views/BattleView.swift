@@ -145,8 +145,8 @@ struct BattleView: View {
                                     
                                     // 主计时器区域
                                     ZStack {
-                                        // Edge Bloom Visual Cue
-                                        if engine.shouldShow50MinCue {
+                                        // Edge Bloom Visual Cue (only for flexible mode at 50min)
+                                        if engine.shouldShow50MinCue && isFlexibleMode {
                                             RoundedRectangle(cornerRadius: 32)
                                                 .stroke(Color.orange.opacity(0.6), lineWidth: 8)
                                                 .blur(radius: 8)
@@ -159,17 +159,17 @@ struct BattleView: View {
                                                 )
                                         }
 
-                                        // 50-Minute Rhythm Ring (Replacing HP Bar)
+                                        // Background Ring
                                         Circle()
-                                            .stroke(Color.white.opacity(0.1), lineWidth: 12)
+                                            .stroke(ringBackgroundColor.opacity(0.1), lineWidth: 12)
                                             .frame(width: 280, height: 280)
                                         
-                                        // Progress towards 50 minutes (3000s)
+                                        // Progress Ring (mode-dependent)
                                         Circle()
-                                            .trim(from: 0, to: min(1.0, engine.currentSessionElapsed() / 3000.0))
+                                            .trim(from: 0, to: ringProgress)
                                             .stroke(
                                                 LinearGradient(
-                                                    colors: [.blue, .cyan], // Calm observation colors
+                                                    colors: ringColors,
                                                     startPoint: .topLeading,
                                                     endPoint: .bottomTrailing
                                                 ),
@@ -177,19 +177,19 @@ struct BattleView: View {
                                             )
                                             .frame(width: 280, height: 280)
                                             .rotationEffect(.degrees(-90))
-                                            .animation(.linear(duration: 1), value: engine.currentSessionElapsed())
+                                            .animation(.linear(duration: 1), value: ringProgress)
                                         
                                         // 中央计时器
                                         VStack(spacing: 8) {
-                                            Text("OBSERVED")
+                                            Text(timerLabel)
                                                 .font(.system(size: 12, weight: .bold))
                                                 .tracking(4)
-                                                .foregroundColor(.cyan.opacity(0.8))
+                                                .foregroundColor(timerLabelColor.opacity(0.8))
                                             
-                                            Text(TimeFormatter.formatTimer(engine.currentSessionElapsed()))
+                                            Text(timerDisplay)
                                                 .font(.system(size: 64, weight: .ultraLight, design: .monospaced))
                                                 .foregroundColor(.white)
-                                                .shadow(color: .cyan.opacity(0.3), radius: 20)
+                                                .shadow(color: timerLabelColor.opacity(0.3), radius: 20)
                                             
                                             
                                             // Subject Restless Indicator (Ambient, no numbers)
@@ -376,6 +376,62 @@ struct BattleView: View {
         guard let node = daySession.currentNode else { return .focusStrictFixed }
         return node.effectiveTaskMode { id in
             cardStore.get(id: id)
+        }
+    }
+    
+    // MARK: - Dual Mode Timer Properties
+    
+    /// Whether this is a flexible mode (stopwatch) or strict mode (countdown)
+    private var isFlexibleMode: Bool {
+        switch currentTaskMode {
+        case .focusGroupFlexible, .dungeonRaid:
+            return true
+        case .focusStrictFixed, .reminderOnly:
+            return false
+        }
+    }
+    
+    /// Ring progress: Strict mode uses boss HP ratio, Flexible uses 50min target
+    private var ringProgress: CGFloat {
+        guard let boss = engine.currentBoss else { return 0 }
+        if isFlexibleMode {
+            // Flexible: Progress towards 50 minutes (3000s)
+            return min(1.0, CGFloat(engine.currentSessionElapsed()) / 3000.0)
+        } else {
+            // Strict: Countdown progress (remaining / max)
+            return CGFloat(boss.currentHp / boss.maxHp)
+        }
+    }
+    
+    /// Ring colors: Cyan for flexible, Red-Orange for strict countdown
+    private var ringColors: [Color] {
+        isFlexibleMode ? [.blue, .cyan] : [.red, .orange]
+    }
+    
+    /// Ring background color
+    private var ringBackgroundColor: Color {
+        isFlexibleMode ? .white : .red
+    }
+    
+    /// Timer label text
+    private var timerLabel: String {
+        isFlexibleMode ? "OBSERVED" : "REMAINING"
+    }
+    
+    /// Timer label color
+    private var timerLabelColor: Color {
+        isFlexibleMode ? .cyan : .red
+    }
+    
+    /// Timer display: Flexible shows elapsed, Strict shows remaining
+    private var timerDisplay: String {
+        guard let boss = engine.currentBoss else { return "00:00" }
+        if isFlexibleMode {
+            return TimeFormatter.formatTimer(engine.currentSessionElapsed())
+        } else {
+            // Remaining time = currentHp (which decreases as time passes)
+            let remaining = max(0, boss.currentHp - engine.wastedTime)
+            return TimeFormatter.formatTimer(remaining)
         }
     }
 

@@ -6,7 +6,6 @@ struct AdventurerLogView: View {
     @EnvironmentObject var engine: BattleEngine
     @Environment(\.presentationMode) var presentationMode
     
-    @State private var selectedRange: LogRange = .week
     @State private var showSettings = false
     
     var body: some View {
@@ -34,24 +33,24 @@ struct AdventurerLogView: View {
                 
                 // Weekly Progress
                 VStack(alignment: .leading, spacing: 16) {
-                    headerText("WEEKLY PROGRESS")
+                    headerText(progressHeaderText)
                     
                     HStack(spacing: 12) {
-                        Text(viewModel.weeklyFocusedText)
+                        Text(viewModel.rangeFocusedText)
                             .font(.system(size: 32, weight: .bold, design: .rounded))
                             .foregroundColor(PixelTheme.textPrimary)
                         
                         // Percentage growth
                         HStack(spacing: 2) {
-                            Image(systemName: viewModel.weeklyGrowthPercent >= 0 ? "arrow.up.right" : "arrow.down.right")
-                            Text("\(viewModel.weeklyGrowthPercent > 0 ? "+" : "")\(viewModel.weeklyGrowthPercent)%")
+                            Image(systemName: viewModel.rangeGrowthPercent >= 0 ? "arrow.up.right" : "arrow.down.right")
+                            Text("\(viewModel.rangeGrowthPercent > 0 ? "+" : "")\(viewModel.rangeGrowthPercent)%")
                         }
                         .font(.system(.caption, design: .rounded))
                         .fontWeight(.bold)
-                        .foregroundColor(viewModel.weeklyGrowthPercent >= 0 ? PixelTheme.success : PixelTheme.warning)
+                        .foregroundColor(viewModel.rangeGrowthPercent >= 0 ? PixelTheme.success : PixelTheme.warning)
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)
-                        .background((viewModel.weeklyGrowthPercent >= 0 ? PixelTheme.success : PixelTheme.warning).opacity(0.1))
+                        .background((viewModel.rangeGrowthPercent >= 0 ? PixelTheme.success : PixelTheme.warning).opacity(0.1))
                         .cornerRadius(4)
                         
                         Spacer()
@@ -61,7 +60,7 @@ struct AdventurerLogView: View {
                             .foregroundColor(PixelTheme.textSecondary.opacity(0.3))
                     }
                     
-                    AdventurerWeeklyChart(bars: viewModel.weekBars)
+                    AdventurerRangeChart(bars: viewModel.rangeBars, range: viewModel.selectedRange)
                         .frame(height: 180)
                 }
                 .padding(24)
@@ -156,25 +155,35 @@ struct AdventurerLogView: View {
     
     private var rangePicker: some View {
         HStack(spacing: 4) {
-            ForEach(LogRange.allCases) { range in
+            ForEach(StatsTimeRange.allCases) { range in
                 Button {
-                    withAnimation { selectedRange = range }
+                    withAnimation { 
+                        viewModel.updateSelectedRange(range)
+                    }
                 } label: {
                     Text(range.rawValue)
                         .font(.system(.subheadline, design: .rounded))
                         .fontWeight(.bold)
-                        .foregroundColor(selectedRange == range ? PixelTheme.primary : PixelTheme.textSecondary)
+                        .foregroundColor(viewModel.selectedRange == range ? PixelTheme.primary : PixelTheme.textSecondary)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 12)
-                        .background(selectedRange == range ? Color.white : Color.clear)
+                        .background(viewModel.selectedRange == range ? Color.white : Color.clear)
                         .cornerRadius(20)
-                        .shadow(color: selectedRange == range ? PixelTheme.cardShadow : .clear, radius: 4, x: 0, y: 2)
+                        .shadow(color: viewModel.selectedRange == range ? PixelTheme.cardShadow : .clear, radius: 4, x: 0, y: 2)
                 }
             }
         }
         .padding(4)
         .background(PixelTheme.woodLight.opacity(0.1)) // Subtle background
         .cornerRadius(24)
+    }
+    
+    private var progressHeaderText: String {
+        switch viewModel.selectedRange {
+        case .day: return "TODAY'S PROGRESS"
+        case .week: return "WEEKLY PROGRESS"
+        case .year: return "YEARLY PROGRESS"
+        }
     }
     
     private func headerText(_ text: String) -> some View {
@@ -307,8 +316,9 @@ struct AdventurerStatGrid: View {
     }
 }
 
-struct AdventurerWeeklyChart: View {
+struct AdventurerRangeChart: View {
     let bars: [WeekBar]
+    let range: StatsTimeRange
     
     var body: some View {
         HStack(alignment: .bottom, spacing: 12) {
@@ -323,18 +333,40 @@ struct AdventurerWeeklyChart: View {
                         }
                     }
                     
-                    Text(dayLabel(for: bar.date))
+                    Text(labelForBar(bar.date, range: range))
                         .font(.system(size: 11, weight: .bold))
-                        .foregroundColor(Calendar.current.isDateInToday(bar.date) ? PixelTheme.primary : PixelTheme.textSecondary)
+                        .foregroundColor(isCurrentPeriod(bar.date, range: range) ? PixelTheme.primary : PixelTheme.textSecondary)
                 }
             }
         }
     }
     
-    private func dayLabel(for date: Date) -> String {
+    private func labelForBar(_ date: Date, range: StatsTimeRange) -> String {
         let formatter = DateFormatter()
-        formatter.dateFormat = "E"
-        return String(formatter.string(from: date).prefix(1))
+        switch range {
+        case .day:
+            return "Today"
+        case .week:
+            formatter.dateFormat = "E"
+            return String(formatter.string(from: date).prefix(1))
+        case .year:
+            formatter.dateFormat = "MMM"
+            return String(formatter.string(from: date).prefix(3))
+        }
+    }
+    
+    private func isCurrentPeriod(_ date: Date, range: StatsTimeRange) -> Bool {
+        let calendar = Calendar.current
+        let today = Date()
+        
+        switch range {
+        case .day:
+            return calendar.isDate(date, inSameDayAs: today)
+        case .week:
+            return calendar.isDate(date, inSameDayAs: today)
+        case .year:
+            return calendar.isDate(date, equalTo: today, toGranularity: .month)
+        }
     }
 }
 
@@ -421,9 +453,3 @@ struct FeatRow: View {
     }
 }
 
-private enum LogRange: String, CaseIterable, Identifiable {
-    case day = "Day"
-    case week = "Week"
-    case year = "Year"
-    var id: String { rawValue }
-}

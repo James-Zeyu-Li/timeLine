@@ -286,6 +286,9 @@ class MapViewModel: ObservableObject {
             banner = BannerData(kind: .bonfireSuggested(reason: reason), upNextTitle: nil)
             pulseNextNodeId = bonfireId
             schedulePulseClear()
+        case .showSettlement:
+            // Settlement handled by RootView sheet, no banner needed
+            break
         }
     }
     

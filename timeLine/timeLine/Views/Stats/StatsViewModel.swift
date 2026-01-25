@@ -2,6 +2,13 @@ import Foundation
 import Combine
 import TimeLineCore
 
+public enum StatsTimeRange: String, CaseIterable, Identifiable {
+    case day = "Day"
+    case week = "Week"
+    case year = "Year"
+    public var id: String { rawValue }
+}
+
 public class StatsViewModel: ObservableObject {
     // MARK: - All Time Stats
     @Published public var totalFocusedAllTime: TimeInterval = 0
@@ -12,14 +19,27 @@ public class StatsViewModel: ObservableObject {
     @Published public var weeklyGrowthPercent: Int = 0
     @Published public var totalQuests: Int = 0
     
-    // MARK: - Existing Stats
+    // MARK: - Time Range Selection
+    @Published public var selectedRange: StatsTimeRange = .week
+    
+    // MARK: - Range-Specific Stats
     @Published public var heatmapData: [Date: Int] = [:] // Date (normalized) -> Level (0-4)
-    @Published public var weeklyFocusedText: String = "0m"
-    @Published public var weeklyWastedText: String = "0m"
-    @Published public var sessionsCountText: String = "0"
-    @Published public var weekBars: [WeekBar] = []
-    @Published public var weekStart: Date = Calendar.current.startOfDay(for: Date())
-    @Published public var weekEnd: Date = Calendar.current.startOfDay(for: Date())
+    @Published public var rangeFocusedText: String = "0m"
+    @Published public var rangeWastedText: String = "0m"
+    @Published public var rangeSessionsText: String = "0"
+    @Published public var rangeBars: [WeekBar] = []
+    @Published public var rangeStart: Date = Calendar.current.startOfDay(for: Date())
+    @Published public var rangeEnd: Date = Calendar.current.startOfDay(for: Date())
+    @Published public var rangeGrowthPercent: Int = 0
+    
+    // MARK: - Legacy Properties (for backward compatibility)
+    public var weeklyFocusedText: String { rangeFocusedText }
+    public var weeklyWastedText: String { rangeWastedText }
+    public var sessionsCountText: String { rangeSessionsText }
+    public var weekBars: [WeekBar] { rangeBars }
+    public var weekStart: Date { rangeStart }
+    public var weekEnd: Date { rangeEnd }
+    public var weeklyGrowthPercent: Int { rangeGrowthPercent }
     
     // MARK: - Grid Configuration
     public let daysInGrid = 365
@@ -80,20 +100,69 @@ public class StatsViewModel: ObservableObject {
         }
         self.heatmapData = map
         
-        // 2. Weekly Stats (Mon-Sun)
+        // 2. Update range-specific stats based on selected range
+        updateRangeStats()
+    }
+    
+    public func updateSelectedRange(_ range: StatsTimeRange) {
+        selectedRange = range
+        updateRangeStats()
+    }
+    
+    private func updateRangeStats() {
         let calendar = calendarWithMondayStart()
         let referenceDate = weekStartOverride ?? Date()
         let today = calendar.startOfDay(for: referenceDate)
         
+        var entriesByDate: [Date: DailyFunctionality] = [:]
+        for entry in cachedHistory {
+            let key = calendar.startOfDay(for: entry.date)
+            entriesByDate[key] = entry
+        }
+        
+        switch selectedRange {
+        case .day:
+            updateDayStats(today: today, entriesByDate: entriesByDate, calendar: calendar)
+        case .week:
+            updateWeekStats(today: today, entriesByDate: entriesByDate, calendar: calendar)
+        case .year:
+            updateYearStats(today: today, entriesByDate: entriesByDate, calendar: calendar)
+        }
+    }
+    
+    private func updateDayStats(today: Date, entriesByDate: [Date: DailyFunctionality], calendar: Calendar) {
+        rangeStart = today
+        rangeEnd = today
+        
+        let todayEntry = entriesByDate[today]
+        let focused = todayEntry?.totalFocusedTime ?? 0
+        let wasted = todayEntry?.totalWastedTime ?? 0
+        let sessions = todayEntry?.sessionsCount ?? 0
+        
+        rangeFocusedText = TimeFormatter.formatStats(focused)
+        rangeWastedText = TimeFormatter.formatStats(wasted)
+        rangeSessionsText = "\(sessions)"
+        
+        // Single bar for today
+        rangeBars = [WeekBar(date: today, focused: focused, wasted: wasted, sessions: sessions)]
+        
+        // Calculate daily growth (vs yesterday)
+        if let yesterday = calendar.date(byAdding: .day, value: -1, to: today),
+           let yesterdayEntry = entriesByDate[yesterday] {
+            let yesterdayFocused = yesterdayEntry.totalFocusedTime
+            rangeGrowthPercent = StatsAggregator.calculateWeeklyGrowth(
+                currentWeekFocused: focused,
+                previousWeekFocused: yesterdayFocused
+            )
+        } else {
+            rangeGrowthPercent = 0
+        }
+    }
+    
+    private func updateWeekStats(today: Date, entriesByDate: [Date: DailyFunctionality], calendar: Calendar) {
         if let interval = calendar.dateInterval(of: .weekOfYear, for: today) {
-            weekStart = interval.start
-            weekEnd = calendar.date(byAdding: .day, value: 6, to: interval.start) ?? interval.start
-            
-            var entriesByDate: [Date: DailyFunctionality] = [:]
-            for entry in history {
-                let key = calendar.startOfDay(for: entry.date)
-                entriesByDate[key] = entry
-            }
+            rangeStart = interval.start
+            rangeEnd = calendar.date(byAdding: .day, value: 6, to: interval.start) ?? interval.start
             
             var bars: [WeekBar] = []
             for offset in 0..<7 {
@@ -109,43 +178,92 @@ public class StatsViewModel: ObservableObject {
                     )
                 )
             }
-            weekBars = bars
+            rangeBars = bars
             
             let totalFocused = bars.reduce(0) { $0 + $1.focused }
             let totalWasted = bars.reduce(0) { $0 + $1.wasted }
             let count = bars.reduce(0) { $0 + $1.sessions }
             
-            weeklyFocusedText = TimeFormatter.formatStats(totalFocused)
-            weeklyWastedText = TimeFormatter.formatStats(totalWasted)
-            sessionsCountText = "\(count)"
+            rangeFocusedText = TimeFormatter.formatStats(totalFocused)
+            rangeWastedText = TimeFormatter.formatStats(totalWasted)
+            rangeSessionsText = "\(count)"
             
-            // 2.1 Calculate Weekly Growth
-            // Need previous week's total focus
-            if let prevWeekStart = calendar.date(byAdding: .weekOfYear, value: -1, to: weekStart) {
-                 // Sum up history for that range
-                 // Optimization: Just scan history since we have it
-                 let prevWeekEnd = weekStart // Start of this week is end of previous (exclusive)
-                 
-                 let prevWeekFocused = history.filter {
-                     let d = $0.date
-                     return d >= prevWeekStart && d < prevWeekEnd
-                 }.reduce(0) { $0 + $1.totalFocusedTime }
-                 
-                 weeklyGrowthPercent = StatsAggregator.calculateWeeklyGrowth(
-                    currentWeekFocused: totalFocused,
-                    previousWeekFocused: prevWeekFocused
-                 )
+            // Calculate Weekly Growth
+            if let prevWeekStart = calendar.date(byAdding: .weekOfYear, value: -1, to: rangeStart) {
+                let prevWeekEnd = rangeStart
+                let prevWeekFocused = cachedHistory.filter {
+                    let d = $0.date
+                    return d >= prevWeekStart && d < prevWeekEnd
+                }.reduce(0) { $0 + $1.totalFocusedTime }
+                
+                rangeGrowthPercent = StatsAggregator.calculateWeeklyGrowth(
+                   currentWeekFocused: totalFocused,
+                   previousWeekFocused: prevWeekFocused
+                )
             } else {
-                weeklyGrowthPercent = 0
+                rangeGrowthPercent = 0
+            }
+        } else {
+            rangeBars = []
+            rangeFocusedText = "0m"
+            rangeWastedText = "0m"
+            rangeSessionsText = "0"
+            rangeGrowthPercent = 0
+        }
+    }
+    
+    private func updateYearStats(today: Date, entriesByDate: [Date: DailyFunctionality], calendar: Calendar) {
+        // Get start and end of current year
+        let year = calendar.component(.year, from: today)
+        rangeStart = calendar.date(from: DateComponents(year: year, month: 1, day: 1)) ?? today
+        rangeEnd = calendar.date(from: DateComponents(year: year, month: 12, day: 31)) ?? today
+        
+        // Filter history for current year
+        let yearHistory = cachedHistory.filter {
+            calendar.component(.year, from: $0.date) == year
+        }
+        
+        let totalFocused = yearHistory.reduce(0) { $0 + $1.totalFocusedTime }
+        let totalWasted = yearHistory.reduce(0) { $0 + $1.totalWastedTime }
+        let totalSessions = yearHistory.reduce(0) { $0 + $1.sessionsCount }
+        
+        rangeFocusedText = TimeFormatter.formatStats(totalFocused)
+        rangeWastedText = TimeFormatter.formatStats(totalWasted)
+        rangeSessionsText = "\(totalSessions)"
+        
+        // Create monthly bars for the year
+        var monthlyBars: [WeekBar] = []
+        for month in 1...12 {
+            guard let monthStart = calendar.date(from: DateComponents(year: year, month: month, day: 1)) else { continue }
+            
+            let monthHistory = yearHistory.filter {
+                calendar.component(.month, from: $0.date) == month
             }
             
-        } else {
-            weekBars = []
-            weeklyFocusedText = "0m"
-            weeklyWastedText = "0m"
-            sessionsCountText = "0"
-            weeklyGrowthPercent = 0
+            let monthFocused = monthHistory.reduce(0) { $0 + $1.totalFocusedTime }
+            let monthWasted = monthHistory.reduce(0) { $0 + $1.totalWastedTime }
+            let monthSessions = monthHistory.reduce(0) { $0 + $1.sessionsCount }
+            
+            monthlyBars.append(WeekBar(
+                date: monthStart,
+                focused: monthFocused,
+                wasted: monthWasted,
+                sessions: monthSessions
+            ))
         }
+        rangeBars = monthlyBars
+        
+        // Calculate yearly growth (vs previous year)
+        let prevYear = year - 1
+        let prevYearHistory = cachedHistory.filter {
+            calendar.component(.year, from: $0.date) == prevYear
+        }
+        let prevYearFocused = prevYearHistory.reduce(0) { $0 + $1.totalFocusedTime }
+        
+        rangeGrowthPercent = StatsAggregator.calculateWeeklyGrowth(
+            currentWeekFocused: totalFocused,
+            previousWeekFocused: prevYearFocused
+        )
     }
 
     public func setWeekStart(_ date: Date?) {
