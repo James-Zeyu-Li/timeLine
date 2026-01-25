@@ -30,7 +30,8 @@ struct TimeLineApp: App {
     @Environment(\.scenePhase) var scenePhase
     
     // Core State Objects
-    @StateObject private var engine = BattleEngine()
+    @StateObject private var masterClock = MasterClockService()
+    @StateObject private var engine: BattleEngine
     @StateObject private var daySession: DaySession
     @StateObject private var cardStore: CardTemplateStore
     @StateObject private var libraryStore: LibraryStore
@@ -74,16 +75,16 @@ struct TimeLineApp: App {
         }
         
         _daySession = StateObject(wrappedValue: initialDaySession)
-        
-        // Create shared objects first
-        let engine = BattleEngine()
         let cardStore = CardTemplateStore()
         let libraryStore = LibraryStore()
+        let mcService = MasterClockService()
+        let engine = BattleEngine(masterClock: mcService)
         
+        _masterClock = StateObject(wrappedValue: mcService)
         _engine = StateObject(wrappedValue: engine)
         _cardStore = StateObject(wrappedValue: cardStore)
         _libraryStore = StateObject(wrappedValue: libraryStore)
-        
+
         // Create state manager
         let manager = AppStateManager(
             engine: engine,
@@ -114,6 +115,11 @@ struct TimeLineApp: App {
                     .environmentObject(appMode)
                     .environmentObject(stateManager)
                     .environmentObject(coordinator)
+                    .environmentObject(masterClock)
+                    .onAppear {
+                        // Start Master Clock
+                        masterClock.resume()
+                    }
                     .onAppear {
                         restoreState()
                     }
@@ -216,8 +222,7 @@ struct TimeLineApp: App {
                 // 3. Trigger Alert
                 showNewDayAlert = true
                 
-                // 3. Trigger Alert
-                showNewDayAlert = true
+
                 
             } else {
                 // SAME DAY: Continue as normal

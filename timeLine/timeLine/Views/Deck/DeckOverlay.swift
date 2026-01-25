@@ -441,54 +441,39 @@ private struct LibraryTabView: View {
     @State private var wasDragging = false
     @State private var showExpired = true
     @State private var showExpiredBanner = false
-    @State private var showTodoSheet = false
     
     var body: some View {
         let buckets = libraryStore.bucketedEntries(using: cardStore)
         let reminders = rows(for: buckets.reminders)
-        let deadline1 = rows(for: buckets.deadline1)
-        let deadline3 = rows(for: buckets.deadline3)
-        let thisWeekEntries = mergeThisWeek(buckets.deadline5, buckets.deadline7)
-        let thisWeek = rows(for: thisWeekEntries)
-        let later = rows(for: buckets.later)
-        let expired = rows(for: buckets.expired)
+        let today = rows(for: buckets.today)
+        let shortTerm = rows(for: buckets.shortTerm)
+        let longTerm = rows(for: buckets.longTerm)
+        let frozen = rows(for: buckets.frozen)
         
         VStack(spacing: 12) {
             header
             
-            if reminders.isEmpty && deadline1.isEmpty && deadline3.isEmpty && thisWeek.isEmpty && later.isEmpty && expired.isEmpty {
+            if reminders.isEmpty && today.isEmpty && shortTerm.isEmpty && longTerm.isEmpty && frozen.isEmpty {
                 emptyState
             } else {
                 ScrollViewReader { proxy in
                     ScrollView {
                         VStack(spacing: 16) {
-                            if showExpiredBanner {
-                                expiredBanner(onView: {
-                                    withAnimation(.spring(response: 0.25, dampingFraction: 0.9)) {
-                                        showExpired = true
-                                        proxy.scrollTo("expiredSection", anchor: .top)
-                                    }
-                                    showExpiredBanner = false
-                                })
-                            }
-
                             if !reminders.isEmpty {
                                 section(title: "Reminders", rows: reminders)
                             }
-                            if !deadline1.isEmpty {
-                                section(title: "Today", rows: deadline1)
+                            if !today.isEmpty {
+                                section(title: "Today & Urgent", rows: today)
                             }
-                            if !deadline3.isEmpty {
-                                section(title: "Next 3 Days", rows: deadline3)
+                            if !shortTerm.isEmpty {
+                                section(title: "Upcoming (3-10 days)", rows: shortTerm)
                             }
-                            if !thisWeek.isEmpty {
-                                section(title: "This Week", rows: thisWeek)
+                            if !longTerm.isEmpty {
+                                section(title: "Long Term", rows: longTerm)
                             }
-                            if !later.isEmpty {
-                                section(title: "Later / No deadline", rows: later)
+                            if !frozen.isEmpty {
+                                section(title: "Frozen (Stale)", rows: frozen)
                             }
-                            expiredSection(rows: expired)
-                                .id("expiredSection")
                         }
                         .padding(.horizontal, 20)
                         .padding(.bottom, isSelecting ? 70 : 20)
@@ -536,22 +521,8 @@ private struct LibraryTabView: View {
             }
             Spacer()
             HStack(spacing: 8) {
-                Button("Quick List") {
-                    showTodoSheet = true
-                }
-                .font(.system(.caption, design: .rounded))
-                .fontWeight(.semibold)
-                .foregroundColor(.green)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(
-                    Capsule()
-                        .fill(Color.green.opacity(0.15))
-                        .overlay(
-                            Capsule()
-                                .stroke(Color.green.opacity(0.3), lineWidth: 1)
-                        )
-                )
+                // Quick List Removed
+
 
                 Button("Add from Cards") {
                     showCardPicker = true
@@ -595,9 +566,7 @@ private struct LibraryTabView: View {
             }
         }
         .padding(.horizontal, 24)
-        .sheet(isPresented: $showTodoSheet) {
-            TodoSheet(dragCoordinator: dragCoordinator)
-        }
+
     }
     
     private var selectionBar: some View {

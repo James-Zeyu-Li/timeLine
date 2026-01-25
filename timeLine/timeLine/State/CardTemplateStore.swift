@@ -23,6 +23,18 @@ final class CardTemplateStore: ObservableObject {
         order.removeAll { $0 == id }
     }
     
+    func markUsed(id: UUID, at date: Date = Date()) {
+        guard var template = templates[id] else { return }
+        template.lastActivatedAt = date
+        templates[id] = template
+        
+        // Move to top of list as it is most recently used
+        if let index = order.firstIndex(of: id) {
+             order.remove(at: index)
+        }
+        order.insert(id, at: 0)
+    }
+    
     func get(id: UUID) -> CardTemplate? {
         templates[id]
     }
@@ -56,14 +68,19 @@ final class LibraryStore: ObservableObject {
     @Published private(set) var entries: [UUID: LibraryEntry] = [:]
     @Published private(set) var order: [UUID] = []
 
+    enum LibraryTier: String, CaseIterable {
+        case today       // 1 day / daily repeats / urgent
+        case shortTerm   // 3-10 days
+        case longTerm    // 30+ days
+        case frozen      // 7+ days inactive (auto-sink)
+    }
+
     struct Buckets {
-        var deadline1: [LibraryEntry] = []
-        var deadline3: [LibraryEntry] = []
-        var deadline5: [LibraryEntry] = []
-        var deadline7: [LibraryEntry] = []
-        var later: [LibraryEntry] = []
-        var expired: [LibraryEntry] = []
-        var reminders: [LibraryEntry] = []
+        var today: [LibraryEntry] = []
+        var shortTerm: [LibraryEntry] = []
+        var longTerm: [LibraryEntry] = []
+        var frozen: [LibraryEntry] = []
+        var reminders: [LibraryEntry] = [] // Keep reminders separate
     }
     
     func add(templateId: UUID, addedAt: Date = Date()) {
@@ -110,12 +127,13 @@ final class LibraryStore: ObservableObject {
     ) -> Buckets {
         let ordered = orderedEntries()
         var buckets = Buckets()
-        var deadlineAtById: [UUID: Date] = [:]
+        var sortDateById: [UUID: Date] = [:]
         var remindAtById: [UUID: Date] = [:]
 
         for entry in ordered {
             guard let template = cardStore.get(id: entry.templateId) else { continue }
 
+            // 1. Reminders (Separate)
             if template.taskMode == .reminderOnly || template.remindAt != nil {
                 if let remindAt = template.remindAt {
                     remindAtById[entry.templateId] = remindAt
@@ -123,58 +141,95 @@ final class LibraryStore: ObservableObject {
                 buckets.reminders.append(entry)
                 continue
             }
-
-            if entry.deadlineStatus == .expired {
-                buckets.expired.append(entry)
-                continue
-            }
-
-            let usesExplicitDeadline = template.deadlineAt != nil
-            if let deadlineAt = resolvedDeadlineAt(for: entry, template: template, calendar: calendar) {
-                deadlineAtById[entry.templateId] = deadlineAt
-                if now >= deadlineAt {
-                    buckets.expired.append(entry)
+            
+            // 2. Frozen (Staleness Check)
+            // If lastActivatedAt is > 7 days ago, move to frozen
+            if let lastActive = template.lastActivatedAt {
+                let daysSinceActive = calendar.dateComponents([.day], from: lastActive, to: now).day ?? 0
+                if daysSinceActive >= 7 {
+                    buckets.frozen.append(entry)
+                    sortDateById[entry.templateId] = lastActive
                     continue
                 }
-                if usesExplicitDeadline {
-                    let startNow = calendar.startOfDay(for: now)
-                    let startDeadline = calendar.startOfDay(for: deadlineAt)
-                    let dayDiff = calendar.dateComponents([.day], from: startNow, to: startDeadline).day ?? 0
-                    switch dayDiff {
-                    case ...1:
-                        buckets.deadline1.append(entry)
-                    case 2...3:
-                        buckets.deadline3.append(entry)
-                    case 4...7:
-                        buckets.deadline7.append(entry)
-                    default:
-                        buckets.later.append(entry)
-                    }
-                } else if let windowDays = template.deadlineWindowDays {
-                    switch windowDays {
-                    case 1:
-                        buckets.deadline1.append(entry)
-                    case 3:
-                        buckets.deadline3.append(entry)
-                    case 5:
-                        buckets.deadline5.append(entry)
-                    case 7:
-                        buckets.deadline7.append(entry)
-                    default:
-                        buckets.later.append(entry)
-                    }
-                } else {
-                    buckets.later.append(entry)
+            } else {
+                // If never activated, check creation date (entry.addedAt)
+                // If added > 7 days ago and never touched, also frozen?
+                // For now, let's only freeze if explicitly stale logic applied or simple age?
+                // User said: "超过 7 天未激活的任务"
+                let ageDays = calendar.dateComponents([.day], from: entry.addedAt, to: now).day ?? 0
+                if ageDays >= 7 {
+                    buckets.frozen.append(entry)
+                    sortDateById[entry.templateId] = entry.addedAt
+                    continue
+                }
+            }
+            
+            // 2.5 Recently Active (Promote to Today)
+            if let lastActivatedAt = template.lastActivatedAt {
+                 let daysSinceActive = calendar.dateComponents([.day], from: lastActivatedAt, to: now).day ?? 0
+                 if daysSinceActive <= 1 {
+                     buckets.today.append(entry)
+                     sortDateById[entry.templateId] = lastActivatedAt
+                     continue
+                 }
+            }
+
+            // 3. Urgency Bucketing (Today vs ShortTerm vs LongTerm)
+            // "Today": Created recently, deadline soon, or daily repeat
+            
+            // Check Explicit Deadline
+            var targetDate: Date? = nil
+            if let deadlineAt = resolvedDeadlineAt(for: entry, template: template, calendar: calendar) {
+                targetDate = deadlineAt
+            }
+            
+            if let target = targetDate {
+                sortDateById[entry.templateId] = target
+                
+                if now >= target {
+                     // Expired/Overdue -> Treat as Urgent (Today)
+                    buckets.today.append(entry)
+                    continue
+                }
+                
+                let startNow = calendar.startOfDay(for: now)
+                let startTarget = calendar.startOfDay(for: target)
+                let dayDiff = calendar.dateComponents([.day], from: startNow, to: startTarget).day ?? 0
+                
+                switch dayDiff {
+                case ...1:
+                    buckets.today.append(entry)
+                case 2...10:
+                    buckets.shortTerm.append(entry)
+                default:
+                    buckets.longTerm.append(entry)
                 }
             } else {
-                buckets.later.append(entry)
+                // No deadline
+                // Check Repeat Rule
+                if template.repeatRule != .none {
+                    // Recurring tasks usually meant for Today/ShortTerm
+                    buckets.today.append(entry)
+                } else {
+                    // Just created recently?
+                    let ageDays = calendar.dateComponents([.day], from: entry.addedAt, to: now).day ?? 0
+                    if ageDays <= 1 {
+                         buckets.today.append(entry)
+                    } else {
+                        // Default to LongTerm if not urgent and not frozen
+                        buckets.longTerm.append(entry)
+                    }
+                }
+                sortDateById[entry.templateId] = entry.addedAt
             }
         }
 
-        sortDeadlineBucket(&buckets.deadline1, using: deadlineAtById)
-        sortDeadlineBucket(&buckets.deadline3, using: deadlineAtById)
-        sortDeadlineBucket(&buckets.deadline5, using: deadlineAtById)
-        sortDeadlineBucket(&buckets.deadline7, using: deadlineAtById)
+        // Sort buckets
+        sortBucket(&buckets.today, using: sortDateById)
+        sortBucket(&buckets.shortTerm, using: sortDateById)
+        sortBucket(&buckets.longTerm, using: sortDateById)
+        sortBucket(&buckets.frozen, using: sortDateById) // Sort frozen by last active/added (oldest first? or newest?)
+        
         buckets.reminders.sort { lhs, rhs in
             let lhsDate = remindAtById[lhs.templateId] ?? .distantFuture
             let rhsDate = remindAtById[rhs.templateId] ?? .distantFuture
@@ -209,10 +264,10 @@ final class LibraryStore: ObservableObject {
         return calendar.date(byAdding: .day, value: windowDays, to: entry.addedAt)
     }
 
-    private func sortDeadlineBucket(_ bucket: inout [LibraryEntry], using deadlineAtById: [UUID: Date]) {
+    private func sortBucket(_ bucket: inout [LibraryEntry], using dateMap: [UUID: Date]) {
         bucket.sort { lhs, rhs in
-            let lhsDate = deadlineAtById[lhs.templateId] ?? lhs.addedAt
-            let rhsDate = deadlineAtById[rhs.templateId] ?? rhs.addedAt
+            let lhsDate = dateMap[lhs.templateId] ?? lhs.addedAt
+            let rhsDate = dateMap[rhs.templateId] ?? rhs.addedAt
             if lhsDate != rhsDate {
                 return lhsDate < rhsDate
             }

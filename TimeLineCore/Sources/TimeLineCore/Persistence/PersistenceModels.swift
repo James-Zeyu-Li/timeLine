@@ -11,6 +11,8 @@ public struct AppState: Codable {
     public var libraryEntries: [LibraryEntry]
     public var inbox: [UUID]
     public var spawnedKeys: Set<String> // Ledger for de-duplication
+    public var specimenCollection: SpecimenCollection? // Field Journal
+    public var planningDraft: [StagedTask] // Staged tasks in Plan Sheet
     
     private enum CodingKeys: String, CodingKey {
         case version
@@ -22,6 +24,8 @@ public struct AppState: Codable {
         case libraryEntries
         case inbox
         case spawnedKeys
+        case specimenCollection
+        case planningDraft
     }
     
     public init(
@@ -32,7 +36,9 @@ public struct AppState: Codable {
         cardTemplates: [CardTemplate] = [],
         libraryEntries: [LibraryEntry] = [],
         inbox: [UUID] = [],
-        spawnedKeys: Set<String> = []
+        spawnedKeys: Set<String> = [],
+        specimenCollection: SpecimenCollection? = nil,
+        planningDraft: [StagedTask] = []
     ) {
         self.lastSeenAt = lastSeenAt
         self.daySession = daySession
@@ -42,6 +48,8 @@ public struct AppState: Codable {
         self.libraryEntries = libraryEntries
         self.inbox = inbox
         self.spawnedKeys = spawnedKeys
+        self.specimenCollection = specimenCollection
+        self.planningDraft = planningDraft
     }
     
     // Manual decoding to handle missing "templates" field in old saves
@@ -56,6 +64,8 @@ public struct AppState: Codable {
         self.libraryEntries = try container.decodeIfPresent([LibraryEntry].self, forKey: .libraryEntries) ?? []
         self.inbox = try container.decodeIfPresent([UUID].self, forKey: .inbox) ?? []
         self.spawnedKeys = try container.decodeIfPresent(Set<String>.self, forKey: .spawnedKeys) ?? []
+        self.specimenCollection = try container.decodeIfPresent(SpecimenCollection.self, forKey: .specimenCollection)
+        self.planningDraft = try container.decodeIfPresent([StagedTask].self, forKey: .planningDraft) ?? []
     }
     
     public func encode(to encoder: Encoder) throws {
@@ -69,6 +79,8 @@ public struct AppState: Codable {
         try container.encode(libraryEntries, forKey: .libraryEntries)
         try container.encode(inbox, forKey: .inbox)
         try container.encode(spawnedKeys, forKey: .spawnedKeys)
+        try container.encodeIfPresent(specimenCollection, forKey: .specimenCollection)
+        try container.encode(planningDraft, forKey: .planningDraft)
     }
     
 }
@@ -89,6 +101,7 @@ public struct BattleSnapshot: Codable {
     public let totalFocusedHistoryToday: TimeInterval?
     public let history: [DailyFunctionality]?
     public let stamina: StaminaSystem?
+    public let specimenCollection: SpecimenCollection?
     
     private enum CodingKeys: String, CodingKey {
         case boss
@@ -105,6 +118,7 @@ public struct BattleSnapshot: Codable {
         case totalFocusedHistoryToday
         case history
         case stamina
+        case specimenCollection
     }
     
     public init(
@@ -121,7 +135,8 @@ public struct BattleSnapshot: Codable {
         freezeStartTime: Date? = nil,
         totalFocusedHistoryToday: TimeInterval?,
         history: [DailyFunctionality]?,
-        stamina: StaminaSystem? = nil
+        stamina: StaminaSystem? = nil,
+        specimenCollection: SpecimenCollection? = nil
     ) {
         self.boss = boss
         self.state = state
@@ -137,6 +152,7 @@ public struct BattleSnapshot: Codable {
         self.totalFocusedHistoryToday = totalFocusedHistoryToday
         self.history = history
         self.stamina = stamina
+        self.specimenCollection = specimenCollection
     }
     
     public init(from decoder: Decoder) throws {
@@ -155,6 +171,7 @@ public struct BattleSnapshot: Codable {
         self.totalFocusedHistoryToday = try container.decodeIfPresent(TimeInterval.self, forKey: .totalFocusedHistoryToday)
         self.history = try container.decodeIfPresent([DailyFunctionality].self, forKey: .history)
         self.stamina = try container.decodeIfPresent(StaminaSystem.self, forKey: .stamina)
+        self.specimenCollection = try container.decodeIfPresent(SpecimenCollection.self, forKey: .specimenCollection)
     }
     
     public func encode(to encoder: Encoder) throws {
@@ -173,6 +190,7 @@ public struct BattleSnapshot: Codable {
         try container.encodeIfPresent(totalFocusedHistoryToday, forKey: .totalFocusedHistoryToday)
         try container.encodeIfPresent(history, forKey: .history)
         try container.encodeIfPresent(stamina, forKey: .stamina)
+        try container.encodeIfPresent(specimenCollection, forKey: .specimenCollection)
     }
 }
 

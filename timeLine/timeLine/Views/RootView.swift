@@ -19,6 +19,9 @@ struct RootView: View {
     @State private var deckPlacementCooldownUntil: Date?
     @State private var showSettings = false
     @State private var showPlanSheet = false
+    @State private var showFieldJournal = false
+    @State private var showQuickBuilder = false
+    @State private var showSettlement = false
     @State private var reminderTimer = Timer.publish(every: 30, on: .main, in: .common).autoconnect()
     
     var body: some View {
@@ -95,6 +98,14 @@ struct RootView: View {
                 DeckDetailEditSheet(deckId: id)
             }
         }
+        .sheet(isPresented: $showSettlement) {
+            DailySettlementView()
+        }
+        .onReceive(coordinator.uiEvents) { event in
+            if case .showSettlement = event {
+                showSettlement = true
+            }
+        }
         .overlay(alignment: .bottom) {
             if showDeckToast, let batch = lastDeckBatch {
                 DeckPlacementToast(
@@ -143,13 +154,14 @@ struct RootView: View {
                     HUDControlsView(
                         onZap: handleZapTap,
                         onPlan: { showPlanSheet = true },
-                        onBackpack: { appMode.enter(.deckOverlay(.library)) }
+                        onBackpack: { showFieldJournal = true } // Temporarily map Backpack to Field Journal
                     )
                     .padding(.trailing, 16)
                     .padding(.bottom, proxy.safeAreaInsets.bottom + 16)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
                 }
                 .ignoresSafeArea()
+                .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
         .sheet(isPresented: $showSettings) {
@@ -159,7 +171,16 @@ struct RootView: View {
             PlanSheetView()
                 .environmentObject(TimelineStore(daySession: daySession, stateManager: stateManager))
                 .environmentObject(cardStore)
-                .presentationDetents([.fraction(0.9)]) // Large but not full? Or .large?
+                .environmentObject(daySession)
+                .environmentObject(engine)
+                .presentationDetents([.fraction(0.85)])
+        }
+        .sheet(isPresented: $showFieldJournal) {
+            DailySettlementView()
+                .environmentObject(engine)
+        }
+        .sheet(isPresented: $showQuickBuilder) {
+            QuickBuilderSheet()
         }
         .sheet(item: explorationReportBinding) { report in
             FocusGroupReportSheet(report: report)
@@ -203,6 +224,9 @@ struct RootView: View {
         case .deckOverlay(let tab):
             StrictSheet(tab: tab, isDimmed: false)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
+        case .seedTuner:
+            SeedTunerOverlay()
+                .transition(.opacity) // Overlay manages its own card transition, but this handles the container
         case .dragging(let payload):
             // Keep deck visible but dimmed during drag (only for card/deck drags, not node reordering)
             if case .node = payload.type {
@@ -563,52 +587,8 @@ struct RootView: View {
 
 
     private func handleZapTap() {
-        // Quick Entry: "Focus", 25m, @focus
-        // User requested ability to have "no name" or easily editable name.
-        // We use a generic "Focus" which acts as a placeholder.
-        let input = "Focus 25m @focus"
-        guard let result = QuickEntryParser.parseDetailed(input: input) else { return }
-        
-        let template = result.template
-        // Add transient template to store first
-        cardStore.add(template)
-        
-        let timelineStore = TimelineStore(daySession: daySession, stateManager: stateManager)
-        
-        // Choose insertion method based on timeline state
-        let nodeId: UUID?
-        if daySession.nodes.isEmpty {
-            // If timeline is empty, use the original "at start" method
-            nodeId = timelineStore.placeCardOccurrenceAtStart(
-                cardTemplateId: template.id,
-                using: cardStore,
-                engine: engine
-            )
-        } else {
-            // Use queue-jumping insertion for non-empty timeline
-            nodeId = timelineStore.placeCardOccurrenceAtCurrent(
-                cardTemplateId: template.id,
-                using: cardStore,
-                engine: engine
-            )
-        }
-        
-        if let nodeId = nodeId {
-            // Lightning effect haptic feedback
-            Haptics.impact(.heavy)
-            
-            // Transition to "Ready to Fight" state - select the node but don't auto-start
-            if let _ = daySession.nodes.first(where: { $0.id == nodeId }) {
-                // Set as current node and enter battle view in ready state
-                if let nodeIndex = daySession.nodes.firstIndex(where: { $0.id == nodeId }) {
-                    daySession.currentIndex = nodeIndex
-                }
-                
-                // Enter battle view but don't start timer automatically
-                // The user will see the "Ready to Fight" interface with START button
-                appMode.enter(.homeCollapsed) // This will show the battle view since we have a current node
-            }
-        }
+        // Zap V2: Seed Tuner
+        appMode.enter(.seedTuner)
     }
 }
 
@@ -670,359 +650,4 @@ struct NodeFrameKey: PreferenceKey {
 
 
 
-struct FocusGroupReportSheet: View {
-    @EnvironmentObject var cardStore: CardTemplateStore
-    @EnvironmentObject var libraryStore: LibraryStore
-    @EnvironmentObject var stateManager: AppStateManager
-    @Environment(\.dismiss) private var dismiss
-    let report: FocusGroupFinishedReport
 
-    private var visibleEntries: [FocusGroupReportEntry] {
-        report.entries.filter { $0.focusedSeconds > 0 }
-    }
-
-    private var timelineSegments: [FocusGroupReportSegment] {
-        report.segments
-            .filter { $0.duration > 0 }
-            .sorted { $0.startedAt < $1.startedAt }
-    }
-    
-    private var achievementLabel: String {
-        let totalMinutes = Int(report.totalFocusedSeconds / 60)
-        if totalMinutes >= 120 {
-            return "🌟 大丰收！"
-        } else if totalMinutes >= 60 {
-            return "🌾 好收成！"
-        } else if totalMinutes >= 30 {
-            return "🌱 有进步！"
-        } else {
-            return "🌿 好开始！"
-        }
-    }
-
-    var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
-                    // Header Section - Harvest Summary (丰收总结)
-                    VStack(spacing: 16) {
-                        // Treasure Chest Animation Area
-                        HStack {
-                            Spacer()
-                            VStack(spacing: 8) {
-                                // Treasure Chest Icon
-                                Image(systemName: "gift.fill")
-                                    .font(.system(size: 48))
-                                    .foregroundColor(Color(red: 0.545, green: 0.369, blue: 0.235)) // 木纹棕 #8B5E3C
-                                    .scaleEffect(1.1)
-                                    .animation(.easeInOut(duration: 2.0).repeatForever(autoreverses: true), value: UUID())
-                                
-                                Text("今日收获")
-                                    .font(.system(.title2, design: .rounded))
-                                    .fontWeight(.bold)
-                                    .foregroundColor(Color(red: 0.2, green: 0.133, blue: 0.067)) // 深棕黑 #332211
-                            }
-                            Spacer()
-                        }
-                        
-                        // Achievement Banner (飘动的黄色缎带)
-                        HStack {
-                            Spacer()
-                            Text(achievementLabel)
-                                .font(.system(.headline, design: .rounded))
-                                .fontWeight(.bold)
-                                .foregroundColor(Color(red: 0.2, green: 0.133, blue: 0.067))
-                                .padding(.horizontal, 20)
-                                .padding(.vertical, 10)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 20)
-                                        .fill(Color.yellow.opacity(0.8))
-                                        .shadow(color: .orange.opacity(0.3), radius: 4, x: 2, y: 2)
-                                )
-                            Spacer()
-                        }
-                        
-                        // Total Focus Time (专注时长显示在木牌上)
-                        VStack(spacing: 8) {
-                            HStack {
-                                Image(systemName: "clock.fill")
-                                    .foregroundColor(Color(red: 0.306, green: 0.486, blue: 0.196)) // 森林绿 #4E7C32
-                                Text("专注时长")
-                                    .font(.system(.subheadline, design: .rounded))
-                                    .fontWeight(.semibold)
-                                    .foregroundColor(Color(red: 0.2, green: 0.133, blue: 0.067))
-                            }
-                            
-                            Text(TimeFormatter.formatDuration(report.totalFocusedSeconds))
-                                .font(.system(.largeTitle, design: .rounded))
-                                .fontWeight(.bold)
-                                .foregroundColor(Color(red: 0.941, green: 0.502, blue: 0.188)) // 活力橘 #F08030
-                        }
-                        .padding(16)
-                        .background(
-                            RoundedRectangle(cornerRadius: 16)
-                                .fill(Color(red: 0.992, green: 0.965, blue: 0.890)) // 浅米色 #FDF6E3
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 16)
-                                        .stroke(Color(red: 0.545, green: 0.369, blue: 0.235), lineWidth: 2) // 木纹棕边框
-                                )
-                        )
-                    }
-
-                    // Task Distribution (任务分布 - 种子包风格)
-                    if visibleEntries.isEmpty {
-                        VStack(spacing: 12) {
-                            Image(systemName: "leaf.fill")
-                                .font(.system(size: 40))
-                                .foregroundColor(Color(red: 0.306, green: 0.486, blue: 0.196).opacity(0.6))
-                            Text("今天还没有收获哦")
-                                .font(.system(.subheadline, design: .rounded))
-                                .foregroundColor(Color(red: 0.2, green: 0.133, blue: 0.067).opacity(0.7))
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 20)
-                    } else {
-                        VStack(alignment: .leading, spacing: 16) {
-                            // Section Header with Icon
-                            HStack {
-                                Image(systemName: "chart.bar.fill")
-                                    .foregroundColor(Color(red: 0.306, green: 0.486, blue: 0.196))
-                                Text("收获清单")
-                                    .font(.system(.headline, design: .rounded))
-                                    .fontWeight(.bold)
-                                    .foregroundColor(Color(red: 0.2, green: 0.133, blue: 0.067))
-                            }
-                            
-                            // Task Cards (宝可梦卡牌风格)
-                            ForEach(visibleEntries, id: \.templateId) { entry in
-                                let template = cardStore.get(id: entry.templateId)
-                                let progress = report.totalFocusedSeconds > 0 ? entry.focusedSeconds / report.totalFocusedSeconds : 0
-                                
-                                VStack(alignment: .leading, spacing: 12) {
-                                    // Card Header
-                                    HStack {
-                                        // Pixel Icon
-                                        Image(systemName: pixelIcon(for: entry.templateId))
-                                            .font(.system(size: 20, weight: .bold))
-                                            .foregroundColor(.white)
-                                            .frame(width: 32, height: 32)
-                                            .background(
-                                                RoundedRectangle(cornerRadius: 8)
-                                                    .fill(pixelColor(for: entry.templateId))
-                                            )
-                                        
-                                        Text(template?.title ?? "Task")
-                                            .font(.system(.subheadline, design: .rounded))
-                                            .fontWeight(.bold)
-                                            .foregroundColor(Color(red: 0.2, green: 0.133, blue: 0.067))
-                                        
-                                        Spacer()
-                                        
-                                        // Time Badge
-                                        Text(TimeFormatter.formatDuration(entry.focusedSeconds))
-                                            .font(.system(.caption, design: .monospaced))
-                                            .fontWeight(.bold)
-                                            .foregroundColor(.white)
-                                            .padding(.horizontal, 8)
-                                            .padding(.vertical, 4)
-                                            .background(
-                                                Capsule().fill(Color(red: 0.941, green: 0.502, blue: 0.188))
-                                            )
-                                    }
-                                    
-                                    // Progress Bar (像素风格进度条)
-                                    GeometryReader { geometry in
-                                        ZStack(alignment: .leading) {
-                                            // Background Track
-                                            RoundedRectangle(cornerRadius: 6)
-                                                .fill(Color(red: 0.545, green: 0.369, blue: 0.235).opacity(0.2))
-                                                .frame(height: 12)
-                                            
-                                            // Progress Fill with Pixel Pattern
-                                            RoundedRectangle(cornerRadius: 6)
-                                                .fill(
-                                                    LinearGradient(
-                                                        gradient: Gradient(colors: [
-                                                            pixelColor(for: entry.templateId),
-                                                            pixelColor(for: entry.templateId).opacity(0.8)
-                                                        ]),
-                                                        startPoint: .leading,
-                                                        endPoint: .trailing
-                                                    )
-                                                )
-                                                .frame(width: geometry.size.width * progress, height: 12)
-                                                .animation(.easeInOut(duration: 1.2), value: progress)
-                                            
-                                        }
-                                    }
-                                    .frame(height: 12)
-                                    
-                                    // Save Template Button (像素风格)
-                                    if let template, template.isEphemeral {
-                                        Button(action: { saveEphemeralTemplate(template) }) {
-                                            HStack(spacing: 6) {
-                                                Image(systemName: "heart.fill")
-                                                    .font(.system(size: 12))
-                                                Text("收藏种子")
-                                                    .font(.system(.caption, design: .rounded))
-                                                    .fontWeight(.bold)
-                                            }
-                                            .foregroundColor(.white)
-                                            .padding(.horizontal, 12)
-                                            .padding(.vertical, 6)
-                                            .background(
-                                                Capsule()
-                                                    .fill(Color.pink.opacity(0.8))
-                                                    .shadow(color: .pink.opacity(0.3), radius: 2, x: 1, y: 1)
-                                            )
-                                        }
-                                        .buttonStyle(.plain)
-                                    }
-                                }
-                                .padding(16)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 16)
-                                        .fill(Color.white)
-                                        .shadow(color: Color(red: 0.545, green: 0.369, blue: 0.235).opacity(0.2), radius: 4, x: 2, y: 2)
-                                        .overlay(
-                                            RoundedRectangle(cornerRadius: 16)
-                                                .stroke(pixelColor(for: entry.templateId).opacity(0.3), lineWidth: 2)
-                                        )
-                                )
-                            }
-                        }
-                    }
-
-                    // Timeline Section (乡间小径)
-                    if !timelineSegments.isEmpty {
-                        VStack(alignment: .leading, spacing: 16) {
-                            HStack {
-                                Image(systemName: "map.fill")
-                                    .foregroundColor(Color(red: 0.306, green: 0.486, blue: 0.196))
-                                Text("今日足迹")
-                                    .font(.system(.headline, design: .rounded))
-                                    .fontWeight(.bold)
-                                    .foregroundColor(Color(red: 0.2, green: 0.133, blue: 0.067))
-                            }
-                            
-                            VStack(spacing: 8) {
-                                ForEach(timelineSegments, id: \.startedAt) { segment in
-                                    HStack(spacing: 12) {
-                                        // Time Badge
-                                        Text(timeRangeLabel(for: segment))
-                                            .font(.system(.caption2, design: .monospaced))
-                                            .foregroundColor(Color(red: 0.2, green: 0.133, blue: 0.067).opacity(0.7))
-                                            .frame(width: 80, alignment: .leading)
-                                        
-                                        // Path Marker (路标指示牌)
-                                        Image(systemName: "signpost.right.fill")
-                                            .font(.system(size: 12))
-                                            .foregroundColor(pixelColor(for: segment.templateId))
-                                        
-                                        Text(cardStore.get(id: segment.templateId)?.title ?? "Task")
-                                            .font(.system(.caption, design: .rounded))
-                                            .fontWeight(.medium)
-                                            .foregroundColor(Color(red: 0.2, green: 0.133, blue: 0.067))
-                                        
-                                        Spacer()
-                                        
-                                        // Duration with Flower Icon
-                                        HStack(spacing: 2) {
-                                            Image(systemName: "leaf.fill")
-                                                .font(.system(size: 8))
-                                                .foregroundColor(Color(red: 0.306, green: 0.486, blue: 0.196))
-                                            Text(TimeFormatter.formatDuration(segment.duration))
-                                                .font(.system(.caption2, design: .monospaced))
-                                                .foregroundColor(Color(red: 0.2, green: 0.133, blue: 0.067).opacity(0.8))
-                                        }
-                                    }
-                                    .padding(.horizontal, 12)
-                                    .padding(.vertical, 8)
-                                    .background(
-                                        RoundedRectangle(cornerRadius: 12)
-                                            .fill(Color(red: 0.992, green: 0.965, blue: 0.890).opacity(0.6)) // 浅米色背景
-                                            .overlay(
-                                                RoundedRectangle(cornerRadius: 12)
-                                                    .stroke(Color(red: 0.306, green: 0.486, blue: 0.196).opacity(0.3), lineWidth: 1)
-                                            )
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    Spacer(minLength: 20)
-                }
-                .padding(24)
-            }
-            .background(
-                // 草地背景 with 跳动的像素云朵
-                LinearGradient(
-                    gradient: Gradient(colors: [
-                        Color(red: 0.992, green: 0.965, blue: 0.890), // 浅米色 #FDF6E3
-                        Color(red: 0.306, green: 0.486, blue: 0.196).opacity(0.1) // 淡绿色
-                    ]),
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-            )
-            .navigationTitle("🎉 今日完成")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("回到农场") {
-                        dismiss()
-                    }
-                    .font(.system(.subheadline, design: .rounded))
-                    .fontWeight(.semibold)
-                    .foregroundColor(Color(red: 0.306, green: 0.486, blue: 0.196))
-                }
-            }
-        }
-    }
-
-    private func saveEphemeralTemplate(_ template: CardTemplate) {
-        var updated = template
-        updated.isEphemeral = false
-        cardStore.update(updated)
-        libraryStore.add(templateId: updated.id)
-        stateManager.requestSave()
-    }
-
-    private func timeRangeLabel(for segment: FocusGroupReportSegment) -> String {
-        guard let start = timelineSegments.first?.startedAt else {
-            return TimeFormatter.formatTimer(segment.duration)
-        }
-        let startOffset = segment.startedAt.timeIntervalSince(start)
-        let endOffset = segment.endedAt.timeIntervalSince(start)
-        return "\(TimeFormatter.formatTimer(startOffset)) - \(TimeFormatter.formatTimer(endOffset))"
-    }
-    
-    private func pixelColor(for templateId: UUID) -> Color {
-        // 像素治愈风格的自然色系
-        let hash = templateId.hashValue
-        let colors: [Color] = [
-            Color(red: 0.306, green: 0.486, blue: 0.196), // 森林绿 #4E7C32
-            Color(red: 0.941, green: 0.502, blue: 0.188), // 活力橘 #F08030
-            Color(red: 0.545, green: 0.369, blue: 0.235), // 木纹棕 #8B5E3C
-            Color(red: 0.2, green: 0.6, blue: 0.8),       // 天蓝色 (学习)
-            Color(red: 0.8, green: 0.4, blue: 0.6),       // 粉紫色 (创作)
-            Color(red: 0.6, green: 0.8, blue: 0.4),       // 草绿色 (家务)
-        ]
-        return colors[abs(hash) % colors.count]
-    }
-    
-    private func pixelIcon(for templateId: UUID) -> String {
-        // 像素风格的彩色小物件图标
-        let hash = templateId.hashValue
-        let icons = [
-            "laptopcomputer",      // 迷你电脑屏幕 (编程)
-            "envelope.fill",       // 带红漆的小信封 (邮件)
-            "book.fill",          // 小书本 (学习)
-            "house.fill",         // 小房子 (家务)
-            "paintbrush.fill",    // 画笔 (创作)
-            "gamecontroller.fill", // 游戏手柄 (娱乐)
-        ]
-        return icons[abs(hash) % icons.count]
-    }
-}

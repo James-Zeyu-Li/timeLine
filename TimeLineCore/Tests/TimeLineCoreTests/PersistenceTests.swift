@@ -1,6 +1,7 @@
 import XCTest
 @testable import TimeLineCore
 
+@MainActor
 final class PersistenceTests: XCTestCase {
     
     // MARK: - Round Trip Tests
@@ -53,7 +54,8 @@ final class PersistenceTests: XCTestCase {
         // Expected: Gap of 20s (from 10 to 30) should be counted as Wasted Time.
         
         // 1. Setup Engine to T=0
-        let engine = BattleEngine()
+        let clock = MasterClockService()
+        let engine = BattleEngine(masterClock: clock)
         let boss = Boss(name: "Crash Boss", maxHp: 600)
         let startTime = Date()
         
@@ -108,7 +110,8 @@ final class PersistenceTests: XCTestCase {
         // Scenario: Immunity enabled.
         // Gap should NOT be wasted time.
         
-        let engine = BattleEngine()
+        let clock = MasterClockService()
+        let engine = BattleEngine(masterClock: clock)
         let boss = Boss(name: "Immune Boss", maxHp: 600)
         let startTime = Date()
         

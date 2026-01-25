@@ -9,6 +9,7 @@ struct RogueMapView: View {
     @EnvironmentObject var coordinator: TimelineEventCoordinator
     @EnvironmentObject var appMode: AppModeManager
     @EnvironmentObject var dragCoordinator: DragDropCoordinator
+    @EnvironmentObject var masterClock: MasterClockService
     
     // View Model
     @StateObject private var viewModel = MapViewModel()
@@ -38,7 +39,14 @@ struct RogueMapView: View {
         GeometryReader { proxy in
             ZStack {
                 // Background
+                // Background
                 Color(red: 0.95, green: 0.94, blue: 0.92)
+                    .overlay(
+                         Color(hex: masterClock.timeOfDay.colorHex)
+                            .opacity(0.15)
+                            .ignoresSafeArea()
+                            .animation(.linear(duration: 1.0), value: masterClock.timeOfDay)
+                    )
                     .ignoresSafeArea()
                 
                 // Main timeline view
@@ -398,6 +406,9 @@ struct RogueMapView: View {
                 Haptics.impact(.medium)
                 daySession.setCurrentNode(id: node.id)
                 engine.startBattle(boss: boss)
+                if let tid = boss.templateId {
+                    cardStore.markUsed(id: tid)
+                }
                 stateManager.requestSave()
             } else {
                 if engine.state == .frozen {

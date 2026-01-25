@@ -28,8 +28,8 @@ struct AdventurerLogView: View {
                 AdventurerStatGrid(
                     dungeons: viewModel.totalSessionsAllTime,
                     gold: Int(viewModel.totalFocusedAllTime / 60), // 1 min = 1 gold
-                    quests: viewModel.totalSessionsAllTime, // Using sessions as quests for now
-                    critHits: 0
+                    quests: viewModel.totalQuests,
+                    streak: viewModel.currentStreak
                 )
                 
                 // Weekly Progress
@@ -41,15 +41,18 @@ struct AdventurerLogView: View {
                             .font(.system(size: 32, weight: .bold, design: .rounded))
                             .foregroundColor(PixelTheme.textPrimary)
                         
-                        // Percentage growth placeholder (logic requires last week comparison)
-                        Text("+12%") // Placeholder
-                            .font(.system(.caption, design: .rounded))
-                            .fontWeight(.bold)
-                            .foregroundColor(PixelTheme.success)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(PixelTheme.success.opacity(0.1))
-                            .cornerRadius(4)
+                        // Percentage growth
+                        HStack(spacing: 2) {
+                            Image(systemName: viewModel.weeklyGrowthPercent >= 0 ? "arrow.up.right" : "arrow.down.right")
+                            Text("\(viewModel.weeklyGrowthPercent > 0 ? "+" : "")\(viewModel.weeklyGrowthPercent)%")
+                        }
+                        .font(.system(.caption, design: .rounded))
+                        .fontWeight(.bold)
+                        .foregroundColor(viewModel.weeklyGrowthPercent >= 0 ? PixelTheme.success : PixelTheme.warning)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background((viewModel.weeklyGrowthPercent >= 0 ? PixelTheme.success : PixelTheme.warning).opacity(0.1))
+                        .cornerRadius(4)
                         
                         Spacer()
                         
@@ -69,7 +72,7 @@ struct AdventurerLogView: View {
                 // Quest Map
                 VStack(alignment: .leading, spacing: 16) {
                     HStack {
-                        headerText("QUEST MAP")
+                        headerText("ACTIVITY HEATMAP")
                         Spacer()
                         Text("365 Days")
                             .font(.caption)
@@ -83,19 +86,24 @@ struct AdventurerLogView: View {
                 .cornerRadius(24)
                 .shadow(color: PixelTheme.cardShadow, radius: 12, x: 0, y: 4)
                 
-                // Legendary Feats (Placeholders)
+                // Legendary Feats (Placeholders - Hidden for now until V2)
+                /*
                 VStack(alignment: .leading, spacing: 16) {
-                    headerText("LEGENDARY FEATS")
+                    headerText("ACHIEVEMENTS")
                     
-                    FeatRow(icon: "trophy.fill", color: .orange, title: "Productivity Streak", subtitle: "14 days without missing a quest", xp: "500 XP")
-                    FeatRow(icon: "checkmark.seal.fill", color: .green, title: "Dragon Slayer", subtitle: "Completed 50 major tasks", badge: "Badge")
+                    FeatRow(icon: "trophy.fill", color: .orange, title: "Focus Streak", subtitle: "14 days of consistent focus sessions")
+                    FeatRow(icon: "checkmark.seal.fill", color: .green, title: "Task Master", subtitle: "Completed 50 tasks", badge: "Badge")
                 }
+                */
             }
             .padding(24)
         }
         .background(PixelTheme.background.ignoresSafeArea())
         .onAppear {
-            viewModel.processHistory(engine.history)
+            viewModel.processHistory(
+                engine.history,
+                specimens: engine.specimenCollection
+            )
         }
         .sheet(isPresented: $showSettings) {
             SettingsView()
@@ -119,7 +127,7 @@ struct AdventurerLogView: View {
             Spacer()
             
             VStack(spacing: 2) {
-                Text("Adventurer's Log")
+                Text("Statistics")
                     .font(.system(.headline, design: .serif))
                     .fontWeight(.bold)
                     .foregroundColor(PixelTheme.textPrimary)
@@ -212,7 +220,7 @@ struct AdventurerProfileCard: View {
             
             // Info
             VStack(alignment: .leading, spacing: 8) {
-                Text("Productivity Mage") // Title
+                Text("Focus Master") // Title
                     .font(.system(.title3, design: .serif))
                     .fontWeight(.bold)
                     .foregroundColor(PixelTheme.textPrimary)
@@ -252,14 +260,14 @@ struct AdventurerStatGrid: View {
     let dungeons: Int
     let gold: Int
     let quests: Int
-    let critHits: Int
+    let streak: Int
     
     var body: some View {
         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
-            InfoTile(icon: "castle.fill", label: "DUNGEONS", value: "\(dungeons)", color: PixelTheme.secondary)
-            InfoTile(icon: "dollarsign.circle.fill", label: "GOLD", value: "\(gold)", color: PixelTheme.primary)
+            InfoTile(icon: "timer", label: "SESSIONS", value: "\(dungeons)", color: PixelTheme.secondary)
+            InfoTile(icon: "clock.fill", label: "MINUTES", value: "\(gold)", color: PixelTheme.primary)
             InfoTile(icon: "checkmark.circle.fill", label: "QUESTS", value: "\(quests)", color: PixelTheme.success)
-            InfoTile(icon: "bolt.fill", label: "CRIT HITS", value: "\(critHits)", color: PixelTheme.warning)
+            InfoTile(icon: "flame.fill", label: "STREAK", value: "\(streak)", color: PixelTheme.warning)
         }
     }
     

@@ -1,16 +1,21 @@
 import Foundation
+#if os(iOS)
 import ActivityKit
+#endif
 
 @available(iOS 26.0, *)
 public class LiveActivityManager {
+#if os(iOS)
     private var currentActivity: Activity<FocusSessionAttributes>?
+#endif
     
     public init() {}
     
     public func startActivity(boss: Boss, at time: Date) {
+#if os(iOS)
         let attributes = FocusSessionAttributes(
             title: boss.name,
-            modeName: boss.style == .focus ? "Strict Focus" : "Focus Group"
+            modeName: boss.style == .focus ? "Observing" : "Expedition"
         )
         
         let endTime = boss.style == .focus ? time.addingTimeInterval(boss.maxHp) : nil
@@ -30,14 +35,13 @@ public class LiveActivityManager {
         } catch {
             print("[LiveActivityManager] Failed to start Activity: \(error)")
         }
+#endif
     }
     
     public func endActivity() {
+#if os(iOS)
         guard let activity = currentActivity else { return }
         
-        // We can't easily access the original start time unless we stored it or passed it.
-        // For ending, usually irrelevant as activity dismisses.
-        // But let's create a final state.
         let finalContentState = FocusSessionAttributes.ContentState(
             startTime: Date(), // Placeholder, won't show
             endTime: nil,
@@ -52,5 +56,6 @@ public class LiveActivityManager {
             print("[LiveActivityManager] Ended Activity")
         }
         self.currentActivity = nil
+#endif
     }
 }

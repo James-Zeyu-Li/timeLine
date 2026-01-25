@@ -15,6 +15,7 @@ indirect enum AppMode: Equatable {
     case homeCollapsed
     case homeExpanded
     case deckOverlay(DeckTab)
+    case seedTuner // New mode for Zap V2
     case dragging(DragPayload)
     case cardEdit(cardTemplateId: UUID, returnMode: AppMode)
     case deckEdit(deckId: UUID, returnMode: AppMode)
@@ -31,6 +32,15 @@ final class AppModeManager: ObservableObject {
     
     func enter(_ newMode: AppMode) {
         switch newMode {
+        case .seedTuner:
+            // Allowed from home modes
+            switch mode {
+            case .homeCollapsed, .homeExpanded:
+                mode = newMode
+            default:
+                return
+            }
+            
         case .deckOverlay:
             // Allowed only from home modes
             switch mode {
@@ -56,7 +66,7 @@ final class AppModeManager: ObservableObject {
                 mode = .cardEdit(cardTemplateId: id, returnMode: .deckOverlay(tab))
             case .homeCollapsed:
                 mode = .cardEdit(cardTemplateId: id, returnMode: .homeCollapsed)
-            case .homeExpanded, .dragging, .cardEdit, .deckEdit:
+            case .homeExpanded, .dragging, .cardEdit, .deckEdit, .seedTuner:
                 return
             }
             
@@ -67,7 +77,7 @@ final class AppModeManager: ObservableObject {
                 mode = .deckEdit(deckId: id, returnMode: .deckOverlay(tab))
             case .homeCollapsed:
                 mode = .deckEdit(deckId: id, returnMode: .homeCollapsed)
-            case .homeExpanded, .dragging, .cardEdit, .deckEdit:
+            case .homeExpanded, .dragging, .cardEdit, .deckEdit, .seedTuner:
                 return
             }
             
@@ -128,7 +138,7 @@ final class AppModeManager: ObservableObject {
     
     var isOverlayActive: Bool {
         switch mode {
-        case .deckOverlay, .dragging, .cardEdit, .deckEdit:
+        case .deckOverlay, .dragging, .cardEdit, .deckEdit, .seedTuner:
             return true
         default:
             return false

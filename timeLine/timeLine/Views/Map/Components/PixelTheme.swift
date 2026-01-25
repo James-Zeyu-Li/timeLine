@@ -17,14 +17,16 @@ enum PixelTheme {
     static let shadowOpacity: Double = 0.15
     
     // Theme switching support
-    @AppStorage("usePixelTheme") private static var usePixelTheme = true
+    // @AppStorage("usePixelTheme") private static var usePixelTheme = true
+    // FORCE ENABLE PIXEL THEME (Warm/Adventure)
+    private static var usePixelTheme = true
     
     // Phase 16: Modern RPG Palette (V2.5)
     // Clean, Cream & Orange, High Readability
     
     // Backgrounds - Theme aware
     static var cream: Color {
-        usePixelTheme ? Color(hex: "F9F5EC") : Color(hex: "F8F9FA")
+        Color(hex: "F9F5EC")
     }
     
     static var background: Color { cream }
@@ -32,28 +34,28 @@ enum PixelTheme {
     
     // Card Surface - Theme aware
     static var cardBackground: Color {
-        usePixelTheme ? Color.white : Color(hex: "FFFFFF")
+        Color.white
     }
     
     static var cardShadow: Color {
-        usePixelTheme ? Color.black.opacity(0.06) : Color.black.opacity(0.04)
+        Color.black.opacity(0.06)
     }
     
     // Accents - Theme aware
     static var primary: Color {
-        usePixelTheme ? Color(hex: "F5A623") : Color(hex: "007AFF")
+        Color(hex: "F5A623")
     }
     
     static var secondary: Color {
-        usePixelTheme ? Color(hex: "8B572A") : Color(hex: "6C757D")
+        Color(hex: "8B572A")
     }
     
     static var success: Color {
-        usePixelTheme ? Color(hex: "7ED321") : Color(hex: "28A745")
+        Color(hex: "7ED321")
     }
     
     static var warning: Color {
-        usePixelTheme ? Color(hex: "D0021B") : Color(hex: "DC3545")
+        Color(hex: "D0021B")
     }
     
     // Re-map to existing semantic names
@@ -66,11 +68,11 @@ enum PixelTheme {
     
     // Text - Theme aware
     static var textPrimary: Color {
-        usePixelTheme ? Color(hex: "4A4A4A") : Color(hex: "1C1C1E")
+        Color(hex: "4A4A4A")
     }
     
     static var textSecondary: Color {
-        usePixelTheme ? Color(hex: "9B9B9B") : Color(hex: "8E8E93")
+        Color(hex: "9B9B9B")
     }
     
     static let textInverted = Color(hex: "1a1b26")

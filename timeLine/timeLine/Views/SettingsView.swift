@@ -42,25 +42,6 @@ struct SettingsView: View {
                 
                 Section(header: Text("App Behavior")) {
                     HStack {
-                        Image(systemName: "paintbrush.fill")
-                            .foregroundColor(.orange)
-                            .frame(width: 24)
-                        
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Pixel Theme")
-                                .font(.headline)
-                            Text("Use warm pixel healing style vs smooth modern design")
-                                .font(.caption)
-                                .foregroundColor(.gray)
-                        }
-                        
-                        Spacer()
-                        
-                        Toggle("", isOn: $usePixelTheme)
-                    }
-                    .padding(.vertical, 4)
-                    
-                    HStack {
                         Image(systemName: "square.and.arrow.down.fill")
                             .foregroundColor(.blue)
                             .frame(width: 24)

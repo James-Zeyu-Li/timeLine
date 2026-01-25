@@ -1,4 +1,5 @@
 import Foundation
+#if os(iOS)
 import ActivityKit
 
 @available(iOS 26.0, *)
@@ -29,3 +30,4 @@ public struct FocusSessionAttributes: ActivityAttributes {
         self.modeName = modeName
     }
 }
+#endif

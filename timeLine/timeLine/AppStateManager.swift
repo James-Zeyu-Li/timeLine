@@ -15,6 +15,7 @@ final class AppStateManager: ObservableObject, StateSaver {
     // MARK: - Ledger
     @Published var spawnedKeys: Set<String> = []
     @Published var inbox: [UUID] = []
+    @Published var planningDraft: [StagedTask] = []
     
     // MARK: - Debounced Save
     private let saveSubject = PassthroughSubject<Void, Never>()
@@ -79,7 +80,9 @@ final class AppStateManager: ObservableObject, StateSaver {
             cardTemplates: cardStore.orderedTemplates(),
             libraryEntries: libraryStore.orderedEntries(),
             inbox: inbox,
-            spawnedKeys: spawnedKeys
+            spawnedKeys: spawnedKeys,
+            specimenCollection: engine.specimenCollection,
+            planningDraft: planningDraft
         )
         PersistenceManager.shared.save(state: state)
         print("[AppStateManager] State saved.")
@@ -102,6 +105,7 @@ final class AppStateManager: ObservableObject, StateSaver {
         libraryStore.load(from: state.libraryEntries)
         inbox = state.inbox
         self.spawnedKeys = state.spawnedKeys
+        self.planningDraft = state.planningDraft
         
         return true
     }
@@ -126,6 +130,7 @@ final class AppStateManager: ObservableObject, StateSaver {
         daySession.currentIndex = 0
         spawnedKeys.removeAll()
         inbox.removeAll()
+        planningDraft.removeAll()
         
         // Reset engine
         engine.state = .idle

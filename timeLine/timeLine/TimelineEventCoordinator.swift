@@ -124,6 +124,10 @@ final class TimelineEventCoordinator: ObservableObject {
             clearFocusGroupSession()
         }
         
+        // Phase 21: Auto-show Field Journal after any task completion
+        uiEventSubject.send(.showSettlement)
+        print("[Coordinator] 📔 Triggering Field Journal")
+        
         maybeSuggestBonfire()
 
         if let nodeId = currentNodeId, nodeId == focusGroupNodeId {
@@ -383,15 +387,22 @@ final class TimelineEventCoordinator: ObservableObject {
 // MARK: - Preview/Test Support
 extension TimelineEventCoordinator {
     /// Creates a coordinator with empty/mock dependencies for previews
+    @MainActor
     static var preview: TimelineEventCoordinator {
-        TimelineEventCoordinator(
-            engine: BattleEngine(),
-            daySession: DaySession(nodes: []),
+        let clock = MasterClockService()
+        let engine = BattleEngine(masterClock: clock)
+        let daySession = DaySession(nodes: [])
+        let cardStore = CardTemplateStore()
+        let libraryStore = LibraryStore()
+        
+        return TimelineEventCoordinator(
+            engine: engine,
+            daySession: daySession,
             stateManager: AppStateManager(
-                engine: BattleEngine(),
-                daySession: DaySession(nodes: []),
-                cardStore: CardTemplateStore(),
-                libraryStore: LibraryStore()
+                engine: engine,
+                daySession: daySession,
+                cardStore: cardStore,
+                libraryStore: libraryStore
             )
         )
     }

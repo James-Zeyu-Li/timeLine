@@ -22,12 +22,13 @@ struct MagicInputBar: View {
             // Icon
             Image(systemName: "sparkles")
                 .font(.system(size: 18))
-                .foregroundStyle(Color.accentColor)
+                .foregroundStyle(Color.blue.opacity(0.8)) // Brighter Blue for Dark Mode
             
             // Input TextField
             TextField("What's your quest? e.g. 'Code 45m'", text: $text)
                 .font(.system(size: 18, weight: .medium, design: .rounded))
                 .submitLabel(.done)
+                .foregroundColor(.white) // White text
                 .focused($isFocused)
                 .onSubmit {
                     onCommit()
@@ -45,7 +46,7 @@ struct MagicInputBar: View {
                 .padding(.vertical, 4)
                 .background(
                     Capsule()
-                        .fill(Color.accentColor)
+                        .fill(Color.blue)
                 )
                 .transition(.scale.combined(with: .opacity))
             }
@@ -55,7 +56,7 @@ struct MagicInputBar: View {
                 Button(action: onCommit) {
                     Image(systemName: "arrow.up.circle.fill")
                         .font(.system(size: 32))
-                        .foregroundStyle(Color.accentColor)
+                        .foregroundStyle(Color.blue)
                 }
                 .transition(.scale)
             }
@@ -63,12 +64,12 @@ struct MagicInputBar: View {
         .padding()
         .background(
             RoundedRectangle(cornerRadius: 16)
-                .fill(Color(uiColor: .secondarySystemBackground))
-                .shadow(color: .black.opacity(0.05), radius: 5, x: 0, y: 2)
+                .fill(Color.white.opacity(0.1)) // Translucent gray
+                .shadow(color: .black.opacity(0.1), radius: 5, x: 0, y: 2)
         )
         .overlay(
             RoundedRectangle(cornerRadius: 16)
-                .stroke(Color.accentColor.opacity(isFocused ? 0.3 : 0), lineWidth: 2)
+                .stroke(Color.blue.opacity(isFocused ? 0.5 : 0), lineWidth: 1)
         )
         .animation(.spring(response: 0.3, dampingFraction: 0.7), value: text.isEmpty)
         .animation(.spring(response: 0.3, dampingFraction: 0.7), value: detectedDuration)

@@ -29,6 +29,7 @@ public struct CardTemplate: Identifiable, Codable, Equatable {
     public var isEphemeral: Bool
     public var deadlineWindowDays: Int?
     public var deadlineAt: Date?
+    public var lastActivatedAt: Date?  // For staleness tracking in tiered library
 
     private enum CodingKeys: String, CodingKey {
         case id
@@ -47,6 +48,7 @@ public struct CardTemplate: Identifiable, Codable, Equatable {
         case isEphemeral
         case deadlineWindowDays
         case deadlineAt
+        case lastActivatedAt
     }
     
     public init(
@@ -65,7 +67,8 @@ public struct CardTemplate: Identifiable, Codable, Equatable {
         leadTimeMinutes: Int = 0,
         isEphemeral: Bool = false,
         deadlineWindowDays: Int? = nil,
-        deadlineAt: Date? = nil
+        deadlineAt: Date? = nil,
+        lastActivatedAt: Date? = nil
     ) {
         self.id = id
         self.title = title
@@ -83,6 +86,7 @@ public struct CardTemplate: Identifiable, Codable, Equatable {
         self.isEphemeral = isEphemeral
         self.deadlineWindowDays = deadlineWindowDays
         self.deadlineAt = deadlineAt
+        self.lastActivatedAt = lastActivatedAt
     }
     
     public init(from decoder: Decoder) throws {
@@ -103,5 +107,6 @@ public struct CardTemplate: Identifiable, Codable, Equatable {
         self.isEphemeral = try container.decodeIfPresent(Bool.self, forKey: .isEphemeral) ?? false
         self.deadlineWindowDays = try container.decodeIfPresent(Int.self, forKey: .deadlineWindowDays)
         self.deadlineAt = try container.decodeIfPresent(Date.self, forKey: .deadlineAt)
+        self.lastActivatedAt = try container.decodeIfPresent(Date.self, forKey: .lastActivatedAt)
     }
 }

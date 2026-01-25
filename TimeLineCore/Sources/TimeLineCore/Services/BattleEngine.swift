@@ -1,5 +1,8 @@
 import Foundation
 import Combine
+#if canImport(UIKit)
+import UIKit
+#endif
 // ActivityKit removed from import to avoid build issues (wrapped in Manager): - Session Result Event
 /// Emitted when a battle session ends. Contains all data needed for UI/Stats.
 /// This is the "atomic" event that carries session context.
@@ -35,6 +38,7 @@ public struct SessionResult: Equatable {
     }
 }
 
+@MainActor
 public class BattleEngine: ObservableObject {
     @Published public var state: BattleState = .idle
     // Live Activity Manager (Type Erased for Availability)
@@ -43,15 +47,19 @@ public class BattleEngine: ObservableObject {
     // Dependencies
     // private let timelineStore: TimelineStore // Removed due to missing type definition in Core
     @Published public var currentBoss: Boss?
+    private let masterClock: MasterClockService
     
     // Internal state for time tracking
     private var startTime: Date?
     private var elapsedBeforeCurrentSession: TimeInterval = 0
+    private var lastActiveTime: Date = Date()
+    private let idleThreshold: TimeInterval = 300 // 5 minutes
     
     // Phase 4: Distraction Logic
     @Published public var isImmune: Bool = false
     @Published public var immunityCount: Int = 1
     @Published public var wastedTime: TimeInterval = 0
+    @Published public var shadowAccumulated: TimeInterval = 0 // "Shadow" mechanic (unaccounted time)
 
     // Freeze (real-world interruption)
     public let maxFreezeTokens = 3
@@ -68,8 +76,9 @@ public class BattleEngine: ObservableObject {
     // Long-term history
     @Published public var history: [DailyFunctionality] = []
     
-    // Phase 2: Naturalist Mechanics (Stamina)
+    // Phase 2: Naturalist Mechanics
     @Published public var stamina = StaminaSystem()
+    @Published public var specimenCollection = SpecimenCollection()
     
     // MARK: - Session Complete Publisher
     /// Emits when a session ends (victory or retreat). Use this for event-driven architecture.
@@ -110,13 +119,51 @@ public class BattleEngine: ObservableObject {
     private var distractionStartTime: Date?
     private var freezeStartTime: Date?
     
+    // Phase 19: Ambient Companion
+    @Published public var shouldShow50MinCue: Bool = false
+    private var cancellables = Set<AnyCancellable>()
+    
     // Idempotent guard for finalizeSession
     private var hasFinalized = false
     private var endReasonOverride: SessionEndReason?
     private var remainingSecondsAtExit: TimeInterval?
     private var focusGroupSummaryOverride: FocusGroupSessionSummary?
     
-    public init() {}
+    public init(masterClock: MasterClockService) {
+        self.masterClock = masterClock
+        
+        // Subscribe to Master Clock for Observation Cues
+        masterClock.$currentTime
+            .sink { [weak self] _ in
+                self?.checkObservationCues()
+            }
+            .store(in: &cancellables)
+    }
+    
+    private func checkObservationCues() {
+        guard state == .fighting else {
+            if shouldShow50MinCue { shouldShow50MinCue = false }
+            return
+        }
+        
+        let duration = currentSessionElapsed()
+        // Trigger cue at 50 minutes (3000 seconds)
+        if duration >= 3000 && !shouldShow50MinCue {
+            shouldShow50MinCue = true
+            // Haptic feedack could go here
+        }
+    }
+    
+    public func currentSessionElapsed() -> TimeInterval {
+        guard let start = startTime else { return elapsedBeforeCurrentSession }
+        // If paused, just return elapsed
+        if state == .paused { return elapsedBeforeCurrentSession }
+        
+        // Calculate total time including current active session
+        // Note: We use Date() here or masterClock.currentTime? 
+        // Using Date() for immediate consistency, masterClock is for ticks.
+        return Date().timeIntervalSince(start) + elapsedBeforeCurrentSession
+    }
     
     public func startBattle(boss: Boss, at time: Date = Date()) {
         self.currentBoss = boss
@@ -389,6 +436,10 @@ public class BattleEngine: ObservableObject {
             print("[Engine] Victory!")
         }
         
+        // Check for Shadow Accumulation (Idle Time)
+        // If we are fighting, we are active.
+        lastActiveTime = time
+        
         // Update boss model
         var updatedBoss = boss
         updatedBoss.currentHp = newHp
@@ -397,6 +448,18 @@ public class BattleEngine: ObservableObject {
         // If session just ended, record the progress
         if state == .victory || state == .retreat {
             finalizeSession()
+        }
+    }
+    
+    public func updateShadow(at time: Date) {
+        // Called by MasterClock if not fighting
+        guard state == .idle else { return }
+        
+        // If user hasn't fought or rested for > threshold
+        let timeSinceActive = time.timeIntervalSince(lastActiveTime)
+        if timeSinceActive > idleThreshold {
+             // Accumulate Shadow (visual pressure)
+             shadowAccumulated = timeSinceActive - idleThreshold
         }
     }
     
@@ -476,10 +539,44 @@ public class BattleEngine: ObservableObject {
         sessionCompleteSubject.send(result)
         print("[Engine] Emitting SessionResult: \(result)")
         
+        // Phase 21: Haptic feedback for completion ceremony
+        #if os(iOS)
+        Task { @MainActor in
+            let generator = UINotificationFeedbackGenerator()
+            generator.notificationOccurred(.success)
+        }
+        #endif
+        
         totalFocusedHistoryToday += focusedThisSession
         
         // Consume stamina
         stamina.consume(duration: focusedThisSession)
+        
+        // Add to Field Journal (Specimen Collection)
+        // Determine quality based on wasted time AND endReason
+        let quality: CollectionQuality
+        // If ended due to long absence (retreat after >5m), mark as Fled
+        if endReason == .incompleteExit && wastedTime >= 300 {
+            quality = .fled
+        } else if wastedTime <= 0 {
+            quality = .perfect
+        } else if wastedTime < 60 {
+            quality = .good
+        } else if wastedTime < 300 {
+            quality = .flawed
+        } else {
+            quality = .fled
+        }
+        
+        let specimen = CollectedSpecimen(
+            templateId: nil, // TODO: Needs CardTemplate awareness in Boss or pass it in
+            title: boss.name,
+            completedAt: Date(),
+            duration: focusedThisSession,
+            quality: quality
+        )
+        specimenCollection.add(specimen)
+        print("[Engine] Collected Specimen: \(specimen.title) (\(specimen.quality))")
         
         // Update long-term history
         let sessionStats = DailyFunctionality(
@@ -565,10 +662,9 @@ public class BattleEngine: ObservableObject {
             freezeHistory: freezeHistory,
             freezeStartTime: freezeStartTime,
             totalFocusedHistoryToday: totalFocusedHistoryToday,
-            freezeStartTime: freezeStartTime,
-            totalFocusedHistoryToday: totalFocusedHistoryToday,
             history: history,
-            stamina: stamina
+            stamina: stamina,
+            specimenCollection: specimenCollection
         )
     }
     
@@ -588,9 +684,9 @@ public class BattleEngine: ObservableObject {
         self.freezeHistory = snapshot.freezeHistory ?? []
         self.freezeStartTime = snapshot.state == .frozen ? snapshot.freezeStartTime : nil
         self.totalFocusedHistoryToday = snapshot.totalFocusedHistoryToday ?? 0
-        self.totalFocusedHistoryToday = snapshot.totalFocusedHistoryToday ?? 0
         self.history = snapshot.history ?? []
         self.stamina = snapshot.stamina ?? StaminaSystem()
+        self.specimenCollection = snapshot.specimenCollection ?? SpecimenCollection()
         
         print("[Engine] State Restored. History Count: \(history.count)")
     }
@@ -605,8 +701,17 @@ public class BattleEngine: ObservableObject {
             print("[Engine] Immune during death. Time counts as Progress.")
             isImmune = false 
             print("[Engine] Immunity consumed on restore.")
+        } else if timeDead < 30 {
+            print("[Engine] Grace Period (<30s). Time counts as Progress/Ignored.")
+            // Do not add to wastedTime. Effectively treats it as valid focus or neutral.
+        } else if timeDead > 300 {
+             print("[Engine] Absence > 5 mins. Auto-Ending session.")
+             // If user left for too long, just end the session.
+             // We don't want to accumulate massive shadow.
+             retreat() // This sets endReason = .incompleteExit
+             // Actually, incompleteExit might be better
         } else {
-            print("[Engine] NOT Immune. Time counts as WASTED.")
+            print("[Engine] NOT Immune and > Grace Period but < 5 mins. Time counts as WASTED.")
             wastedTime += timeDead
         }
     }

@@ -145,16 +145,31 @@ struct BattleView: View {
                                     
                                     // 主计时器区域
                                     ZStack {
-                                        // HP环形进度条
+                                        // Edge Bloom Visual Cue
+                                        if engine.shouldShow50MinCue {
+                                            RoundedRectangle(cornerRadius: 32)
+                                                .stroke(Color.orange.opacity(0.6), lineWidth: 8)
+                                                .blur(radius: 8)
+                                                .padding(-20)
+                                                .opacity(0.8)
+                                                .animation(
+                                                    .easeInOut(duration: 2.0)
+                                                    .repeatForever(autoreverses: true),
+                                                    value: engine.shouldShow50MinCue
+                                                )
+                                        }
+
+                                        // 50-Minute Rhythm Ring (Replacing HP Bar)
                                         Circle()
-                                            .stroke(Color.red.opacity(0.1), lineWidth: 12)
+                                            .stroke(Color.white.opacity(0.1), lineWidth: 12)
                                             .frame(width: 280, height: 280)
                                         
+                                        // Progress towards 50 minutes (3000s)
                                         Circle()
-                                            .trim(from: 0, to: progress)
+                                            .trim(from: 0, to: min(1.0, engine.currentSessionElapsed() / 3000.0))
                                             .stroke(
                                                 LinearGradient(
-                                                    colors: [.red, .orange],
+                                                    colors: [.blue, .cyan], // Calm observation colors
                                                     startPoint: .topLeading,
                                                     endPoint: .bottomTrailing
                                                 ),
@@ -162,42 +177,27 @@ struct BattleView: View {
                                             )
                                             .frame(width: 280, height: 280)
                                             .rotationEffect(.degrees(-90))
-                                            .animation(.linear(duration: 1), value: progress)
+                                            .animation(.linear(duration: 1), value: engine.currentSessionElapsed())
                                         
                                         // 中央计时器
-                                        VStack(spacing: 16) {
-                                            Text(TimeFormatter.formatTimer(boss.maxHp - (boss.maxHp - boss.currentHp + engine.wastedTime)))
+                                        VStack(spacing: 8) {
+                                            Text("OBSERVED")
+                                                .font(.system(size: 12, weight: .bold))
+                                                .tracking(4)
+                                                .foregroundColor(.cyan.opacity(0.8))
+                                            
+                                            Text(TimeFormatter.formatTimer(engine.currentSessionElapsed()))
                                                 .font(.system(size: 64, weight: .ultraLight, design: .monospaced))
                                                 .foregroundColor(.white)
-                                                .shadow(color: .red.opacity(0.3), radius: 20)
+                                                .shadow(color: .cyan.opacity(0.3), radius: 20)
                                             
-                                            // 浪费时间指示器
+                                            
+                                            // Subject Restless Indicator (Ambient, no numbers)
                                             if engine.wastedTime > 0 {
-                                                HStack(spacing: 8) {
-                                                    Circle()
-                                                        .fill(Color.red)
-                                                        .frame(width: 8, height: 8)
-                                                        .scaleEffect(1.2)
-                                                        .animation(
-                                                            .easeInOut(duration: 0.8)
-                                                            .repeatForever(autoreverses: true),
-                                                            value: engine.wastedTime
-                                                        )
-                                                    
-                                                    Text("WASTED: \(TimeFormatter.formatTimer(engine.wastedTime))")
-                                                        .font(.system(size: 12, weight: .bold, design: .monospaced))
-                                                        .foregroundColor(.red)
-                                                }
-                                                .padding(.horizontal, 16)
-                                                .padding(.vertical, 8)
-                                                .background(
-                                                    Capsule()
-                                                        .fill(Color.red.opacity(0.15))
-                                                        .overlay(
-                                                            Capsule()
-                                                                .stroke(Color.red.opacity(0.3), lineWidth: 1)
-                                                        )
-                                                )
+                                                Text("⚠️")
+                                                    .font(.system(size: 16))
+                                                    .opacity(0.3)
+                                                    .padding(.top, 8)
                                             }
                                         }
                                     }

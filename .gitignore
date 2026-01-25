@@ -50,3 +50,5 @@ docs/ProgressPlan.md
 docs/coreLogic/CoreLogicDescription.md
 timeLine/timeLineTests/test_organization_summary.md
 docs/walkthrough.md
+*.md
+docs/CurrentState.md

@@ -7,6 +7,11 @@ public class StatsViewModel: ObservableObject {
     @Published public var totalFocusedAllTime: TimeInterval = 0
     @Published public var totalSessionsAllTime: Int = 0
     
+    // MARK: - New Stats (Phase 18.7)
+    @Published public var currentStreak: Int = 0
+    @Published public var weeklyGrowthPercent: Int = 0
+    @Published public var totalQuests: Int = 0
+    
     // MARK: - Existing Stats
     @Published public var heatmapData: [Date: Int] = [:] // Date (normalized) -> Level (0-4)
     @Published public var weeklyFocusedText: String = "0m"
@@ -21,16 +26,17 @@ public class StatsViewModel: ObservableObject {
     public var gridDates: [Date] = []
     
     private var cachedHistory: [DailyFunctionality] = []
+    private var cachedSpecimens: SpecimenCollection?
     private var weekStartOverride: Date?
     
     public init() {
-        processHistory([], weekStartOverride: nil)
+        processHistory([], specimens: nil, weekStartOverride: nil)
         generateGridDates()
     }
     
     // For Preview/Testing
-    public init(history: [DailyFunctionality], weekStartOverride: Date? = nil) {
-        processHistory(history, weekStartOverride: weekStartOverride)
+    public init(history: [DailyFunctionality], specimens: SpecimenCollection? = nil, weekStartOverride: Date? = nil) {
+        processHistory(history, specimens: specimens, weekStartOverride: weekStartOverride)
         generateGridDates()
     }
     
@@ -47,13 +53,23 @@ public class StatsViewModel: ObservableObject {
         self.gridDates = dates
     }
     
-    public func processHistory(_ history: [DailyFunctionality], weekStartOverride: Date? = nil) {
+    public func processHistory(_ history: [DailyFunctionality], specimens: SpecimenCollection? = nil, weekStartOverride: Date? = nil) {
         cachedHistory = history
+        cachedSpecimens = specimens
         self.weekStartOverride = weekStartOverride
         
         // 0. All-Time Stats
         totalFocusedAllTime = history.reduce(0) { $0 + $1.totalFocusedTime }
         totalSessionsAllTime = history.reduce(0) { $0 + $1.sessionsCount }
+        
+        // 0.1 New Stats
+        currentStreak = StatsAggregator.calculateCurrentStreak(history: history)
+        if let specimens = specimens {
+            totalQuests = specimens.specimens.count
+        } else {
+            // Fallback if no collection: use sessions as proxy (or 0)
+            totalQuests = totalSessionsAllTime
+        }
         
         // 1. Buckets for Heatmap
         var map: [Date: Int] = [:]
@@ -102,17 +118,39 @@ public class StatsViewModel: ObservableObject {
             weeklyFocusedText = TimeFormatter.formatStats(totalFocused)
             weeklyWastedText = TimeFormatter.formatStats(totalWasted)
             sessionsCountText = "\(count)"
+            
+            // 2.1 Calculate Weekly Growth
+            // Need previous week's total focus
+            if let prevWeekStart = calendar.date(byAdding: .weekOfYear, value: -1, to: weekStart) {
+                 // Sum up history for that range
+                 // Optimization: Just scan history since we have it
+                 let prevWeekEnd = weekStart // Start of this week is end of previous (exclusive)
+                 
+                 let prevWeekFocused = history.filter {
+                     let d = $0.date
+                     return d >= prevWeekStart && d < prevWeekEnd
+                 }.reduce(0) { $0 + $1.totalFocusedTime }
+                 
+                 weeklyGrowthPercent = StatsAggregator.calculateWeeklyGrowth(
+                    currentWeekFocused: totalFocused,
+                    previousWeekFocused: prevWeekFocused
+                 )
+            } else {
+                weeklyGrowthPercent = 0
+            }
+            
         } else {
             weekBars = []
             weeklyFocusedText = "0m"
             weeklyWastedText = "0m"
             sessionsCountText = "0"
+            weeklyGrowthPercent = 0
         }
     }
 
     public func setWeekStart(_ date: Date?) {
         weekStartOverride = date
-        processHistory(cachedHistory, weekStartOverride: date)
+        processHistory(cachedHistory, specimens: cachedSpecimens, weekStartOverride: date)
     }
     
     private func calculateIntensity(focusedTime: TimeInterval) -> Int {

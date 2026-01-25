@@ -12,6 +12,9 @@ public enum TimelineUIEvent: Equatable {
     case completedExploration(taskName: String, focusedSeconds: TimeInterval, summary: FocusGroupSessionSummary?)
     case bonfireComplete
     case bonfireSuggested(reason: String, bonfireId: UUID?)
+    
+    // Phase 21: Recording Moment - Auto show Field Journal
+    case showSettlement
 }
 
 // Note: TimelineEventsAdapter has been replaced by TimelineEventCoordinator

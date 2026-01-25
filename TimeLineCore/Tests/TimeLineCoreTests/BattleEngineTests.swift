@@ -2,13 +2,15 @@ import XCTest
 import Combine
 @testable import TimeLineCore
 
+@MainActor
 final class BattleEngineTests: XCTestCase {
     
     var engine: BattleEngine!
     
     override func setUp() {
         super.setUp()
-        engine = BattleEngine()
+        let clock = MasterClockService()
+        engine = BattleEngine(masterClock: clock)
     }
     
     func testStartBattle() {
