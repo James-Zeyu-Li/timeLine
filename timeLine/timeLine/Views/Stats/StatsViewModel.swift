@@ -39,7 +39,7 @@ public class StatsViewModel: ObservableObject {
     public var weekBars: [WeekBar] { rangeBars }
     public var weekStart: Date { rangeStart }
     public var weekEnd: Date { rangeEnd }
-    public var weeklyGrowthPercent: Int { rangeGrowthPercent }
+    // public var weeklyGrowthPercent: Int { rangeGrowthPercent } // Redundant with stored property
     
     // MARK: - Grid Configuration
     public let daysInGrid = 365

@@ -8,19 +8,17 @@ struct PlanSheetView: View {
     @EnvironmentObject var libraryStore: LibraryStore
     @EnvironmentObject var daySession: DaySession // Needed for logic
     @EnvironmentObject var engine: BattleEngine   // Needed for timeline placement
-    @EnvironmentObject var stateManager: AppStateManager // Needed for draft persistence
+    @EnvironmentObject var stateManager: AppStateManager // Needed for persistence
     @Environment(\.dismiss) var dismiss
     
     @StateObject private var viewModel = PlanViewModel()
-    @State private var selectedFinishBy: FinishBySelection = .tonight // Default to first visible Habitat
+    @State private var selectedFinishBy: FinishBySelection = .tonight
     @State private var isKeyboardVisible = false
     
     // Feedback State
     @State private var showCommitSuccess = false
     @State private var commitMessage = ""
     @State private var showConflictAlert = false
-    // No more local state needed for picker, logic moved to VM
-
     
     // Theme Colors (Dark Translucent)
     private let bgGradient = LinearGradient(
@@ -79,42 +77,44 @@ struct PlanSheetView: View {
                         }
                         .padding(.horizontal)
                         
-                        // 2. Today's Plan
+                        // 2. Today's Plan (Inbox)
                         VStack(alignment: .leading, spacing: 12) {
-                            Text("TODAY'S PLAN")
+                            Text("INBOX / DRAFT AREA")
                                 .font(.system(size: 11, weight: .bold))
                                 .tracking(1)
                                 .foregroundColor(secondaryText)
                                 .padding(.leading, 4)
                             
-                            // Magic Input (Seed Tuner) still useful for quick entries
+                            // Magic Input
                             MagicInputBar(text: $viewModel.draftText, onCommit: {
-                                viewModel.parseAndStage(finishBy: selectedFinishBy)
+                                viewModel.parseAndAdd(finishBy: selectedFinishBy)
                             })
                             .padding(.horizontal)
+                            .padding(.bottom, 8)
                             
-                            // Habitat Blocks (Time Slots)
-                            // TODO: Create proper Habitat enum. Currently reusing FinishBySelection as grouping key.
-                            // Visual Mapping: "Morning Clearing" → .tonight, "Deep Forest" → .tomorrow
-                            
-                            VStack(spacing: 16) {
-                                ForEach(FinishBySelection.allCases.filter { $0 != .none }, id: \.self) { option in
-                                    HabitatBlockView(
-                                        title: habitatTitle(for: option),
-                                        timeRange: habitatTimeRange(for: option),
-                                        items: viewModel.stagedTemplates.filter { $0.finishBy == option },
-                                        onDrop: { items in
-                                            handleDrop(items: items, into: option)
-                                        }
-                                    )
-                                }
+                            // Inbox List (Direct from TimelineStore)
+                            if timelineStore.inbox.isEmpty {
+                                Text("No pending quests.")
+                                    .font(.caption)
+                                    .foregroundStyle(secondaryText)
+                                    .frame(maxWidth: .infinity, alignment: .center)
+                                    .padding(.top, 20)
+                            } else {
+                                PlanInboxListView(
+                                    inboxNodes: timelineStore.inbox,
+                                    cardStore: cardStore,
+                                    onDelete: { id in
+                                        viewModel.deleteInboxItem(id: id)
+                                    },
+                                    onUpdateFinishBy: { id, finishBy in
+                                        viewModel.updateTaskDeadline(nodeId: id, finishBy: finishBy)
+                                    }
+                                )
+                                .padding(.horizontal)
                             }
-                            .padding(.horizontal)
                         }
                         
                         // 3. Current Map (Reflects what's actually scheduled)
-                        // Maybe show a mini-map or summary? 
-                        // For now keep it focusing on "Planning" (Staging)
                         
                         Spacer(minLength: 100)
                     }
@@ -123,7 +123,7 @@ struct PlanSheetView: View {
                 .scrollDismissesKeyboard(.interactively)
                 
                 // Commit Action (Launch Expedition)
-                if !viewModel.stagedTemplates.isEmpty {
+                if !timelineStore.inbox.isEmpty {
                     VStack {
                         Divider().overlay(Color.white.opacity(0.1))
                         Button(action: {
@@ -135,7 +135,7 @@ struct PlanSheetView: View {
                         }) {
                             HStack {
                                 Image(systemName: "safari.fill") // Compass/Safari icon
-                                Text("Launch Expedition (\(viewModel.stagedTemplates.count) Specimens)")
+                                Text("Launch Expedition (\(timelineStore.inbox.count) Specimens)")
                                     .fontWeight(.bold)
                             }
                             .frame(maxWidth: .infinity)
@@ -186,16 +186,15 @@ struct PlanSheetView: View {
     }
     
     private func commitAndFeedback() {
-        let count = viewModel.stagedTemplates.count
-        let duration = viewModel.formattedTotalDuration
+        let count = timelineStore.inbox.count
         
-        viewModel.commitToTimeline(dismissAction: {})
+        viewModel.launchExpedition(dismissAction: {})
         
         // Haptic Feedback
         let generator = UINotificationFeedbackGenerator()
         generator.notificationOccurred(.success)
         
-        commitMessage = "Successfully planted \(count) seeds (\(duration)) into the timeline."
+        commitMessage = "Successfully planted \(count) seeds into the timeline."
         showCommitSuccess = true
         
         // Auto dismiss after 1.5s if user doesn't tap OK
@@ -207,203 +206,78 @@ struct PlanSheetView: View {
     }
     
     private func handleDrop(items: [String], into timeSlot: FinishBySelection) {
-        guard let itemString = items.first else { return }
-        if itemString.hasPrefix("TEMPLATE:") {
-             let uuidString = String(itemString.dropFirst(9))
-             if let templateId = UUID(uuidString: uuidString),
-                let template = cardStore.get(id: templateId) {
-                 viewModel.stageQuickAccessTask(template, finishBy: timeSlot)
-             }
-        }
-    }
-
-    // MARK: - Habitat Helpers
-    
-    private func habitatTitle(for option: FinishBySelection) -> String {
-        switch option {
-        case .tonight: return "Tonight"
-        case .tomorrow: return "Tomorrow"
-        case .next3Days: return "Next 3 Days"
-        case .thisWeek: return "This Week"
-        case .none: return "Backlog"
-        case .pickDate(let date): 
-            let formatter = DateFormatter()
-            formatter.dateStyle = .medium
-            return formatter.string(from: date)
-        }
-    }
-    
-    private func habitatTimeRange(for option: FinishBySelection) -> String {
-        switch option {
-        case .tonight: return "Until 23:59"
-        case .tomorrow: return "+24 Hours"
-        case .next3Days: return "+3 Days"
-        case .thisWeek: return "+7 Days"
-        case .none: return "No Deadline"
-        case .pickDate: return "Scheduled"
-        }
+        viewModel.handleDrop(items: items, into: timeSlot)
     }
 }
 
 // MARK: - Supporting Views
 
-struct DateChip: View {
-    let option: FinishBySelection
-    let isSelected: Bool
-    let action: () -> Void
-    
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 4) {
-                Image(systemName: option.iconName)
-                Text(option.displayName)
-            }
-            .font(.caption)
-            .fontWeight(.medium)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-            .background(
-                Capsule()
-                    .fill(isSelected ? Color.blue.opacity(0.6) : Color.white.opacity(0.1))
-            )
-            .foregroundStyle(isSelected ? .white : .white.opacity(0.8))
-        }
-    }
-}
-
-struct TaskGroupView: View {
-    let group: TaskGroup
-    let onDeleteTask: (UUID) -> Void
+struct PlanInboxListView: View {
+    let inboxNodes: [TimelineNode]
+    let cardStore: CardTemplateStore
+    let onDelete: (UUID) -> Void
     let onUpdateFinishBy: (UUID, FinishBySelection) -> Void
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Image(systemName: iconForGroup(group.title))
-                    .font(.caption)
-                    .foregroundStyle(.white.opacity(0.6))
-                Text(group.title)
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(.white.opacity(0.6))
-                Spacer()
-                Text("\(group.tasks.count)")
-                    .font(.caption2)
-                    .fontWeight(.medium)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(Capsule().fill(Color.white.opacity(0.1)))
-                    .foregroundStyle(.white.opacity(0.6))
-            }
-            
-            LazyVStack(spacing: 6) {
-                ForEach(group.tasks) { stagedTask in
-                    DraftTaskRow(
-                        stagedTask: stagedTask,
-                        onDelete: { onDeleteTask(stagedTask.id) },
-                        onUpdateFinishBy: { finishBy in
-                            onUpdateFinishBy(stagedTask.id, finishBy)
-                        }
+        LazyVStack(spacing: 8) {
+            ForEach(inboxNodes) { node in
+                if case .battle(let boss) = node.type,
+                   let templateId = boss.templateId,
+                   let template = cardStore.get(id: templateId) {
+                    
+                    PlanInboxTaskRow(
+                        node: node,
+                        template: template,
+                        onDelete: { onDelete(node.id) },
+                        onUpdateFinishBy: { fb in onUpdateFinishBy(node.id, fb) }
                     )
-                    .transition(.asymmetric(
-                        insertion: .scale.combined(with: .opacity).animation(.spring(response: 0.3, dampingFraction: 0.7)),
-                        removal: .opacity.animation(.easeOut(duration: 0.2))
-                    ))
-                }
-            }
-        }
-        .padding()
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color.white.opacity(0.05))
-        )
-    }
-    
-    private func iconForGroup(_ title: String) -> String {
-        switch title {
-        case "今晚": return "moon.stars.fill"
-        case "明天": return "sun.max.fill"
-        case "未来3天": return "calendar.badge.clock"
-        case "本周内": return "calendar"
-        case "无截止": return "infinity"
-        default: return "calendar.circle"
-        }
-    }
-}
-
-struct DatePickerSheet: View {
-    @Binding var selectedDate: Date
-    let onDateSelected: (Date) -> Void
-    @Environment(\.dismiss) var dismiss
-    
-    var body: some View {
-        NavigationStack {
-            VStack(spacing: 20) {
-                Text("选择截止日期")
-                    .font(.headline)
-                    .padding()
-                
-                DatePicker(
-                    "截止日期",
-                    selection: $selectedDate,
-                    displayedComponents: .date
-                )
-                .datePickerStyle(.graphical)
-                .padding()
-                
-                Button("确定") {
-                    onDateSelected(selectedDate)
-                    dismiss()
-                }
-                .font(.headline)
-                .foregroundColor(.white)
-                .frame(maxWidth: .infinity)
-                .padding()
-                .background(Color.blue)
-                .cornerRadius(12)
-                .padding()
-                
-                Spacer()
-            }
-            .navigationTitle("自定义日期")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("取消") { dismiss() }
+                    .transition(.opacity)
                 }
             }
         }
     }
 }
 
-// MARK: - Subviews
-
-// QuickAccessChip struct removed - replaced by TaskMiniChip usage
-
-struct DraftTaskRow: View {
-    let stagedTask: StagedTask
+struct PlanInboxTaskRow: View {
+    let node: TimelineNode
+    let template: CardTemplate
     let onDelete: () -> Void
     let onUpdateFinishBy: (FinishBySelection) -> Void
     
     @State private var showFinishByPicker = false
     
+    // Helper to determine current FinishBy selection from template.deadlineAt
+    private var currentFinishBy: FinishBySelection {
+        if let d = template.deadlineAt {
+             // Heuristic to match back to enum if necessary, or just display date
+             // For simplify, we default to showing 'Scheduled' or 'None'
+             return .pickDate(d)
+        }
+        return .none
+    }
+    
     var body: some View {
         HStack {
             VStack(alignment: .leading, spacing: 4) {
-                Text(stagedTask.template.title)
+                Text(template.title)
                     .font(.body)
                     .fontWeight(.medium)
                     .foregroundStyle(.white)
                 
                 HStack(spacing: 8) {
-                    Text(TimeFormatter.formatDuration(stagedTask.template.defaultDuration))
+                    Text(TimeFormatter.formatDuration(template.defaultDuration))
                         .font(.caption)
                         .foregroundStyle(Color.white.opacity(0.6))
                     
                     Button(action: { showFinishByPicker = true }) {
                         HStack(spacing: 2) {
-                            Image(systemName: stagedTask.finishBy.iconName)
-                            Text(stagedTask.finishBy.displayName)
+                            if let deadline = template.deadlineAt {
+                                Image(systemName: "calendar")
+                                Text(deadlineIsToday(deadline) ? "Tonight" : "Scheduled")
+                            } else {
+                                Image(systemName: "infinity")
+                                Text("No Deadline")
+                            }
                         }
                         .font(.caption)
                         .padding(.horizontal, 6)
@@ -431,12 +305,17 @@ struct DraftTaskRow: View {
         )
         .sheet(isPresented: $showFinishByPicker) {
             FinishByPickerSheet(
-                selectedFinishBy: stagedTask.finishBy,
+                selectedFinishBy: currentFinishBy,
                 onSelection: onUpdateFinishBy
             )
         }
     }
+    
+    private func deadlineIsToday(_ date: Date) -> Bool {
+        Calendar.current.isDateInToday(date)
+    }
 }
+
 
 struct FinishByPickerSheet: View {
     let selectedFinishBy: FinishBySelection
@@ -462,7 +341,8 @@ struct FinishByPickerSheet: View {
                                     .frame(width: 20)
                                 Text(option.displayName)
                                 Spacer()
-                                if selectedFinishBy == option {
+                                // Simple check not robust for .pickDate, but sufficient for UI selection
+                                if option.displayName == selectedFinishBy.displayName { 
                                     Image(systemName: "checkmark")
                                         .foregroundStyle(.blue)
                                 }
@@ -518,7 +398,7 @@ struct FinishByPickerSheet: View {
     }
 }
 
-// Button Style Helper (No changes needed, but ensuring it's here)
+// Button Style Helper
 struct ScaleButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label

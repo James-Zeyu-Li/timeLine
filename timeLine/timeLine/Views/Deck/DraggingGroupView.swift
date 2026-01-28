@@ -19,7 +19,10 @@ struct DraggingGroupView: View {
                 }
                 .scaleEffect(1.12)
                 .shadow(color: .purple.opacity(0.5), radius: 20, x: 0, y: 10)
-                .position(dragCoordinator.dragLocation)
+                .position(
+                    x: dragCoordinator.dragLocation.x + (dragCoordinator.activePayload?.initialOffset.width ?? 0),
+                    y: dragCoordinator.dragLocation.y + (dragCoordinator.activePayload?.initialOffset.height ?? 0)
+                )
                 .animation(.interactiveSpring(), value: dragCoordinator.dragLocation)
         } else {
             Text("Group (\(memberTemplateIds.count))")
@@ -36,7 +39,10 @@ struct DraggingGroupView: View {
                                 .stroke(Color.white.opacity(0.2), lineWidth: 1)
                         )
                 )
-                .position(dragCoordinator.dragLocation)
+                .position(
+                    x: dragCoordinator.dragLocation.x + (dragCoordinator.activePayload?.initialOffset.width ?? 0),
+                    y: dragCoordinator.dragLocation.y + (dragCoordinator.activePayload?.initialOffset.height ?? 0)
+                )
                 .animation(.interactiveSpring(), value: dragCoordinator.dragLocation)
         }
     }

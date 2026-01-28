@@ -31,7 +31,10 @@ struct DraggingDeckView: View {
                     )
             )
             .shadow(color: .cyan.opacity(0.3), radius: 12, x: 0, y: 6)
-            .position(dragCoordinator.dragLocation)
+            .position(
+                x: dragCoordinator.dragLocation.x + (dragCoordinator.activePayload?.initialOffset.width ?? 0),
+                y: dragCoordinator.dragLocation.y + (dragCoordinator.activePayload?.initialOffset.height ?? 0)
+            )
             .animation(.interactiveSpring(), value: dragCoordinator.dragLocation)
         }
     }

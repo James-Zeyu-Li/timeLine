@@ -5,37 +5,15 @@ import TimeLineCore
 @MainActor
 class PlanViewModel: ObservableObject {
 
-    
     // MARK: - State
     @Published var draftText: String = ""
-    @Published var stagedTemplates: [StagedTask] = [] // Transient staging with date info
-    
-    var stagedMorningTasks: [StagedTask] {
-        stagedTemplates.filter { $0.finishBy == .tonight } // Keeping 'tonight' as Morning key for now to minimize refactor
-    }
-    
-    var stagedAfternoonTasks: [StagedTask] {
-        stagedTemplates.filter { $0.finishBy == .tomorrow } // Keeping 'tomorrow' as Afternoon key
-    }
-    
-    var stagedEveningTasks: [StagedTask] {
-        stagedTemplates.filter { $0.finishBy == .next3Days } // Using 'next3Days' as Evening key
-    }
-    
-    var hasStagedTasks: Bool {
-        !stagedTemplates.isEmpty
-    }
-    
-    var formattedTotalDuration: String {
-        let totalSeconds = stagedTemplates.reduce(0) { $0 + $1.template.defaultDuration }
-        let hours = Int(totalSeconds) / 3600
-        let minutes = (Int(totalSeconds) % 3600) / 60
-        if hours > 0 {
-            return "\(hours)h \(minutes)m"
-        } else {
-            return "\(minutes)m"
-        }
-    }
+    // stagedTemplates removed in favor of direct TimelineStore.inbox usage
+
+    // Derived properties from TimelineStore.inbox
+    // Note: We need to filter/sort from the store. 
+    // Since TimelineStore doesn't publish changes directly to this VM, 
+    // PlanSheetView should observe TimelineStore and pass data, or we rely on the EnvironmentObject in View.
+    // However, to keep VM logic clean, we can expose helpers.
     
     // Dependencies
     private var timelineStore: TimelineStore?
@@ -58,25 +36,12 @@ class PlanViewModel: ObservableObject {
         self.engine = engine
         self.stateManager = stateManager
         
-        // Load Draft
-        if !stateManager.planningDraft.isEmpty {
-            self.stagedTemplates = stateManager.planningDraft
-        }
-        // Initial Load
-
+        // No draft loading needed - data is in TimelineStore.inbox
     }
-    
-    // MARK: - Persistence
-    private func saveDraft() {
-        stateManager?.planningDraft = stagedTemplates
-        stateManager?.requestSave()
-    }
-
-    // MARK: - Actions
     
     // MARK: - Actions
     
-    func parseAndStage(finishBy: FinishBySelection = .next3Days) {
+    func parseAndAdd(finishBy: FinishBySelection = .next3Days) {
         let trimmed = draftText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
         
@@ -85,7 +50,7 @@ class PlanViewModel: ObservableObject {
         let title = parsed?.template.title ?? trimmed
         let duration = parsed?.template.defaultDuration ?? 25 * 60
         
-        // 2. Create Ephemeral Template
+        // 2. Create Template
         var newTemplate = CardTemplate(
             id: UUID(),
             title: title,
@@ -93,28 +58,28 @@ class PlanViewModel: ObservableObject {
             energyColor: parsed?.template.energyColor ?? .focus,
             style: parsed?.template.style ?? .focus,
             taskMode: .focusStrictFixed,
-            isEphemeral: true
+            isEphemeral: true // Kept as ephemeral until moved to library/timeline? Or straightforward?
         )
         
-        // 3. Set deadline based on finishBy selection
+        // 3. Set deadline logic (Optional, assuming unscheduled nodes might carry this metadata in future or via specific Node properties)
         if let deadline = finishBy.toDate() {
             newTemplate.deadlineAt = deadline
         }
         
-        // 4. Create staged task
-        let stagedTask = StagedTask(template: newTemplate, finishBy: finishBy)
+        // 4. Add to CardStore & Inbox
+        // We must add template to store first so ID resolution works
+        cardStore?.add(newTemplate)
         
-        // 5. Stage
-        withAnimation {
-            stagedTemplates.append(stagedTask)
+        if let _ = timelineStore?.addToInbox(cardTemplateId: newTemplate.id, using: cardStore!) {
+             // Success
         }
         
-        // 6. Reset Input
+        // 5. Reset Input
         draftText = ""
-        saveDraft()
     }
     
-    func stageQuickAccessTask(_ template: CardTemplate, finishBy: FinishBySelection) {
+    func addQuickAccessTask(_ template: CardTemplate, finishBy: FinishBySelection) {
+        // Clone template as ephemeral so we don't modify the library original if we change deadlines
         var newTemplate = CardTemplate(
             id: UUID(),
             title: template.title,
@@ -128,168 +93,83 @@ class PlanViewModel: ObservableObject {
             newTemplate.deadlineAt = deadline
         }
         
-        let stagedTask = StagedTask(template: newTemplate, finishBy: finishBy)
-        withAnimation {
-            stagedTemplates.append(stagedTask)
-        }
-        saveDraft()
+        cardStore?.add(newTemplate)
+        _ = timelineStore?.addToInbox(cardTemplateId: newTemplate.id, using: cardStore!)
     }
     
     func handleDrop(items: [String], into timeSlot: FinishBySelection) {
         guard let itemString = items.first else { return }
         if itemString.hasPrefix("TEMPLATE:") {
              let uuidString = String(itemString.dropFirst(9))
-             // Need to access cardStore synchronously here, assumption is it's configured
              if let uuid = UUID(uuidString: uuidString),
                 let template = cardStore?.get(id: uuid) {
-                 stageQuickAccessTask(template, finishBy: timeSlot)
+                 addQuickAccessTask(template, finishBy: timeSlot)
              }
         }
     }
     
-    func removeStagedTask(id: UUID) {
-        withAnimation {
-            stagedTemplates.removeAll { $0.id == id }
-        }
-        saveDraft()
+    func deleteInboxItem(id: UUID) {
+        timelineStore?.deleteFromInbox(nodeId: id)
     }
     
-    func updateTaskFinishBy(id: UUID, finishBy: FinishBySelection) {
-        guard let index = stagedTemplates.firstIndex(where: { $0.id == id }) else { return }
+    func launchExpedition(dismissAction: () -> Void) {
+        guard let timelineStore, let daySession else { return }
         
-        var updatedTask = stagedTemplates[index]
-        updatedTask.finishBy = finishBy
+        let inboxItems = daySession.inbox
+        guard !inboxItems.isEmpty else { return }
         
-        // Update template deadline
-        if let deadline = finishBy.toDate() {
-            updatedTask.template.deadlineAt = deadline
-        } else {
-            updatedTask.template.deadlineAt = nil
+        print("[PlanVM] Launching expedition with \(inboxItems.count) items")
+        
+        // 1. Move all inbox items to timeline
+        // Strategy: Process them in order and move them.
+        // Since `moveFromInboxToStart` puts them at `currentIndex`, if we iterate reversed we might maintain order,
+        // or we iterate forward and they stack.
+        // Better strategy usually: insert all at once or one by one.
+        // `moveFromInboxToStart` does: remove from inbox -> insert at currentIndex.
+        // If we have [A, B, C] in inbox.
+        // Move A -> Timeline: [..., A, ...] (Current)
+        // Move B -> Timeline: [..., B, A, ...] or [A, B]? 
+        // `moveFromInboxToStart` inserts at `currentIndex`.
+        // If `currentIndex` stays same, it pushes previous down?
+        // Let's check `placeCardOccurrenceAtCurrent` logic or `moveFromInboxToStart` logic.
+        // `moveFromInboxToStart` inserts at `currentIndex`.
+        // If I do A, then B. Timeline becomes B, then A (if inserting at index).
+        // So we should reverse iterate to keep order A, B, C.
+        
+        for node in inboxItems.reversed() {
+            timelineStore.moveFromInboxToStart(nodeId: node.id)
         }
         
-        stagedTemplates[index] = updatedTask
-        saveDraft()
-    }
-    
-    // Group staged tasks by finish date
-    var groupedTasks: [TaskGroup] {
-        // Step 1: Group tasks by their groupKey
-        let groupedDict = Dictionary(grouping: stagedTemplates) { task in
-            task.finishBy.groupKey
-        }
-        
-        // Step 2: Convert to TaskGroup array
-        let taskGroups = groupedDict.map { (key, tasks) in
-            let sortedTasks = tasks.sorted { $0.template.title < $1.template.title }
-            return TaskGroup(
-                title: key.displayName,
-                tasks: sortedTasks,
-                sortOrder: key.sortOrder
-            )
-        }
-        
-        // Step 3: Sort groups by sortOrder
-        return taskGroups.sorted { $0.sortOrder < $1.sortOrder }
-    }
-    
-    func commitToTimeline(dismissAction: () -> Void) {
-        guard let timelineStore, let cardStore, let daySession, let engine, !stagedTemplates.isEmpty else {
-            print("[PlanVM] commitToTimeline guard failed - stores: \(timelineStore != nil), \(cardStore != nil), \(daySession != nil), \(engine != nil), staged: \(stagedTemplates.count)")
-            return
-        }
-        
-        print("[PlanVM] Committing \(stagedTemplates.count) tasks to timeline")
-        
-        // Step 1: Group staged tasks by Habitat (finishBy)
-        let habitatGroups = Dictionary(grouping: stagedTemplates) { $0.finishBy.groupKey }
-        
-        // Step 2: Sort groups by their natural order (morning first, then afternoon, etc.)
-        let sortedGroupKeys = Array(habitatGroups.keys).sorted { (a, b) in
-            return a.sortOrder < b.sortOrder
-        }
-        
-        print("[PlanVM] Found \(sortedGroupKeys.count) habitat groups")
-        
-        var currentAnchorId = daySession.nodes.last?.id
-        print("[PlanVM] Initial anchor: \(currentAnchorId?.uuidString ?? "nil (empty timeline)")")
-        
-        for groupKey in sortedGroupKeys {
-            guard let tasksInHabitat = habitatGroups[groupKey] else { continue }
-            
-            print("[PlanVM] Processing habitat '\(groupKey.displayName)' with \(tasksInHabitat.count) tasks")
-            
-            // Add all templates to the card store first
-            for stagedTask in tasksInHabitat {
-                cardStore.add(stagedTask.template)
-            }
-            
-            let templateIds = tasksInHabitat.map { $0.template.id }
-            
-            if templateIds.count > 1 {
-                // Multiple tasks in this Habitat → Create a FocusGroup
-                if let anchor = currentAnchorId {
-                    if let newId = timelineStore.placeFocusGroupOccurrence(
-                        memberTemplateIds: templateIds,
-                        anchorNodeId: anchor,
-                        placement: .after,
-                        using: cardStore
-                    ) {
-                        currentAnchorId = newId
-                        print("[PlanVM] Placed FocusGroup after anchor, new ID: \(newId)")
-                    } else {
-                        print("[PlanVM] ERROR: placeFocusGroupOccurrence returned nil")
-                    }
-                } else {
-                    // Timeline is empty
-                    if let newId = timelineStore.placeFocusGroupOccurrenceAtStart(
-                        memberTemplateIds: templateIds,
-                        using: cardStore,
-                        engine: engine
-                    ) {
-                        currentAnchorId = newId
-                        print("[PlanVM] Placed FocusGroup at start, new ID: \(newId)")
-                    } else {
-                        print("[PlanVM] ERROR: placeFocusGroupOccurrenceAtStart returned nil")
-                    }
-                }
-            } else if let singleTask = tasksInHabitat.first {
-                // Single task → Place individually (no FocusGroup needed)
-                if let anchor = currentAnchorId {
-                    if let newId = timelineStore.placeCardOccurrence(
-                        cardTemplateId: singleTask.template.id,
-                        anchorNodeId: anchor,
-                        placement: .after,
-                        using: cardStore
-                    ) {
-                        currentAnchorId = newId
-                        print("[PlanVM] Placed single task '\(singleTask.template.title)' after anchor, new ID: \(newId)")
-                    } else {
-                        print("[PlanVM] ERROR: placeCardOccurrence returned nil for '\(singleTask.template.title)'")
-                    }
-                } else {
-                    if let newId = timelineStore.placeCardOccurrenceAtStart(
-                        cardTemplateId: singleTask.template.id,
-                        using: cardStore,
-                        engine: engine
-                    ) {
-                        currentAnchorId = newId
-                        print("[PlanVM] Placed single task '\(singleTask.template.title)' at start, new ID: \(newId)")
-                    } else {
-                        print("[PlanVM] ERROR: placeCardOccurrenceAtStart returned nil")
-                    }
-                }
-            }
-        }
-        
-        print("[PlanVM] Commit complete. Final node count: \(daySession.nodes.count)")
-        stagedTemplates.removeAll()
-        saveDraft()
+        // Validation: Verify items are gone from inbox (should be auto handled by move)
         dismissAction()
     }
     
-    // MARK: - Private
-// Recent tasks loading removed (was mock data)
+    // Helpers for View
+    func updateTaskDeadline(nodeId: UUID, finishBy: FinishBySelection) {
+        // Logic to update deadline on an existing inbox node
+        // Requires updating the underlying CardTemplate or specific Node property.
+        // Current Inbox Node refers to a CardTemplate.
+        // We get the node -> get templateId -> update template?
+        // Note: Sharing mutable templates in Inbox is tricky. 
+        // For now, assume we just re-save template if it's ephemeral.
+        
+        guard let node = daySession?.nodes.first(where: { $0.id == nodeId }) ?? daySession?.inbox.first(where: { $0.id == nodeId }),
+              case .battle(let boss) = node.type,
+              let templateId = boss.templateId,
+              var template = cardStore?.get(id: templateId)
+        else { return }
+        
+        if let deadline = finishBy.toDate() {
+            template.deadlineAt = deadline
+        } else {
+            template.deadlineAt = nil
+        }
+        
+        cardStore?.update(template)
+        // Trigger UI refresh via objectWillChange if needed, or Store handles it.
+    }
 }
+
 
 // MARK: - Supporting Types
 

@@ -1,4 +1,4 @@
-import Foundation
+import SwiftUI
 
 enum DragType: Equatable {
     case cardTemplate(UUID)
@@ -10,4 +10,5 @@ enum DragType: Equatable {
 struct DragPayload: Equatable {
     let type: DragType
     let source: DeckTab
+    var initialOffset: CGSize = .zero
 }

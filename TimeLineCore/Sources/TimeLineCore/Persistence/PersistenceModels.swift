@@ -195,7 +195,7 @@ public struct BattleSnapshot: Codable {
 }
 
 /// Statistics for a single day (History).
-public struct DailyFunctionality: Codable {
+public struct DailyFunctionality: Codable, Equatable {
     public let date: Date
     public let totalFocusedTime: TimeInterval
     public let totalWastedTime: TimeInterval

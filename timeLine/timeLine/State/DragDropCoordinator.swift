@@ -40,6 +40,7 @@ final class DragDropCoordinator: ObservableObject {
     @Published var activeDeckSummary: DeckDragSummary?
     @Published var hoveringPlacement: DropPlacement = .after
     @Published var initialDragLocation: CGPoint? // Captured when drag mode starts
+    @Published var isDragEnded = false // Signal to RootView that drag gesture ended
     
     // MARK: - Internal State
     
@@ -77,6 +78,7 @@ final class DragDropCoordinator: ObservableObject {
         activeDeckSummary = nil
         hoveringNodeId = nil
         hoveringPlacement = .after
+        isDragEnded = false
     }
     
     func startDeckDrag(payload: DragPayload, summary: DeckDragSummary) {
@@ -84,6 +86,7 @@ final class DragDropCoordinator: ObservableObject {
         activeDeckSummary = summary
         hoveringNodeId = nil
         hoveringPlacement = .after
+        isDragEnded = false
     }
     
     
@@ -103,18 +106,34 @@ final class DragDropCoordinator: ObservableObject {
             return
         }
         
-        let closestCandidate = candidates.min { lhs, rhs in
-            lhs.2 < rhs.2
+        
+        // Strategy:
+        // 1. Priority: Node frame contains the location.
+        // 2. Fallback: Minimum distance to vertical center.
+        
+        let insideCandidate = candidates.first { (_, frame, _) in
+            frame.contains(location)
         }
         
-        guard let selected = closestCandidate else {
+        // If we are strictly inside a node, pick it.
+        // Else, pick the closest one by distance.
+        let selected: (UUID, CGRect, CGFloat)?
+        if let inside = insideCandidate {
+            selected = inside
+        } else {
+            selected = candidates.min { lhs, rhs in
+                lhs.2 < rhs.2
+            }
+        }
+        
+        guard let finalSelection = selected else {
             hoveringNodeId = nil
             hoveringPlacement = .after
             return
         }
         
-        hoveringNodeId = selected.0
-        let isAboveCenter = location.y < selected.1.midY
+        hoveringNodeId = finalSelection.0
+        let isAboveCenter = location.y < finalSelection.1.midY
         switch axisDirection {
         case .topToBottom:
             hoveringPlacement = isAboveCenter ? .before : .after
@@ -149,7 +168,7 @@ final class DragDropCoordinator: ObservableObject {
         activeDeckSummary = nil
         hoveringNodeId = nil
         hoveringPlacement = .after
-        dragLocation = .zero
+        // dragLocation = .zero // 坐标系漂移修复 (Solution A): Lock-in final position. Do not reset to zero to prevent "fly to origin" animation artifact.
         dragOffset = .zero
         initialDragLocation = nil
     }

@@ -27,7 +27,10 @@ struct DraggingCardView: View {
                     x: 0,
                     y: 20
                 )
-                .position(dragCoordinator.dragLocation)
+                .position(
+                    x: dragCoordinator.dragLocation.x + (dragCoordinator.activePayload?.initialOffset.width ?? 0),
+                    y: dragCoordinator.dragLocation.y + (dragCoordinator.activePayload?.initialOffset.height ?? 0)
+                )
                 .animation(.interactiveSpring(), value: dragCoordinator.dragLocation)
         }
     }

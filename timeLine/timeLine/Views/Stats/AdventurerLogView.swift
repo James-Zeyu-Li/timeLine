@@ -104,6 +104,18 @@ struct AdventurerLogView: View {
                 specimens: engine.specimenCollection
             )
         }
+        .onChange(of: engine.history) { _, newHistory in
+            viewModel.processHistory(
+                newHistory,
+                specimens: engine.specimenCollection
+            )
+        }
+        .onChange(of: engine.specimenCollection) { _, newSpecimens in
+            viewModel.processHistory(
+                engine.history,
+                specimens: newSpecimens
+            )
+        }
         .sheet(isPresented: $showSettings) {
             SettingsView()
         }

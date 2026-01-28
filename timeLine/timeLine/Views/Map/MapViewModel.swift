@@ -335,6 +335,60 @@ class MapViewModel: ObservableObject {
         pulseClearTask = task
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.8, execute: task)
     }
+    
+    // MARK: - View Helpers
+    
+    var upcomingNodes: [TimelineNode] {
+        daySession?.nodes.filter { !$0.isCompleted } ?? []
+    }
+    
+    func shouldShowAsCurrentTask(node: TimelineNode) -> Bool {
+        // Only show the next upcoming (non-completed) task as large
+        // Don't show active session task as large unless it's also the next upcoming
+        let firstUpcoming = upcomingNodes.first
+        return node.id == firstUpcoming?.id
+    }
+    
+    var currentChapter: Int {
+        let calendar = Calendar.current
+        let weekOfYear = calendar.component(.weekOfYear, from: Date())
+        return weekOfYear
+    }
+    
+    var currentLevel: Int {
+        let totalHours = Int((engine?.totalFocusedToday ?? 0) / 3600)
+        return max(1, totalHours + 1)
+    }
+    
+    var journeyTitle: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EEEE"
+        let dayName = formatter.string(from: Date())
+        return "The \(dayName) Dungeon"
+    }
+    
+    var isSessionActive: Bool {
+        guard let engine else { return false }
+        switch engine.state {
+        case .fighting, .paused, .frozen, .resting:
+            return true
+        default:
+            return false
+        }
+    }
+    
+    var currentActiveId: UUID? {
+        isSessionActive ? daySession?.currentNode?.id : nil
+    }
+    
+    func mapAnchorY(viewportHeight: CGFloat, bottomFocusPadding: CGFloat = 140, bottomSheetInset: CGFloat = 96) -> CGFloat {
+        if !isSessionActive {
+            return 0.7
+        }
+        guard viewportHeight > 0 else { return 0.7 }
+        let anchor = 1 - (bottomFocusPadding / viewportHeight) - (bottomSheetInset / viewportHeight)
+        return min(0.9, max(0.5, anchor))
+    }
 }
 
 struct UpNextInfo {

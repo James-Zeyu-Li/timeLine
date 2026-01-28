@@ -3,13 +3,6 @@ import TimeLineCore
 
 // MARK: - Shared Map Visual Components
 
-struct PixelTrail: View {
-    var body: some View {
-        // Path is now drawn globally in RogueMapView
-        EmptyView()
-    }
-}
-
 struct PixelHeroMarker: View {
     var body: some View {
         VStack(spacing: 0) {
@@ -46,27 +39,6 @@ struct PixelHeroMarker: View {
     }
 }
 
-enum PixelTerrainType {
-    case forest
-    case plains
-    case cave
-    case campfire
-}
-
-struct PixelTerrainTile: View {
-    let type: PixelTerrainType
-    
-    var body: some View {
-        // Tile background logic moved to RogueMapView canvas
-        EmptyView()
-    }
-    
-    private func colors(for type: PixelTerrainType) -> (base: Color, accent: Color) {
-        // Legacy support if needed
-        return (.clear, .clear)
-    }
-}
-
 struct InsertHint: View {
     let placement: DropPlacement
 
@@ -90,33 +62,5 @@ struct InsertHint: View {
                 )
         )
         .allowsHitTesting(false)
-    }
-}
-
-// MARK: - Terrain Type Helper
-
-extension PixelTerrainType {
-    init(from node: TimelineNode) {
-        switch node.type {
-        case .bonfire:
-            self = .campfire
-        case .treasure:
-            self = .plains
-        case .battle(let boss):
-            if boss.maxHp >= 3600 {
-                self = .cave
-            } else {
-                switch boss.category {
-                case .study:
-                    self = .forest
-                case .work:
-                    self = .plains
-                case .gym, .rest:
-                    self = .plains
-                case .other:
-                    self = .forest
-                }
-            }
-        }
     }
 }

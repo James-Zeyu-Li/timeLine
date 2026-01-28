@@ -179,7 +179,9 @@ private struct DecksTabView: View {
     @State private var showDeckBuilder = false
     @State private var deckTitle = ""
     @State private var selectedCardIds: Set<UUID> = []
+
     @State private var showRoutinePicker = false
+    @State private var deckFrames: [UUID: CGRect] = [:]
     
     var body: some View {
         VStack(spacing: 12) {
@@ -236,6 +238,12 @@ private struct DecksTabView: View {
                                 appMode.enterDeckEdit(deckId: deck.id)
                                 setDeckEditCooldown()
                             }
+                            .background(
+                                GeometryReader { proxy in
+                                    Color.clear
+                                        .preference(key: OverlayItemFramePreferenceKey.self, value: [deck.id: proxy.frame(in: .global)])
+                                }
+                            )
                             .gesture(deckDragGesture(for: deck))
                     }
                 }
@@ -251,13 +259,21 @@ private struct DecksTabView: View {
         .sheet(isPresented: $showRoutinePicker) {
             RoutinePickerView()
         }
+        .onPreferenceChange(OverlayItemFramePreferenceKey.self) { frames in
+            self.deckFrames = frames
+        }
     }
     
     private func deckDragGesture(for deck: DeckTemplate) -> some Gesture {
         DragGesture(minimumDistance: 10, coordinateSpace: .global)
             .onChanged { value in
                 if appMode.draggingDeckId == nil && !appMode.isDragging {
-                    let payload = DragPayload(type: .deck(deck.id), source: .decks)
+                    let frame = deckFrames[deck.id] ?? .zero
+                    let center = CGPoint(x: frame.midX, y: frame.midY)
+                    let start = value.startLocation
+                    let offset = CGSize(width: center.x - start.x, height: center.y - start.y)
+                    
+                    let payload = DragPayload(type: .deck(deck.id), source: .decks, initialOffset: offset)
                     appMode.enter(.dragging(payload))
                     
                     let summary = DeckDragSummary(
@@ -271,7 +287,9 @@ private struct DecksTabView: View {
                 }
                 dragCoordinator.dragLocation = value.location
             }
-            .onEnded { _ in }
+            .onEnded { _ in 
+                dragCoordinator.isDragEnded = true
+            }
     }
     
     private var previewDeck: DeckTemplate? {
@@ -441,6 +459,8 @@ private struct LibraryTabView: View {
     @State private var wasDragging = false
     @State private var showExpired = true
     @State private var showExpiredBanner = false
+    @State private var itemFrames: [UUID: CGRect] = [:]
+    @State private var groupFrame: CGRect = .zero
     
     var body: some View {
         let buckets = libraryStore.bucketedEntries(using: cardStore)
@@ -505,6 +525,9 @@ private struct LibraryTabView: View {
             if expiredCount > 0 {
                 showExpiredBanner = true
             }
+        }
+        .onPreferenceChange(OverlayItemFramePreferenceKey.self) { frames in
+            self.itemFrames = frames
         }
     }
     
@@ -710,7 +733,14 @@ private struct LibraryTabView: View {
         if isSelecting {
             rowView
         } else {
-            rowView.gesture(cardDragGesture(for: row.template))
+            rowView
+                .background(
+                    GeometryReader { proxy in
+                        Color.clear
+                            .preference(key: OverlayItemFramePreferenceKey.self, value: [row.template.id: proxy.frame(in: .global)])
+                    }
+                )
+                .gesture(cardDragGesture(for: row.template))
         }
     }
     
@@ -812,7 +842,12 @@ private struct LibraryTabView: View {
                 switch value {
                 case .second(true, let drag?):
                     if !appMode.isDragging {
-                        let payload = DragPayload(type: .cardTemplate(template.id), source: .library)
+                        let frame = itemFrames[template.id] ?? .zero
+                        let center = CGPoint(x: frame.midX, y: frame.midY)
+                        let start = drag.startLocation
+                        let offset = CGSize(width: center.x - start.x, height: center.y - start.y)
+                        
+                        let payload = DragPayload(type: .cardTemplate(template.id), source: .library, initialOffset: offset)
                         appMode.enter(.dragging(payload))
                         dragCoordinator.startDrag(payload: payload)
                     }
@@ -821,7 +856,9 @@ private struct LibraryTabView: View {
                     break
                 }
             }
-            .onEnded { _ in }
+            .onEnded { _ in 
+                dragCoordinator.isDragEnded = true
+            }
     }
 
     private var groupDragToken: some View {
@@ -844,6 +881,13 @@ private struct LibraryTabView: View {
                         .stroke(Color.cyan.opacity(0.6), lineWidth: 1)
                 )
         )
+        .background(
+            GeometryReader { proxy in
+                Color.clear
+                    .onAppear { groupFrame = proxy.frame(in: .global) }
+                    .onChange(of: proxy.frame(in: .global)) { _, newFrame in groupFrame = newFrame }
+            }
+        )
         .gesture(groupDragGesture(memberIds: memberIds))
     }
 
@@ -852,7 +896,12 @@ private struct LibraryTabView: View {
             .onChanged { value in
                 guard !memberIds.isEmpty else { return }
                 if !appMode.isDragging {
-                    let payload = DragPayload(type: .focusGroup(memberIds), source: .library)
+                    let frame = groupFrame
+                    let center = CGPoint(x: frame.midX, y: frame.midY)
+                    let start = value.startLocation
+                    let offset = CGSize(width: center.x - start.x, height: center.y - start.y)
+                    
+                    let payload = DragPayload(type: .focusGroup(memberIds), source: .library, initialOffset: offset)
                     appMode.enter(.dragging(payload))
                     if appMode.isDragging {
                         dragCoordinator.startDrag(payload: payload)
@@ -862,7 +911,9 @@ private struct LibraryTabView: View {
                 }
                 dragCoordinator.dragLocation = value.location
             }
-            .onEnded { _ in }
+            .onEnded { _ in 
+                dragCoordinator.isDragEnded = true
+            }
     }
 }
 
@@ -1197,3 +1248,12 @@ private struct RoutineDeckCard: View {
         .opacity(isEnabled ? 1 : 0.5)
     }
 }
+
+private struct OverlayItemFramePreferenceKey: PreferenceKey {
+    static var defaultValue: [UUID: CGRect] = [:]
+    static func reduce(value: inout [UUID: CGRect], nextValue: () -> [UUID: CGRect]) {
+        value.merge(nextValue()) { $1 }
+    }
+}
+
+

@@ -15,6 +15,7 @@ struct CardFanView: View {
     @State private var showQuickBuilder = false
     @State private var isSelecting = false
     @State private var selectedIds: Set<UUID> = []
+    @State private var cardFrames: [UUID: CGRect] = [:]
     
     var body: some View {
         let cards = cardStore.orderedTemplates(includeEphemeral: false)
@@ -40,6 +41,12 @@ struct CardFanView: View {
                 ZStack {
                     ForEach(Array(cards.enumerated()), id: \.element.id) { index, card in
                         CardView(template: card)
+                            .background(
+                                GeometryReader { proxy in
+                                    Color.clear
+                                        .preference(key: CardFramePreferenceKey.self, value: [card.id: proxy.frame(in: .global)])
+                                }
+                            )
                             .offset(fanOffset(index: index, total: count))
                             .rotationEffect(fanRotation(index: index, total: count))
                             .zIndex(Double(index))
@@ -55,6 +62,9 @@ struct CardFanView: View {
                     }
                 }
                 .frame(height: 200)
+                .onPreferenceChange(CardFramePreferenceKey.self) { frames in
+                    self.cardFrames = frames
+                }
             }
         }
         .sheet(isPresented: $showQuickBuilder) {
@@ -180,7 +190,12 @@ struct CardFanView: View {
                 switch value {
                 case .second(true, let drag?):
                     if !appMode.isDragging {
-                        let payload = DragPayload(type: .cardTemplate(template.id), source: .cards)
+                        let frame = cardFrames[template.id] ?? .zero
+                        let center = CGPoint(x: frame.midX, y: frame.midY)
+                        let start = drag.startLocation
+                        let offset = CGSize(width: center.x - start.x, height: center.y - start.y)
+                        
+                        let payload = DragPayload(type: .cardTemplate(template.id), source: .cards, initialOffset: offset)
                         appMode.enter(.dragging(payload))
                         dragCoordinator.startDrag(payload: payload)
                     }
@@ -189,7 +204,9 @@ struct CardFanView: View {
                     break
                 }
             }
-            .onEnded { _ in }
+            .onEnded { _ in 
+                dragCoordinator.isDragEnded = true
+            }
     }
 }
 
@@ -342,5 +359,12 @@ private struct CardPreviewPanel: View {
         }
         stateManager.requestSave()
         Haptics.impact(.light)
+    }
+}
+
+private struct CardFramePreferenceKey: PreferenceKey {
+    static var defaultValue: [UUID: CGRect] = [:]
+    static func reduce(value: inout [UUID: CGRect], nextValue: () -> [UUID: CGRect]) {
+        value.merge(nextValue()) { $1 }
     }
 }

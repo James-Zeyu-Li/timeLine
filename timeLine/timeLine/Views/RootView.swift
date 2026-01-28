@@ -12,11 +12,9 @@ struct RootView: View {
     @EnvironmentObject var coordinator: TimelineEventCoordinator
     
     @StateObject private var dragCoordinator = DragDropCoordinator()
+    @StateObject private var viewModel = RootViewModel()
     
     @State private var nodeFrames: [UUID: CGRect] = [:]
-    @State private var lastDeckBatch: DeckBatchResult?
-    @State private var showDeckToast = false
-    @State private var deckPlacementCooldownUntil: Date?
     @State private var showSettings = false
     @State private var showPlanSheet = false
     @State private var showFieldJournal = false
@@ -26,7 +24,6 @@ struct RootView: View {
     
     var body: some View {
         ZStack {
-            // 温馨的草地背景
             // 16.1 Global Background (Parchment)
             PixelTheme.background
                 .ignoresSafeArea()
@@ -42,8 +39,6 @@ struct RootView: View {
             
             // 3. Dragging card on top
             draggingLayer
-            
-            // 5. Bottom sheet (removed)
         }
         .environmentObject(appMode)
         .environmentObject(dragCoordinator)
@@ -52,42 +47,41 @@ struct RootView: View {
         .onPreferenceChange(NodeFrameKey.self) { frames in
             nodeFrames = frames
         }
-        .simultaneousGesture(
-            DragGesture(minimumDistance: 0, coordinateSpace: .global)
-                .onChanged { value in
-                    if appMode.isDragging {
-                        // Initialize start location if not set
-                        if dragCoordinator.initialDragLocation == nil {
-                            dragCoordinator.initialDragLocation = value.location
-                        }
-                        
-                        // Calculate offset relative to where drag mode STARTED
-                        if let start = dragCoordinator.initialDragLocation {
-                            dragCoordinator.dragOffset = CGSize(
-                                width: value.location.x - start.x,
-                                height: value.location.y - start.y
-                            )
-                        }
-                        
-                        dragCoordinator.updatePosition(
-                            value.location,
-                            nodeFrames: nodeFrames,
-                            allowedNodeIds: droppableNodeIds
-                        )
-                    } else {
-                        // Ensure we reset if no longer dragging (safety)
-                        if dragCoordinator.initialDragLocation != nil {
-                            dragCoordinator.initialDragLocation = nil
-                            dragCoordinator.dragOffset = .zero
-                        }
-                    }
+        // 移除全局 DragGesture(minimumDistance: 0)，解决 Timeline Scroll 被阻断的问题。
+        .onChange(of: dragCoordinator.dragLocation) { _, newLocation in
+            guard appMode.isDragging else { return }
+            
+            // 首次设置 initialDragLocation (若未设置)
+            if dragCoordinator.initialDragLocation == nil {
+                dragCoordinator.initialDragLocation = newLocation
+            }
+            
+            // 计算相对位移
+            if let start = dragCoordinator.initialDragLocation {
+                dragCoordinator.dragOffset = CGSize(
+                    width: newLocation.x - start.x,
+                    height: newLocation.y - start.y
+                )
+            }
+            
+            // 更新逻辑位置 (Hovering/Insertion Index)
+            // 拖拽 node 时排除自身，避免用自己当 anchor
+            let allowed = dragCoordinator.draggedNodeId.map { droppableNodeIds.subtracting([$0]) } ?? droppableNodeIds
+            dragCoordinator.updatePosition(
+                newLocation,
+                nodeFrames: nodeFrames,
+                allowedNodeIds: allowed
+            )
+        }
+        // 监听拖拽结束信号，触发 drop 逻辑
+        .onChange(of: dragCoordinator.isDragEnded) { _, ended in
+            if ended {
+                if appMode.isDragging {
+                    viewModel.handleDrop()
                 }
-                .onEnded { _ in
-                    if appMode.isDragging {
-                        handleDrop()
-                    }
-                }
-        )
+                dragCoordinator.isDragEnded = false
+            }
+        }
         .sheet(isPresented: cardEditBinding) {
             if case .cardEdit(let id, _) = appMode.mode {
                 CardDetailEditSheet(cardTemplateId: id)
@@ -107,11 +101,11 @@ struct RootView: View {
             }
         }
         .overlay(alignment: .bottom) {
-            if showDeckToast, let batch = lastDeckBatch {
+            if viewModel.showDeckToast, let _ = viewModel.lastDeckBatch {
                 DeckPlacementToast(
                     title: "Deck placed",
                     onUndo: {
-                        undoLastDeckBatch(batch)
+                        viewModel.undoLastDeckBatch()
                     }
                 )
                 .padding(.bottom, 24)
@@ -132,7 +126,7 @@ struct RootView: View {
                         openReminderDetails(event)
                     }
                 )
-                .padding(.bottom, showDeckToast ? 96 : 24)
+                .padding(.bottom, viewModel.showDeckToast ? 96 : 24)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             } else if shouldShowRestSuggestion, let event = coordinator.pendingRestSuggestion {
                 RestSuggestionBanner(
@@ -144,7 +138,7 @@ struct RootView: View {
                         coordinator.declineRestSuggestion()
                     }
                 )
-                .padding(.bottom, showDeckToast ? 96 : 24)
+                .padding(.bottom, viewModel.showDeckToast ? 96 : 24)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
@@ -188,6 +182,16 @@ struct RootView: View {
         .task {
             cardStore.seedDefaultsIfNeeded()
             deckStore.seedDefaultsIfNeeded(using: cardStore)
+            
+            viewModel.bind(
+                engine: engine,
+                daySession: daySession,
+                stateManager: stateManager,
+                cardStore: cardStore,
+                deckStore: deckStore,
+                appMode: appMode,
+                dragCoordinator: dragCoordinator
+            )
         }
         .onReceive(reminderTimer) { input in
             coordinator.checkReminders(at: input)
@@ -254,8 +258,9 @@ struct RootView: View {
             case .focusGroup(let memberTemplateIds):
                 DraggingGroupView(memberTemplateIds: memberTemplateIds)
                     .zIndex(1)
-            case .node:
-                EmptyView() // Node dragging not implemented in UI layer
+            case .node(let nodeId):
+                DraggingNodeView(nodeId: nodeId)
+                    .zIndex(1)
             }
         default:
             EmptyView()
@@ -266,8 +271,8 @@ struct RootView: View {
     private var emptyDropLayer: some View {
         if appMode.isDragging && daySession.nodes.isEmpty {
             EmptyDropZoneView(
-                title: emptyDropTitle,
-                subtitle: emptyDropSubtitle
+                title: viewModel.emptyDropTitle,
+                subtitle: viewModel.emptyDropSubtitle
             )
         }
     }
@@ -342,237 +347,6 @@ struct RootView: View {
             return Set(daySession.nodes.map(\.id))
         }
         return Set(upcoming.map(\.id))
-    }
-    
-    // MARK: - Drop Handling
-    
-    private func handleDrop() {
-        let action = dragCoordinator.drop()
-        let success: Bool
-        
-        switch action {
-        case .placeCard(let cardTemplateId, let anchorNodeId, let placement):
-            // Create TimelineStore with current session
-            let timelineStore = TimelineStore(daySession: daySession, stateManager: stateManager)
-            if let card = cardStore.get(id: cardTemplateId),
-               let remindAt = card.remindAt {
-                _ = timelineStore.placeCardOccurrenceByTime(
-                    cardTemplateId: cardTemplateId,
-                    remindAt: remindAt,
-                    using: cardStore,
-                    engine: engine
-                )
-            } else {
-                _ = timelineStore.placeCardOccurrence(
-                    cardTemplateId: cardTemplateId,
-                    anchorNodeId: anchorNodeId,
-                    placement: placement,
-                    using: cardStore
-                )
-            }
-            
-            Haptics.impact(.heavy)
-            success = true
-            
-        case .placeDeck(let deckId, let anchorNodeId, let placement):
-            guard !isDeckPlacementLocked else {
-                Haptics.impact(.light)
-                success = false
-                break
-            }
-            let timelineStore = TimelineStore(daySession: daySession, stateManager: stateManager)
-            if let result = timelineStore.placeDeckBatch(
-                deckId: deckId,
-                anchorNodeId: anchorNodeId,
-                placement: placement,
-                using: deckStore,
-                cardStore: cardStore
-            ) {
-                lastDeckBatch = result
-                showDeckToast = true
-                scheduleToastDismiss()
-                setDeckPlacementCooldown()
-                Haptics.impact(.heavy)
-                success = true
-            } else {
-                Haptics.impact(.light)
-                success = false
-            }
-            
-        case .placeFocusGroup(let memberTemplateIds, let anchorNodeId, let placement):
-            let timelineStore = TimelineStore(daySession: daySession, stateManager: stateManager)
-            if timelineStore.placeFocusGroupOccurrence(
-                memberTemplateIds: memberTemplateIds,
-                anchorNodeId: anchorNodeId,
-                placement: placement,
-                using: cardStore
-            ) != nil {
-                Haptics.impact(.heavy)
-                success = true
-            } else {
-                Haptics.impact(.light)
-                success = false
-            }
-
-        case .moveNode(let nodeId, let anchorNodeId, let placement):
-            let timelineStore = TimelineStore(daySession: daySession, stateManager: stateManager)
-            guard let currentIndex = daySession.nodes.firstIndex(where: { $0.id == nodeId }),
-                  let anchorIndex = daySession.nodes.firstIndex(where: { $0.id == anchorNodeId }) else {
-                Haptics.impact(.light)
-                success = false
-                break
-            }
-            
-            // Timeline is displayed in REVERSED order: visual top = highest data index
-            // DragDropCoordinator with axisDirection=.bottomToTop:
-            //   - .before = cursor is BELOW target center (user wants to place BELOW target visually)
-            //   - .after = cursor is ABOVE target center (user wants to place ABOVE target visually)
-            //
-            // In reversed display:
-            //   - "above" visually = HIGHER data index
-            //   - "below" visually = LOWER data index
-            //
-            // So:
-            //   - .after (place above visual) → insert at higher data index = anchorIndex + 1
-            //   - .before (place below visual) → insert at anchorIndex
-            
-            let destinationIndex: Int
-            if placement == .after {
-                // Place ABOVE anchor visually = HIGHER data index
-                destinationIndex = anchorIndex + 1
-            } else {
-                // Place BELOW anchor visually = AT or BEFORE anchor in data
-                destinationIndex = anchorIndex
-            }
-            
-            print("DEBUG moveNode: currentIndex=\(currentIndex), anchorIndex=\(anchorIndex), placement=\(placement)")
-            print("DEBUG moveNode: destinationIndex=\(destinationIndex)")
-            
-            // Check if move would actually change anything
-            // For Array.move: moving from X to X or X+1 results in no change
-            let wouldActuallyMove = !(destinationIndex == currentIndex || destinationIndex == currentIndex + 1)
-            
-            if wouldActuallyMove {
-                print("DEBUG moveNode: Executing move from \(currentIndex) to \(destinationIndex)")
-                let sourceIndexSet = IndexSet(integer: currentIndex)
-                timelineStore.moveNode(from: sourceIndexSet, to: destinationIndex)
-                Haptics.impact(.medium)
-                success = true
-            } else {
-                print("DEBUG moveNode: Skipping - no actual movement would occur")
-                Haptics.impact(.light)
-                success = false
-            }
-
-        case .cancel:
-            success = handleEmptyDropFallback()
-        }
-        
-        dragCoordinator.reset()
-        appMode.exitDrag(success: success)
-    }
-    
-    private func handleEmptyDropFallback() -> Bool {
-        guard daySession.nodes.isEmpty,
-              let payload = dragCoordinator.activePayload else {
-            Haptics.impact(.light)
-            return false
-        }
-        
-        let timelineStore = TimelineStore(daySession: daySession, stateManager: stateManager)
-        switch payload.type {
-        case .cardTemplate(let cardId):
-            if timelineStore.placeCardOccurrenceAtStart(
-                cardTemplateId: cardId,
-                using: cardStore,
-                engine: engine
-            ) != nil {
-                Haptics.impact(.heavy)
-                return true
-            }
-        case .deck(let deckId):
-            guard !isDeckPlacementLocked else {
-                Haptics.impact(.light)
-                return false
-            }
-            if let result = timelineStore.placeDeckBatchAtStart(
-                deckId: deckId,
-                using: deckStore,
-                cardStore: cardStore,
-                engine: engine
-            ) {
-                lastDeckBatch = result
-                showDeckToast = true
-                scheduleToastDismiss()
-                setDeckPlacementCooldown()
-                Haptics.impact(.heavy)
-                return true
-            }
-        case .focusGroup(let memberTemplateIds):
-            if timelineStore.placeFocusGroupOccurrenceAtStart(
-                memberTemplateIds: memberTemplateIds,
-                using: cardStore,
-                engine: engine
-            ) != nil {
-                Haptics.impact(.heavy)
-                return true
-            }
-        case .node:
-            // Node moving not implemented yet
-            break
-        }
-        
-        Haptics.impact(.light)
-        return false
-    }
-    
-    private var isDeckPlacementLocked: Bool {
-        if let until = deckPlacementCooldownUntil {
-            return Date() < until
-        }
-        return false
-    }
-    
-    private func setDeckPlacementCooldown() {
-        deckPlacementCooldownUntil = Date().addingTimeInterval(1.2)
-    }
-    
-    private func scheduleToastDismiss() {
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.9)) {
-                showDeckToast = false
-            }
-        }
-    }
-    
-    private func undoLastDeckBatch(_ batch: DeckBatchResult) {
-        let timelineStore = TimelineStore(daySession: daySession, stateManager: stateManager)
-        timelineStore.undoLastBatch(batchId: batch.batchId)
-        lastDeckBatch = nil
-        showDeckToast = false
-    }
-    
-    private var emptyDropTitle: String {
-        if case .focusGroup = dragCoordinator.activePayload?.type {
-            return "Drop to place focus group"
-        }
-        if appMode.draggingDeckId != nil {
-            return "Drop to insert deck"
-        }
-        return "Drop to place first card"
-    }
-    
-    private var emptyDropSubtitle: String? {
-        if case .focusGroup(let memberTemplateIds) = dragCoordinator.activePayload?.type {
-            let totalSeconds = memberTemplateIds.compactMap { id in
-                cardStore.get(id: id)?.defaultDuration
-            }.reduce(0, +)
-            let minutes = Int(totalSeconds / 60)
-            return "Insert \(memberTemplateIds.count) cards · \(minutes) min"
-        }
-        guard let summary = dragCoordinator.activeDeckSummary else { return nil }
-        let minutes = Int(summary.duration / 60)
-        return "Insert \(summary.count) cards · \(minutes) min"
     }
     
     private var showsFloatingControls: Bool {
