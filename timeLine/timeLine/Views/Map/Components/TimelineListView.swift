@@ -24,22 +24,28 @@ struct TimelineListView: View {
     // Auto-Scroll State
     @State private var autoScrollTimer: Timer?
     @State private var autoScrollDirection: Int = 0 
-    @State private var wasInDeadZoneForHaptic = true
-    
+    // Stable Anchoring State
+    @State private var lastActiveNodeId: UUID?
+
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
+                // Inverted Timeline: Stack 0..N, then flio Y axis
                 LazyVStack(spacing: 0) {
-                    // Ghost at Top
-                    if dragCoordinator.isDragging,
-                       dragCoordinator.destinationIndex(in: daySession.nodes) == daySession.nodes.count,
-                       !isDeadZone(dragCoordinator.destinationIndex(in: daySession.nodes), dragCoordinator.draggedNodeId) {
-                        GhostNodeView()
-                            .transition(.opacity)
-                            .padding(.vertical, 6)
-                    }
-
-                    ForEach(daySession.nodes.reversed()) { node in
+                    // PADDING SHIM:
+                    // In inverted view, this "Top" item sits at the Visual Bottom.
+                    // We want the first real item (Index 0) to sit at mapAnchorY (e.g. 0.7).
+                    // So we need padding of (1.0 - 0.7 = 0.3) height.
+                    let anchorY = viewModel.mapAnchorY(viewportHeight: viewportHeight)
+                    let paddingHeight = max(0, viewportHeight * (1.0 - anchorY))
+                    
+                    Color.clear
+                        .frame(height: paddingHeight)
+                        .scaleEffect(x: 1, y: -1) // Flip it back so it takes space normally? 
+                        // Actually, plain frame takes space regardless of scale.
+                        // But if we want to be safe...
+                    
+                    ForEach(daySession.nodes) { node in
                         let index = daySession.nodes.firstIndex(where: { $0.id == node.id }) ?? 0
                         
                         TimelineNodeRow(
@@ -47,7 +53,7 @@ struct TimelineListView: View {
                             index: index,
                             isSelected: false,
                             isCurrent: viewModel.shouldShowAsCurrentTask(node: node),
-                            isEditMode: false, // Passed down from parent if needed, but for now we rely on buttons
+                            isEditMode: false,
                             onTap: { onAction(.tap(node)) },
                             onEdit: { onAction(.edit(node)) },
                             onDuplicate: { onAction(.duplicate(node)) },
@@ -59,24 +65,17 @@ struct TimelineListView: View {
                             contentOffset: 0,
                             estimatedTimeLabel: viewModel.estimatedStartTime(for: node, upcomingNodes: viewModel.upcomingNodes)?.absolute
                         )
+                        // Flip each row back to upright
+                        .scaleEffect(x: 1, y: -1)
                         .animation(.spring(response: 0.3, dampingFraction: 0.7), value: dragCoordinator.hoveringNodeId)
-                        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: dragCoordinator.hoveringPlacement)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 3)
                         .id(node.id)
-                        
-                        // Ghost In-Between
-                        if dragCoordinator.isDragging,
-                           dragCoordinator.destinationIndex(in: daySession.nodes) == index,
-                           !isDeadZone(index, dragCoordinator.draggedNodeId) {
-                            GhostNodeView()
-                                .transition(.opacity)
-                                .padding(.vertical, 6)
-                        }
                     }
                 }
                 .frame(maxWidth: .infinity)
             }
+            .scaleEffect(x: 1, y: -1) // Flip the ScrollView (Key Fix: Anchor moves to Bottom)
             .scrollDisabled(appMode.isDragging)
             .contentShape(Rectangle())
             .onChange(of: appMode.isDragging) { _, isDragging in
@@ -85,18 +84,24 @@ struct TimelineListView: View {
                 }
             }
             .animation(.easeInOut(duration: 0.3), value: daySession.nodes.count)
-            .animation(.easeInOut(duration: 0.25), value: daySession.nodes.map(\.id))
             .onPreferenceChange(NodeFrameKey.self) { frames in
                 nodeFrames = frames
             }
             .onChange(of: dragCoordinator.dragLocation) { _, newLocation in
                 handleDragLocationChange(newLocation, proxy: proxy)
             }
-            .onChange(of: dragCoordinator.draggedNodeId) { _, newId in
-                if newId != nil { wasInDeadZoneForHaptic = true }
-            }
-            .onChange(of: daySession.nodes.count) { _, _ in
-                scrollToActive(using: proxy)
+            .onChange(of: daySession.nodes.count) { _, newCount in
+                // With inverted scroll, inserting at Index 0 (Visual Bottom/Physical Top)
+                // naturally pushes existing content "Down" (Physically) -> "Up" (Visually).
+                
+                if let currentId = daySession.currentNode?.id, let frame = nodeFrames[currentId] {
+                    print("📍 [Timeline Debug] Count Changed (\(newCount)). Current Node Frame: \(frame)")
+                    print("   - Visual Pos: minY = \(Int(frame.minY)), midY = \(Int(frame.midY))")
+                }
+                
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                    scrollToActive(using: proxy)
+                }
             }
             .onChange(of: daySession.currentIndex) { _, _ in
                 scrollToActive(using: proxy)
@@ -116,19 +121,7 @@ struct TimelineListView: View {
     }
     
     private func handleDragLocationChange(_ newLocation: CGPoint, proxy: ScrollViewProxy) {
-        // Haptics logic
-        if let _ = dragCoordinator.draggedNodeId {
-            let dest = dragCoordinator.destinationIndex(in: daySession.nodes)
-            let dead = isDeadZone(dest, dragCoordinator.draggedNodeId)
-            if dead {
-                wasInDeadZoneForHaptic = true
-            } else {
-                if wasInDeadZoneForHaptic {
-                    Haptics.selection()
-                    wasInDeadZoneForHaptic = false
-                }
-            }
-        }
+        // Haptics logic - Disabled for now as requested
         
         // Auto-Scroll Logic
         guard dragCoordinator.isDragging else {
@@ -138,7 +131,7 @@ struct TimelineListView: View {
         
         let threshold: CGFloat = 120
         if newLocation.y < threshold {
-            startAutoScroll(direction: 1, proxy: proxy)
+            startAutoScroll(direction: 1, proxy: proxy) 
         } else if newLocation.y > (viewportHeight - threshold) {
             startAutoScroll(direction: -1, proxy: proxy)
         } else {
@@ -157,8 +150,11 @@ struct TimelineListView: View {
         autoScrollTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { _ in
             let visibleNode: (key: UUID, value: CGRect)?
             if direction > 0 {
+                // Direction +1 (Towards End/Index N) -> Scroll to Min Y (Top of Screen in Inverted View?)
+                // Inverted: Index N is visible at Top.
                 visibleNode = nodeFrames.min { $0.value.minY < $1.value.minY }
             } else {
+                // Direction -1 (Towards Start/Index 0) -> Scroll to Max Y (Bottom of Screen?)
                 visibleNode = nodeFrames.max { $0.value.maxY < $1.value.maxY }
             }
             
@@ -182,28 +178,28 @@ struct TimelineListView: View {
         autoScrollDirection = 0
     }
     
-    private func scrollToActive(using proxy: ScrollViewProxy) {
+    private func scrollToActive(using proxy: ScrollViewProxy, explicitAnchor: UnitPoint? = nil) {
         let targetId = viewModel.isSessionActive ? daySession.currentNode?.id : viewModel.upcomingNodes.first?.id
         guard let targetId else { return }
-        DispatchQueue.main.async {
-            withAnimation(.easeInOut(duration: 0.35)) {
-                
-                proxy.scrollTo(targetId, anchor: UnitPoint(x: 0.5, y: viewModel.mapAnchorY(viewportHeight: viewportHeight)))
-            }
+        
+        if let frame = nodeFrames[targetId] {
+            print("⚓️ [Timeline Debug] Scrolling to Target \(targetId)")
+            print("   - Current Frame: \(frame)")
         }
-    }
-}
 
-// Minimal placeholder if GhostNodeView isn't global
-struct GhostNodeView_Placeholder: View {
-    var body: some View {
-        RoundedRectangle(cornerRadius: 12)
-            .fill(Color.gray.opacity(0.1))
-            .frame(height: 60)
-            .overlay(
-                RoundedRectangle(cornerRadius: 12)
-                    .stroke(style: StrokeStyle(lineWidth: 2, dash: [5]))
-                    .foregroundColor(Color.gray.opacity(0.3))
-            )
+        let anchor: UnitPoint
+        if let explicit = explicitAnchor {
+            anchor = explicit
+            print("⚓️ [Timeline] Scrolling to Explicit Anchor: \(String(format: "%.2f", explicit.y))")
+        } else {
+            // Default behavior
+            // Inverted: Visual Bottom (Standard 0.7) is Physical Top (0.3).
+            // Let's try .center (0.5) first as it is invariant.
+            anchor = .center
+        }
+
+        withAnimation(.easeOut(duration: 0.2)) {
+          proxy.scrollTo(targetId, anchor: anchor)
+        }
     }
 }

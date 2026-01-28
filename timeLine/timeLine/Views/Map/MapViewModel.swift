@@ -129,12 +129,37 @@ class MapViewModel: ObservableObject {
                 using: cardStore,
                 engine: engine
             )
-        } else if let anchorId = daySession.nodes.last?.id {
+        } else if let currentId = daySession.currentNode?.id {
+            // Priority 1: Insert BEFORE the current active task (Visual BOTTOM)
+            // Array: [New, Current, ...]
+            // Visual: 
+            // ...
+            // Current
+            // New (Bottom)
+            // This ensures 'Current' moves UP relative to the New Bottom, or stays put relative to visual Top.
             _ = timelineStore.placeCardOccurrence(
                 cardTemplateId: item.id,
-                anchorNodeId: anchorId,
+                anchorNodeId: currentId,
+                placement: .before,
                 using: cardStore
             )
+        } else if let firstUpcomingId = upcomingNodes.first?.id {
+            // Priority 2: Insert BEFORE the first upcoming task (Top of List / Bottom of Screen)
+            // Visually: Appears at the very bottom of the timeline list.
+            _ = timelineStore.placeCardOccurrence(
+                cardTemplateId: item.id,
+                anchorNodeId: firstUpcomingId,
+                placement: .before,
+                using: cardStore
+            )
+        } else if let lastId = daySession.nodes.last?.id {
+             // Fallback: Append to end if no current/upcoming found (e.g. all completed)
+             _ = timelineStore.placeCardOccurrence(
+                 cardTemplateId: item.id,
+                 anchorNodeId: lastId,
+                 placement: .after,
+                 using: cardStore
+             )
         } else {
             _ = timelineStore.placeCardOccurrenceAtStart(
                 cardTemplateId: item.id,
@@ -383,9 +408,9 @@ class MapViewModel: ObservableObject {
     
     func mapAnchorY(viewportHeight: CGFloat, bottomFocusPadding: CGFloat = 140, bottomSheetInset: CGFloat = 96) -> CGFloat {
         if !isSessionActive {
-            return 0.7
+            return 0.75
         }
-        guard viewportHeight > 0 else { return 0.7 }
+        guard viewportHeight > 0 else { return 0.75 }
         let anchor = 1 - (bottomFocusPadding / viewportHeight) - (bottomSheetInset / viewportHeight)
         return min(0.9, max(0.5, anchor))
     }

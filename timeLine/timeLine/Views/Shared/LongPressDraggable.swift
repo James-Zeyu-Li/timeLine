@@ -51,11 +51,7 @@ struct LongPressDraggable: UIViewRepresentable {
         }
         
         @objc func handleGesture(_ gesture: UILongPressGestureRecognizer) {
-            let location = gesture.location(in: gesture.view)
-            // Convert to global coordinates if needed, or caller handles coordinate space?
-            // Usually we need global for the drag overlay.
-            // But 'gesture.view' is local.
-            // We can get global from UIWindow.
+            // Convert to global coordinates for the drag overlay.
             let globalLocation = gesture.location(in: nil) // nil = Window
             
             // State Mapping

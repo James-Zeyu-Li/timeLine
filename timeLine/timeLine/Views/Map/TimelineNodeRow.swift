@@ -97,7 +97,9 @@ struct TimelineNodeRow: View {
             .scaleEffect(isPressing ? 0.97 : 1.0)
             .animation(.easeInOut(duration: 0.2), value: isPressing)
             // 统一手势：使用 UIKit 穿透方案解决 ScrollView 冲突 (改回 overlay 确保能收到触摸)
-            .overlay(
+            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: dragCoordinator.hoveringNodeId)
+            // 统一手势：Move to background to allow button interaction
+            .background(
                 LongPressDraggable(
                     minimumDuration: 0.4,
                     movementThreshold: 10,
