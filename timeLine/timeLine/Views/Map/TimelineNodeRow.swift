@@ -29,6 +29,7 @@ struct TimelineNodeRow: View {
     
     @State private var isPressing = false
     @State private var nodeFrame: CGRect = .zero
+    @Namespace private var ns // For floating button
     
     // MARK: - Presenter
     private var presenter: TimelineNodePresenter {
@@ -43,11 +44,6 @@ struct TimelineNodeRow: View {
     var body: some View {
         HStack(alignment: .top, spacing: 0) {
             // MARK: - Interactive Card Container
-            // [最终架构方案]
-            // 分离视觉与逻辑，移除 Button 以避免冲突
-            // 1. onTapGesture -> 点击
-            // 2. Visual Gesture -> 按下视觉反馈 (Drag min 0)
-            // 3. Logic Gesture -> 长按拖拽 (LongPress 0.4s -> Drag)
             HStack(alignment: .top, spacing: 0) {
                 // 1. Left Axis
                 ZStack {
@@ -82,7 +78,9 @@ struct TimelineNodeRow: View {
                     TimelineActiveCard(
                         presenter: presenter,
                         onTap: onTap,
-                        onEdit: onEdit
+                        onEdit: onEdit,
+                        namespace: ns,
+                        nodeId: node.id
                     )
                 } else {
                     TimelineCompactCard(
@@ -91,40 +89,57 @@ struct TimelineNodeRow: View {
                     )
                 }
             }
+            .contentShape(Rectangle())
             .onTapGesture {
                 onTap()
             }
             .scaleEffect(isPressing ? 0.97 : 1.0)
             .animation(.easeInOut(duration: 0.2), value: isPressing)
-            // 统一手势：使用 UIKit 穿透方案解决 ScrollView 冲突 (改回 overlay 确保能收到触摸)
             .animation(.spring(response: 0.3, dampingFraction: 0.7), value: dragCoordinator.hoveringNodeId)
-            // 统一手势：Move to background to allow button interaction
-            .background(
-                LongPressDraggable(
-                    minimumDuration: 0.4,
-                    movementThreshold: 10,
-                    onLongPress: { state, location in
-                        print("🛠 [UIKit Wrapper] LongPress Callback: \(state.rawValue)")
-                        handleLongPress(state: state, location: location)
-                    },
-                    onPressing: { pressing in
-                        if !appMode.isDragging {
-                            isPressing = pressing
+            // 关键修改：使用 overlay 而不是 background
+            // 并且用 GeometryReader 确保填充整个区域
+            .overlay(
+                GeometryReader { geo in
+                    LongPressDraggable(
+                        minimumDuration: 0.4,
+                        movementThreshold: 10,
+                        onLongPress: { state, location in
+                            // print("🛠 [UIKit] Overlay LongPress: \(state.rawValue)")
+                            handleLongPress(state: state, location: location)
+                        },
+                        onPressing: { pressing in
+                            if !appMode.isDragging {
+                                isPressing = pressing
+                            }
+                        }
+                    )
+                    .frame(width: geo.size.width, height: geo.size.height)
+                }
+            )
+            // 3. Floating Play Button (Z-Index Fix)
+            // Sits ON TOP of the LongPressDraggable overlay
+            .overlay(
+                Group {
+                    if isCurrent {
+                        ZStack {
+                            Circle()
+                                .fill(PixelTheme.primary)
+                                .frame(width: 50, height: 50)
+                            
+                            Image(systemName: "play.fill")
+                                .font(.system(size: 20, weight: .bold))
+                                .foregroundColor(.white)
+                                .offset(x: 2)
+                        }
+                        .contentShape(Circle())
+                        .matchedGeometryEffect(id: "playButton-\(node.id)", in: ns, isSource: false)
+                        .onTapGesture {
+                            Haptics.impact(.medium)
+                            onTap()
                         }
                     }
-                )
+                }
             )
-            // Tap 单独处理，UIKit 层设为 non-cancelling，所以点击应该能穿透到这里？
-            // 或者我们可以让 LongPressDraggable 也处理点击？
-            // 简单起见，保持 SwiftUI 点击。由于 allowsHitTesting(false) 会导致点击失效，
-            // 我们的 overlay 是透明的 UIView，默认吃点击吗？
-            // UIView(frame: .zero) 默认 userInteractionEnabled = true。
-            // 但如果它由于 frame 覆盖了 content，SwiftUI 的 onTap 可能收不到。
-            // 所以，我们将点击逻辑移到 LongPressDraggable 内部其实很难。
-            // 更好的做法：LongPressDraggable 作为 .background? 
-            // 如果作为 background，UIView 可能收不到触摸？不，SwiftUI background 如果有 frame 就可以。
-            // 但这里 LongPressDraggable 默认 frame .zero？ MakeUIView 里 frame .zero。
-            // 我们需要它填充。
             
             // 3. Edit Buttons (Sibling, not inside main button)
             if isEditMode {

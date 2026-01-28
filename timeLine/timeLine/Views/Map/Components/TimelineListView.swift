@@ -44,34 +44,48 @@ struct TimelineListView: View {
                         .scaleEffect(x: 1, y: -1) // Flip it back so it takes space normally? 
                         // Actually, plain frame takes space regardless of scale.
                         // But if we want to be safe...
+                    let dropIndex = dragCoordinator.isDragging ? dragCoordinator.destinationIndex(in: daySession.nodes) : nil
+                    let draggedIndex = daySession.nodes.firstIndex(where: { $0.id == dragCoordinator.draggedNodeId })
                     
-                    ForEach(daySession.nodes) { node in
-                        let index = daySession.nodes.firstIndex(where: { $0.id == node.id }) ?? 0
-                        
-                        TimelineNodeRow(
-                            node: node,
-                            index: index,
-                            isSelected: false,
-                            isCurrent: viewModel.shouldShowAsCurrentTask(node: node),
-                            isEditMode: false,
-                            onTap: { onAction(.tap(node)) },
-                            onEdit: { onAction(.edit(node)) },
-                            onDuplicate: { onAction(.duplicate(node)) },
-                            onDelete: { onAction(.delete(node)) },
-                            onMoveUp: { onAction(.moveUp(node)) },
-                            onMoveDown: { onAction(.moveDown(node)) },
-                            onDrop: { _ in }, 
-                            totalNodesCount: daySession.nodes.count,
-                            contentOffset: 0,
-                            estimatedTimeLabel: viewModel.estimatedStartTime(for: node, upcomingNodes: viewModel.upcomingNodes)?.absolute
-                        )
-                        // Flip each row back to upright
-                        .scaleEffect(x: 1, y: -1)
-                        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: dragCoordinator.hoveringNodeId)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 3)
-                        .id(node.id)
+                    ForEach(Array(daySession.nodes.enumerated()), id: \.element.id) { index, node in
+                        VStack(spacing: 0) {
+                            // Drop Zone logic:
+                            // Show if this is the target drop index AND it's not a "dead zone" (same position)
+                            let isDeadZone = (index == draggedIndex) || (index == (draggedIndex ?? -1) + 1)
+                            DragTargetRow(isActive: (dropIndex == index) && !isDeadZone)
+                            
+                            TimelineNodeRow(
+                                node: node,
+                                index: index,
+                                isSelected: false,
+                                isCurrent: viewModel.shouldShowAsCurrentTask(node: node),
+                                isEditMode: false,
+                                onTap: { onAction(.tap(node)) },
+                                onEdit: { onAction(.edit(node)) },
+                                onDuplicate: { onAction(.duplicate(node)) },
+                                onDelete: { onAction(.delete(node)) },
+                                onMoveUp: { onAction(.moveUp(node)) },
+                                onMoveDown: { onAction(.moveDown(node)) },
+                                onDrop: { _ in }, 
+                                totalNodesCount: daySession.nodes.count,
+                                contentOffset: 0,
+                                estimatedTimeLabel: viewModel.estimatedStartTime(for: node, upcomingNodes: viewModel.upcomingNodes)?.absolute
+                            )
+                            // Flip each row back to upright
+                            .scaleEffect(x: 1, y: -1)
+                            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: dragCoordinator.hoveringNodeId)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 3)
+                            .id(node.id)
+                        }
                     }
+                    
+                    // Final Drop Zone (Append to end)
+                    // Check dead zone for end (draggedIndex == count - 1 => next is count. count is dead zone?)
+                    // If dragged node is last (index N-1), dropping at N is Dead Zone.
+                    let isEndDeadZone = (daySession.nodes.count == (draggedIndex ?? -1) + 1)
+                    DragTargetRow(isActive: (dropIndex == daySession.nodes.count) && !isEndDeadZone)
+                        .scaleEffect(x: 1, y: -1) // Flip this too? Yes.
                 }
                 .frame(maxWidth: .infinity)
             }

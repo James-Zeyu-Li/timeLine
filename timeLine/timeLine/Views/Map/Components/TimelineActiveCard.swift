@@ -5,6 +5,8 @@ struct TimelineActiveCard: View {
     let presenter: TimelineNodePresenter
     let onTap: () -> Void
     let onEdit: () -> Void
+    var namespace: Namespace.ID
+    var nodeId: UUID
     
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -70,12 +72,9 @@ struct TimelineActiveCard: View {
                         .offset(x: 2) // Slight offset for visual balance
                 }
                 .contentShape(Circle())
-                .highPriorityGesture(
-                    TapGesture()
-                        .onEnded { _ in
-                            onTap()
-                        }
-                )
+                .matchedGeometryEffect(id: "playButton-\(nodeId)", in: namespace)
+                // Gesture removed/ignored here as it is blocked.
+                // It serves as the layout anchor.
             }
         }
         .padding(20)

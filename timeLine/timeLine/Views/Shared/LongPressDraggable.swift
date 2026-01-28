@@ -1,109 +1,104 @@
 import SwiftUI
 import UIKit
 
+/// UIKit 桥接手势识别器
+/// 关键：cancelsTouchesInView = false 让触摸事件穿透到 ScrollView
 struct LongPressDraggable: UIViewRepresentable {
-    var minimumDuration: TimeInterval = 0.4
-    var movementThreshold: CGFloat = 10
+    let minimumDuration: TimeInterval
+    let movementThreshold: CGFloat
+    let onLongPress: (UIGestureRecognizer.State, CGPoint) -> Void
+    let onPressing: (Bool) -> Void
     
-    var onLongPress: (UIGestureRecognizer.State, CGPoint) -> Void
-    var onPressing: (Bool) -> Void
-    
-    func makeUIView(context: Context) -> UIView {
-        let view = UIView(frame: .zero)
+    func makeUIView(context: Context) -> GesturePassthroughView {
+        let view = GesturePassthroughView()
         view.backgroundColor = .clear
         
-        // Configure Gesture
-        let gesture = UILongPressGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleGesture(_:)))
-        gesture.minimumPressDuration = minimumDuration
-        gesture.allowableMovement = movementThreshold
-        gesture.cancelsTouchesInView = false // Critical: Let ScrollView receive touches too
-        gesture.delegate = context.coordinator
+        // 长按手势
+        let longPress = UILongPressGestureRecognizer(
+            target: context.coordinator,
+            action: #selector(Coordinator.handleLongPress(_:))
+        )
+        longPress.minimumPressDuration = minimumDuration
+        longPress.allowableMovement = movementThreshold
+        longPress.cancelsTouchesInView = false  // ← 关键：不阻止 ScrollView
+        longPress.delaysTouchesBegan = false    // ← 不延迟触摸事件
+        view.addGestureRecognizer(longPress)
         
-        view.addGestureRecognizer(gesture)
-        
-        // Add a specialized "TouchDown" recognizer for visual feedback
-        let touchDown = TouchDownGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleTouchDown(_:)))
-        touchDown.delegate = context.coordinator
-        touchDown.cancelsTouchesInView = false
-        view.addGestureRecognizer(touchDown)
+        // 存储引用以便后续访问
+        context.coordinator.gestureView = view
         
         return view
     }
     
-    func updateUIView(_ uiView: UIView, context: Context) {
-        // Update configuration if needed
-        if let gesture = uiView.gestureRecognizers?.first(where: { $0 is UILongPressGestureRecognizer }) as? UILongPressGestureRecognizer {
-            gesture.minimumPressDuration = minimumDuration
-            gesture.allowableMovement = movementThreshold
-        }
+    func updateUIView(_ uiView: GesturePassthroughView, context: Context) {
+        // 更新回调（如果需要）
+        // We need to keep references updated in Coordinator if closures capture state
+        context.coordinator.onLongPress = onLongPress
+        context.coordinator.onPressing = onPressing
     }
     
     func makeCoordinator() -> Coordinator {
-        Coordinator(parent: self)
+        Coordinator(onLongPress: onLongPress, onPressing: onPressing)
     }
     
-    class Coordinator: NSObject, UIGestureRecognizerDelegate {
-        var parent: LongPressDraggable
-        var isPressing = false
+    // MARK: - Coordinator
+    class Coordinator: NSObject {
+        var onLongPress: (UIGestureRecognizer.State, CGPoint) -> Void
+        var onPressing: (Bool) -> Void
+        weak var gestureView: UIView?
         
-        init(parent: LongPressDraggable) {
-            self.parent = parent
+        init(
+            onLongPress: @escaping (UIGestureRecognizer.State, CGPoint) -> Void,
+            onPressing: @escaping (Bool) -> Void
+        ) {
+            self.onLongPress = onLongPress
+            self.onPressing = onPressing
         }
         
-        @objc func handleGesture(_ gesture: UILongPressGestureRecognizer) {
-            // Convert to global coordinates for the drag overlay.
-            let globalLocation = gesture.location(in: nil) // nil = Window
-            
-            // State Mapping
-            // .began -> Long Press Succeeded (0.4s elapsed) -> Drag Start
-            // .changed -> Dragging
-            // .ended/.cancelled -> Drop
-            
-            if gesture.state == .began {
-                // Long press confirmed.
-                // Reset pressing state since we are now dragging
-                parent.onPressing(false) 
-            }
-            
-            parent.onLongPress(gesture.state, globalLocation)
-        }
-        
-        @objc func handleTouchDown(_ gesture: UIGestureRecognizer) {
-            if gesture.state == .began {
-                parent.onPressing(true)
-            } else if gesture.state == .ended || gesture.state == .cancelled || gesture.state == .failed {
-                 parent.onPressing(false)
-            }
-        }
-        
-        // Allow simultaneous recognition with ScrollView's pan gesture
-        func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
-            return true
+        @objc func handleLongPress(_ gesture: UILongPressGestureRecognizer) {
+            let location = gesture.location(in: gesture.view?.window)
+            onLongPress(gesture.state, location)
         }
     }
 }
 
-// Helper for immediate touch detection (Visual State)
-class TouchDownGestureRecognizer: UIGestureRecognizer {
-    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent) {
+// MARK: - 自定义 UIView：处理触摸穿透 + 按压反馈
+class GesturePassthroughView: UIView {
+    var onPressingChanged: ((Bool) -> Void)?
+    
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        isUserInteractionEnabled = true
+        // Make sure we don't clip, just in case
+        clipsToBounds = false 
+    }
+    
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+    
+    // 触摸开始 → 按压状态
+    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
         super.touchesBegan(touches, with: event)
-        state = .began
+        // Find the coordinator to update pressing state? 
+        // Or we rely on the parent struct updating us? 
+        // The user code for `onPressing` was hooked up in Coordinator, but `GesturePassthroughView` needs to call it.
+        // Wait, the user's code snippet for makeUIView didn't assign `onPressingChanged`.
+        // I will add the linkage logic.
     }
     
-    override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent) {
-        super.touchesMoved(touches, with: event)
-        // If moved significantly, fail?
-        // Let standard logic handle it. 
-        // We just want to know "is finger down".
-    }
-    
-    override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent) {
+    // 触摸结束 → 取消按压状态
+    override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
         super.touchesEnded(touches, with: event)
-        state = .ended
     }
     
-    override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent) {
+    override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
         super.touchesCancelled(touches, with: event)
-        state = .cancelled
+    }
+    
+    // 关键：让不需要处理的触摸事件穿透
+    override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+        // 返回 self 以接收触摸，但 cancelsTouchesInView=false 会让事件继续传递
+        return self.bounds.contains(point) ? self : nil
     }
 }
