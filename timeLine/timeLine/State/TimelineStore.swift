@@ -250,12 +250,27 @@ final class TimelineStore: ObservableObject {
     }
 
     func updateNodeByTime(id: UUID, payload: CardTemplate, engine: BattleEngine) {
-        updateNode(id: id, payload: payload)
-        guard let remindAt = payload.remindAt else { return }
-        guard let currentIndex = daySession.nodes.firstIndex(where: { $0.id == id }) else { return }
+        // Optimize: Do not save in updateNode internal call, wait for final save
+        daySession.updateNode(id: id, payload: payload)
+        
+        guard let remindAt = payload.remindAt else {
+            // If no reminder time, just save the update
+            stateManager.requestSave()
+            return
+        }
+        
+        guard let currentIndex = daySession.nodes.firstIndex(where: { $0.id == id }) else {
+            stateManager.requestSave()
+            return
+        }
+        
         let targetIndex = reminderInsertIndex(remindAt: remindAt, engine: engine, excluding: id)
-        guard targetIndex != currentIndex else { return }
-        daySession.moveNode(from: IndexSet(integer: currentIndex), to: targetIndex)
+        
+        if targetIndex != currentIndex {
+             daySession.moveNode(from: IndexSet(integer: currentIndex), to: targetIndex)
+        }
+        
+        // Single save at the end triggers persistence once
         stateManager.requestSave()
     }
     

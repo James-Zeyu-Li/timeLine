@@ -68,11 +68,13 @@ class PlanViewModel: ObservableObject {
         
         // 4. Add to CardStore & Inbox
         // We must add template to store first so ID resolution works
-        cardStore?.add(newTemplate)
-        
-        if let _ = timelineStore?.addToInbox(cardTemplateId: newTemplate.id, using: cardStore!) {
-             // Success
+        guard let cardStore, let timelineStore else {
+            draftText = ""
+            return
         }
+        
+        cardStore.add(newTemplate)
+        _ = timelineStore.addToInbox(cardTemplateId: newTemplate.id, using: cardStore)
         
         // 5. Reset Input
         draftText = ""
@@ -93,8 +95,9 @@ class PlanViewModel: ObservableObject {
             newTemplate.deadlineAt = deadline
         }
         
-        cardStore?.add(newTemplate)
-        _ = timelineStore?.addToInbox(cardTemplateId: newTemplate.id, using: cardStore!)
+        guard let cardStore, let timelineStore else { return }
+        cardStore.add(newTemplate)
+        _ = timelineStore.addToInbox(cardTemplateId: newTemplate.id, using: cardStore)
     }
     
     func handleDrop(items: [String], into timeSlot: FinishBySelection) {

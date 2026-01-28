@@ -171,5 +171,6 @@ final class DragDropCoordinator: ObservableObject {
         // dragLocation = .zero // 坐标系漂移修复 (Solution A): Lock-in final position. Do not reset to zero to prevent "fly to origin" animation artifact.
         dragOffset = .zero
         initialDragLocation = nil
+        isDragEnded = false
     }
 }

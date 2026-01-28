@@ -29,6 +29,7 @@ struct TimelineNodeRow: View {
     
     @State private var isPressing = false
     @State private var nodeFrame: CGRect = .zero
+    @State private var menuButtonFrame: CGRect = .zero
     @Namespace private var ns // For floating button
     
     // MARK: - Presenter
@@ -79,6 +80,9 @@ struct TimelineNodeRow: View {
                         presenter: presenter,
                         onTap: onTap,
                         onEdit: onEdit,
+                        onMenuFrameChange: { frame in
+                            menuButtonFrame = frame
+                        },
                         namespace: ns,
                         nodeId: node.id
                     )
@@ -100,20 +104,25 @@ struct TimelineNodeRow: View {
             // 并且用 GeometryReader 确保填充整个区域
             .overlay(
                 GeometryReader { geo in
-                    LongPressDraggable(
-                        minimumDuration: 0.4,
-                        movementThreshold: 10,
-                        onLongPress: { state, location in
-                            // print("🛠 [UIKit] Overlay LongPress: \(state.rawValue)")
-                            handleLongPress(state: state, location: location)
-                        },
-                        onPressing: { pressing in
-                            if !appMode.isDragging {
-                                isPressing = pressing
+                    if !appMode.isDragging || dragCoordinator.draggedNodeId == node.id {
+                        LongPressDraggable(
+                            minimumDuration: 0.4,
+                            movementThreshold: 10,
+                            exclusionRect: (isCurrent && menuButtonFrame != .zero) ? menuButtonFrame : nil,
+                            onLongPress: { state, location in
+                                // print("🛠 [UIKit] Overlay LongPress: \(state.rawValue)")
+                                handleLongPress(state: state, location: location)
+                            },
+                            onPressing: { pressing in
+                                if !appMode.isDragging {
+                                    isPressing = pressing
+                                }
                             }
-                        }
-                    )
-                    .frame(width: geo.size.width, height: geo.size.height)
+                        )
+                        .frame(width: geo.size.width, height: geo.size.height)
+                    } else {
+                        Color.clear
+                    }
                 }
             )
             // 3. Floating Play Button (Z-Index Fix)
@@ -148,9 +157,10 @@ struct TimelineNodeRow: View {
         }
         .background(frameReporter)
         .opacity(dragCoordinator.draggedNodeId == node.id ? 0 : 1)
-        .animation(.easeOut(duration: 0.14), value: dragCoordinator.draggedNodeId == node.id)
+        .animation(nil, value: dragCoordinator.draggedNodeId == node.id) // Force NO animation for opacity
         .animation(.spring(response: 0.32, dampingFraction: 0.92), value: isCurrent)
-        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: dragCoordinator.hoveringNodeId)
+        // Remove redundant outer animation that might conflict or use default params if not careful.
+        // The ListView handles the list reordering animation. Here we just handle internal state.
     }
     
     // MARK: - Frame Reporter
@@ -162,8 +172,11 @@ struct TimelineNodeRow: View {
                     key: NodeFrameKey.self,
                     value: [node.id: geo.frame(in: .global)]
                 )
-                .onAppear { nodeFrame = geo.frame(in: .global) }
-                .onChange(of: geo.frame(in: .global)) { _, newFrame in nodeFrame = newFrame }
+                .onAppear { 
+                    self.nodeFrame = geo.frame(in: .global) 
+                }
+                // .onChange removed to prevent update loops. 
+                // Note: local nodeFrame might be stale on scroll, but PreferenceKey is fresh.
         }
     }
     
@@ -192,12 +205,14 @@ struct TimelineNodeRow: View {
     // MARK: - Gestures
     
     private func handleLongPress(state: UIGestureRecognizer.State, location: CGPoint) {
+        print("📍 [Gesture] Node: \(node.id), Index: \(index), isCurrent: \(isCurrent)")
+        print("   State: \(state.rawValue), Y: \(location.y), isDragging: \(appMode.isDragging)")
         switch state {
         case .began:
             // Long Press Succeeded (0.4s elapsed)
             // Start Drag
             if !appMode.isDragging {
-                print("🚀 [UIKit] LongPress Began. Starting Drag...")
+                print("🚀 [UIKit] LongPress Began at Y: \(location.y). Starting Drag...")
                 Haptics.impact(.medium)
                 isPressing = false
                 
@@ -206,21 +221,40 @@ struct TimelineNodeRow: View {
                 let offset = CGSize(width: center.x - start.x, height: center.y - start.y)
                 
                 let payload = DragPayload(type: .node(node.id), source: .library, initialOffset: offset)
-                appMode.enter(.dragging(payload))
-                dragCoordinator.startDrag(payload: payload)
+                
+                // Defer state update to avoid publishing during view update
+                Task { @MainActor in
+                    dragCoordinator.startDrag(payload: payload)
+                    appMode.enter(.dragging(payload))
+                    if appMode.isDragging {
+                        dragCoordinator.dragLocation = location
+                    } else {
+                        dragCoordinator.reset()
+                    }
+                }
+            } else {
+                 Task { @MainActor in
+                     dragCoordinator.dragLocation = location
+                 }
             }
-            dragCoordinator.dragLocation = location
             
         case .changed:
             if appMode.isDragging {
-                dragCoordinator.dragLocation = location
+                Task { @MainActor in
+                    dragCoordinator.dragLocation = location
+                }
             }
             
-        case .ended, .cancelled, .failed:
+        case .ended:
             if appMode.isDragging {
                 print("🛑 [UIKit] Drag Ended.")
-                dragCoordinator.isDragEnded = true
+                Task { @MainActor in
+                    dragCoordinator.isDragEnded = true
+                }
             }
+            isPressing = false
+        case .cancelled, .failed:
+            // Ignore cancellation: the global tracker will finish the drag on touch end.
             isPressing = false
             
         default:

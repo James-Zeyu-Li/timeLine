@@ -63,6 +63,7 @@ struct RogueMapView: View {
             }
             .onAppear {
                 viewportHeight = proxy.size.height
+                print("📱 [Viewport] Height: \(proxy.size.height)")
                 
                 // Bind viewModel to dependencies for time calculations
                 viewModel.bind(

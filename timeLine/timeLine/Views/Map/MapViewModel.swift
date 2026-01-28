@@ -130,19 +130,27 @@ class MapViewModel: ObservableObject {
                 engine: engine
             )
         } else if let currentId = daySession.currentNode?.id {
-            // Priority 1: Insert BEFORE the current active task (Visual BOTTOM)
-            // Array: [New, Current, ...]
-            // Visual: 
-            // ...
-            // Current
-            // New (Bottom)
-            // This ensures 'Current' moves UP relative to the New Bottom, or stays put relative to visual Top.
-            _ = timelineStore.placeCardOccurrence(
-                cardTemplateId: item.id,
-                anchorNodeId: currentId,
-                placement: .before,
-                using: cardStore
-            )
+            // Strategy: Try to insert BEFORE the next upcoming task to be safe.
+            // If we blindly insert .after(current), and current is somehow shifted, it misbehaves?
+            // Let's find the node explicitly following current.
+            if let currentIndex = daySession.nodes.firstIndex(where: { $0.id == currentId }),
+               currentIndex + 1 < daySession.nodes.count {
+                let nextNode = daySession.nodes[currentIndex + 1]
+                _ = timelineStore.placeCardOccurrence(
+                    cardTemplateId: item.id,
+                    anchorNodeId: nextNode.id,
+                    placement: .before,
+                    using: cardStore
+                )
+            } else {
+                // Current is last, append after
+                _ = timelineStore.placeCardOccurrence(
+                    cardTemplateId: item.id,
+                    anchorNodeId: currentId,
+                    placement: .after,
+                    using: cardStore
+                )
+            }
         } else if let firstUpcomingId = upcomingNodes.first?.id {
             // Priority 2: Insert BEFORE the first upcoming task (Top of List / Bottom of Screen)
             // Visually: Appears at the very bottom of the timeline list.

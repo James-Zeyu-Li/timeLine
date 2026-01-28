@@ -5,6 +5,7 @@ struct TimelineActiveCard: View {
     let presenter: TimelineNodePresenter
     let onTap: () -> Void
     let onEdit: () -> Void
+    let onMenuFrameChange: (CGRect) -> Void
     var namespace: Namespace.ID
     var nodeId: UUID
     
@@ -28,6 +29,15 @@ struct TimelineActiveCard: View {
                         .font(.system(size: 14, weight: .bold))
                         .foregroundColor(PixelTheme.textSecondary)
                 }
+                .background(
+                    GeometryReader { proxy in
+                        Color.clear
+                            .onAppear { onMenuFrameChange(proxy.frame(in: .global)) }
+                            .onChange(of: proxy.frame(in: .global)) { _, newFrame in
+                                onMenuFrameChange(newFrame)
+                            }
+                    }
+                )
                 .buttonStyle(.plain)
             }
             
