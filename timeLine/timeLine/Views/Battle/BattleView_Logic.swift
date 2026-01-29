@@ -37,7 +37,7 @@ extension BattleView {
         guard let boss = engine.currentBoss else { return 0 }
         if isFlexibleMode {
             // Flexible: Progress towards 50 minutes (3000s)
-            return min(1.0, CGFloat(engine.currentSessionElapsed()) / 3000.0)
+            return min(1.0, CGFloat(engine.observationCueElapsed()) / 3000.0)
         } else {
             // Strict: Countdown progress (remaining / max)
             return CGFloat(boss.currentHp / boss.maxHp)

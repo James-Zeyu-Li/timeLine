@@ -6,6 +6,7 @@ public enum StatsTimeRange: String, CaseIterable, Identifiable {
     case day = "Day"
     case week = "Week"
     case month = "Month"
+    case year = "Year"
     public var id: String { rawValue }
 }
 
@@ -31,6 +32,12 @@ public class StatsViewModel: ObservableObject {
     @Published public var rangeStart: Date = Calendar.current.startOfDay(for: Date())
     @Published public var rangeEnd: Date = Calendar.current.startOfDay(for: Date())
     @Published public var rangeGrowthPercent: Int = 0
+    
+    // MARK: - Navigation State
+    @Published public var currentDateAnchor: Date = Date()
+    
+    // MARK: - Day Chart Data
+    @Published public var dayHourlyDistribution: [Double] = Array(repeating: 0.0, count: 12) // 12 buckets of 2 hours
     
     // MARK: - Legacy Properties (for backward compatibility)
     public var weeklyFocusedText: String { rangeFocusedText }
@@ -111,7 +118,7 @@ public class StatsViewModel: ObservableObject {
     
     private func updateRangeStats() {
         let calendar = calendarWithMondayStart()
-        let referenceDate = weekStartOverride ?? Date()
+        let referenceDate = currentDateAnchor
         let today = calendar.startOfDay(for: referenceDate)
         
         var entriesByDate: [Date: DailyFunctionality] = [:]
@@ -127,6 +134,32 @@ public class StatsViewModel: ObservableObject {
             updateWeekStats(today: today, entriesByDate: entriesByDate, calendar: calendar)
         case .month:
             updateMonthStats(today: today, entriesByDate: entriesByDate, calendar: calendar)
+        case .year:
+            updateYearStats(today: today, entriesByDate: entriesByDate, calendar: calendar)
+        }
+    }
+    
+    public func nextPeriod() {
+        currentDateAnchor = calculateNextDate(from: currentDateAnchor, direction: 1)
+        updateRangeStats()
+    }
+    
+    public func previousPeriod() {
+        currentDateAnchor = calculateNextDate(from: currentDateAnchor, direction: -1)
+        updateRangeStats()
+    }
+    
+    private func calculateNextDate(from date: Date, direction: Int) -> Date {
+        let calendar = Calendar.current
+        switch selectedRange {
+        case .day:
+            return calendar.date(byAdding: .day, value: direction, to: date) ?? date
+        case .week:
+            return calendar.date(byAdding: .weekOfYear, value: direction, to: date) ?? date
+        case .month:
+            return calendar.date(byAdding: .month, value: direction, to: date) ?? date
+        case .year:
+            return calendar.date(byAdding: .year, value: direction, to: date) ?? date
         }
     }
     
@@ -157,6 +190,67 @@ public class StatsViewModel: ObservableObject {
         } else {
             rangeGrowthPercent = 0
         }
+        
+        // Calculate Hourly Distribution (Day Line Chart)
+        calculateDayHourlyDistribution(for: today)
+    }
+    
+    private func calculateDayHourlyDistribution(for date: Date) {
+        // Initialize 12 buckets (2 hours each)
+        var distribution = Array(repeating: 0.0, count: 12)
+        
+        guard let specimens = cachedSpecimens else {
+            self.dayHourlyDistribution = distribution
+            return
+        }
+        
+        let calendar = Calendar.current
+        let dayStart = calendar.startOfDay(for: date)
+        let dayEnd = calendar.date(byAdding: .day, value: 1, to: dayStart)!
+        
+        // Filter specimens completed on this day
+        let daySpecimens = specimens.specimens(for: date)
+        
+        for specimen in daySpecimens {
+            // Assume focus happened immediately before completion
+            let end = specimen.completedAt
+            let start = end.addingTimeInterval(-specimen.duration)
+            
+            // Distribute duration into buckets
+            // Buckets: 0 (0-2), 1 (2-4), ... 11 (22-24)
+            
+            // Clamp start/end to today (in case it started yesterday)
+            let effectiveStart = max(start, dayStart)
+            let effectiveEnd = min(end, dayEnd)
+            
+            if effectiveStart >= effectiveEnd { continue }
+            
+            var cursor = effectiveStart
+            while cursor < effectiveEnd {
+                let hour = calendar.component(.hour, from: cursor)
+                let bucketIndex = min(hour / 2, 11)
+                
+                // Find end of this bucket
+                let bucketStartHour = bucketIndex * 2
+                // Next bucket start is bucketStartHour + 2. Even if hour is 1 (bucket 0), next is 2.
+                // If hour is 2 (bucket 1), next is 4.
+                // We need date for "Today at (bucketStartHour + 2):00"
+                let nextBucketStart = calendar.date(bySettingHour: bucketStartHour + 2, minute: 0, second: 0, of: dayStart) ?? dayEnd
+                // If nextBucketStart is technically tomorrow 00:00, that's fine (dayEnd).
+                // Actually date(bySettingHour: 24...) might fail or wrap.
+                
+                let limit = min(effectiveEnd, nextBucketStart)
+                let chunk = limit.timeIntervalSince(cursor)
+                
+                distribution[bucketIndex] += chunk
+                
+                cursor = limit
+            }
+        }
+        
+        // Convert to minutes for easier display? Or leave as seconds.
+        // Let's store as minutes.
+        self.dayHourlyDistribution = distribution.map { $0 / 60.0 }
     }
     
     private func updateWeekStats(today: Date, entriesByDate: [Date: DailyFunctionality], calendar: Calendar) {
@@ -259,6 +353,60 @@ public class StatsViewModel: ObservableObject {
         } else {
             rangeGrowthPercent = 0
         }
+    }
+
+    private func updateYearStats(today: Date, entriesByDate: [Date: DailyFunctionality], calendar: Calendar) {
+        // Get start and end of current year
+        let year = calendar.component(.year, from: today)
+        rangeStart = calendar.date(from: DateComponents(year: year, month: 1, day: 1)) ?? today
+        rangeEnd = calendar.date(from: DateComponents(year: year, month: 12, day: 31)) ?? today
+        
+        // Filter history for current year
+        let yearHistory = cachedHistory.filter {
+            calendar.component(.year, from: $0.date) == year
+        }
+        
+        let totalFocused = yearHistory.reduce(0) { $0 + $1.totalFocusedTime }
+        let totalWasted = yearHistory.reduce(0) { $0 + $1.totalWastedTime }
+        let totalSessions = yearHistory.reduce(0) { $0 + $1.sessionsCount }
+        
+        rangeFocusedText = TimeFormatter.formatStats(totalFocused)
+        rangeWastedText = TimeFormatter.formatStats(totalWasted)
+        rangeSessionsText = "\(totalSessions)"
+        
+        // Create monthly bars for the year
+        var monthlyBars: [WeekBar] = []
+        for month in 1...12 {
+            guard let monthStart = calendar.date(from: DateComponents(year: year, month: month, day: 1)) else { continue }
+            
+            let monthHistory = yearHistory.filter {
+                calendar.component(.month, from: $0.date) == month
+            }
+            
+            let monthFocused = monthHistory.reduce(0) { $0 + $1.totalFocusedTime }
+            let monthWasted = monthHistory.reduce(0) { $0 + $1.totalWastedTime }
+            let monthSessions = monthHistory.reduce(0) { $0 + $1.sessionsCount }
+            
+            monthlyBars.append(WeekBar(
+                date: monthStart,
+                focused: monthFocused,
+                wasted: monthWasted,
+                sessions: monthSessions
+            ))
+        }
+        rangeBars = monthlyBars
+        
+        // Calculate yearly growth (vs previous year)
+        let prevYear = year - 1
+        let prevYearHistory = cachedHistory.filter {
+            calendar.component(.year, from: $0.date) == prevYear
+        }
+        let prevYearFocused = prevYearHistory.reduce(0) { $0 + $1.totalFocusedTime }
+        
+        rangeGrowthPercent = StatsAggregator.calculateWeeklyGrowth(
+            currentWeekFocused: totalFocused,
+            previousWeekFocused: prevYearFocused
+        )
     }
 
     public func setWeekStart(_ date: Date?) {

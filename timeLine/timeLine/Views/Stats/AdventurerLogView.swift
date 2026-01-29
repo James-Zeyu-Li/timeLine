@@ -38,7 +38,38 @@ struct AdventurerLogView: View {
                 
                 // Weekly Progress
                 VStack(alignment: .leading, spacing: 16) {
-                    headerText(progressHeaderText)
+                    HStack {
+                        headerText(progressHeaderText)
+                        Spacer()
+                        
+                        HStack(spacing: 4) {
+                            Button(action: { 
+                                withAnimation {
+                                    viewModel.previousPeriod() 
+                                }
+                            }) {
+                                Image(systemName: "chevron.left")
+                                    .font(.system(size: 14, weight: .bold))
+                                    .foregroundColor(PixelTheme.textSecondary)
+                                    .frame(width: 28, height: 28)
+                                    .background(PixelTheme.woodLight.opacity(0.1))
+                                    .clipShape(Circle())
+                            }
+                            
+                            Button(action: { 
+                                withAnimation {
+                                    viewModel.nextPeriod() 
+                                }
+                            }) {
+                                Image(systemName: "chevron.right")
+                                    .font(.system(size: 14, weight: .bold))
+                                    .foregroundColor(PixelTheme.textSecondary)
+                                    .frame(width: 28, height: 28)
+                                    .background(PixelTheme.woodLight.opacity(0.1))
+                                    .clipShape(Circle())
+                            }
+                        }
+                    }
                     
                     HStack(spacing: 12) {
                         Text(viewModel.rangeFocusedText)
@@ -67,6 +98,9 @@ struct AdventurerLogView: View {
                     
                     if viewModel.selectedRange == .month {
                         AdventurerMonthHeatmap(viewModel: viewModel)
+                            .frame(height: 180)
+                    } else if viewModel.selectedRange == .day {
+                        AdventurerDayLineChart(viewModel: viewModel)
                             .frame(height: 180)
                     } else {
                         AdventurerRangeChart(bars: viewModel.rangeBars, range: viewModel.selectedRange)

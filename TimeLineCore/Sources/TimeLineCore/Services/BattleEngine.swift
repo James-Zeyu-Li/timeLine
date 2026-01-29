@@ -47,6 +47,7 @@ public class BattleEngine: ObservableObject {
     // Dependencies
     // private let timelineStore: TimelineStore // Removed due to missing type definition in Core
     @Published public var currentBoss: Boss?
+    @Published public var currentTaskMode: TaskMode = .focusStrictFixed
     private let masterClock: MasterClockService
     
     // Internal state for time tracking
@@ -100,6 +101,9 @@ public class BattleEngine: ObservableObject {
     /// Returns the remaining time for the current task/rest session.
     /// Used for accurate time estimation in Timeline UI.
     public var remainingTime: TimeInterval? {
+        if currentTaskMode == .focusGroupFlexible {
+            return nil
+        }
         if state == .fighting, let boss = currentBoss, let start = startTime {
             let elapsed = Date().timeIntervalSince(start) + elapsedBeforeCurrentSession
             return max(0, boss.maxHp - elapsed)
@@ -121,6 +125,7 @@ public class BattleEngine: ObservableObject {
     
     // Phase 19: Ambient Companion
     @Published public var shouldShow50MinCue: Bool = false
+    private var observationCueBaseline: TimeInterval = 0
     private var cancellables = Set<AnyCancellable>()
     
     // Idempotent guard for finalizeSession
@@ -146,7 +151,7 @@ public class BattleEngine: ObservableObject {
             return
         }
         
-        let duration = currentSessionElapsed()
+        let duration = max(0, currentSessionElapsed() - observationCueBaseline)
         // Trigger cue at 50 minutes (3000 seconds)
         if duration >= 3000 && !shouldShow50MinCue {
             shouldShow50MinCue = true
@@ -164,9 +169,18 @@ public class BattleEngine: ObservableObject {
         // Using Date() for immediate consistency, masterClock is for ticks.
         return Date().timeIntervalSince(start) + elapsedBeforeCurrentSession
     }
+
+    public func observationCueElapsed() -> TimeInterval {
+        max(0, currentSessionElapsed() - observationCueBaseline)
+    }
     
-    public func startBattle(boss: Boss, at time: Date = Date()) {
+    public func startBattle(
+        boss: Boss,
+        taskMode: TaskMode = .focusStrictFixed,
+        at time: Date = Date()
+    ) {
         self.currentBoss = boss
+        self.currentTaskMode = taskMode
         self.elapsedBeforeCurrentSession = 0
         self.startTime = time
         self.state = .fighting
@@ -179,6 +193,8 @@ public class BattleEngine: ObservableObject {
         self.remainingSecondsAtExit = nil
         self.focusGroupSummaryOverride = nil
         self.freezeStartTime = nil
+        self.observationCueBaseline = 0
+        self.shouldShow50MinCue = false
         print("[Engine] Battle Started: \(boss.name) at \(time)")
         
         // Start Live Activity
@@ -282,6 +298,7 @@ public class BattleEngine: ObservableObject {
         guard state == .fighting || state == .paused || state == .frozen else { return }
         state = .idle
         currentBoss = nil
+        currentTaskMode = .focusStrictFixed
         startTime = nil
         elapsedBeforeCurrentSession = 0
         wastedTime = 0
@@ -293,6 +310,7 @@ public class BattleEngine: ObservableObject {
         endReasonOverride = nil
         remainingSecondsAtExit = nil
         focusGroupSummaryOverride = nil
+        observationCueBaseline = 0
         print("[Engine] Session Aborted (no record)")
     }
 
@@ -384,6 +402,7 @@ public class BattleEngine: ObservableObject {
         // Passive/Flexible Task Logic
         // We track time but don't enforce maxHp limits or auto-fail.
         // Proceed to calculate time...
+        let isFlexibleTask = currentTaskMode == .focusGroupFlexible
         
         // Calculate total time elapsed (The Clock)
         let currentSessionElapsed = time.timeIntervalSince(start)
@@ -411,7 +430,7 @@ public class BattleEngine: ObservableObject {
         
         // Check for Time Out (Timer > MaxHP) - regardless of HP
         // Passive tasks (Flexible) do NOT timeout.
-        if boss.style != .passive && totalElapsed >= boss.maxHp {
+        if !isFlexibleTask, boss.style != .passive && totalElapsed >= boss.maxHp {
              // Time Over!
              if newHp <= 0 {
                  // Clean win
@@ -427,7 +446,7 @@ public class BattleEngine: ObservableObject {
              }
              self.startTime = nil
              self.distractionStartTime = nil
-        } else if newHp <= 0 {
+        } else if !isFlexibleTask, newHp <= 0 {
             // Killed before time limit
             newHp = 0
             self.state = .victory
@@ -610,6 +629,9 @@ public class BattleEngine: ObservableObject {
     }
     
     private func remainingTime(at time: Date) -> TimeInterval? {
+        if currentTaskMode == .focusGroupFlexible {
+            return nil
+        }
         guard state == .fighting, let boss = currentBoss, boss.style == .focus, let start = startTime else { return nil }
         let currentSessionElapsed = time.timeIntervalSince(start)
         let totalElapsed = elapsedBeforeCurrentSession + currentSessionElapsed
@@ -639,7 +661,8 @@ public class BattleEngine: ObservableObject {
         let coordinator = FocusGroupSessionCoordinator(
             memberTemplateIds: payload.memberTemplateIds,
             startTime: startTime,
-            activeIndex: payload.activeIndex
+            activeIndex: payload.activeIndex,
+            focusedSeconds: focusedSeconds
         )
         return coordinator.endExploration(at: time)
     }
@@ -655,6 +678,7 @@ public class BattleEngine: ObservableObject {
             startTime: startTime ?? Date(),
             elapsedBeforeLastSave: elapsedBeforeCurrentSession,
             wastedTime: wastedTime,
+            taskMode: currentTaskMode,
             isImmune: isImmune,
             immunityCount: immunityCount,
             distractionStartTime: distractionStartTime,
@@ -674,6 +698,7 @@ public class BattleEngine: ObservableObject {
             self.currentBoss = snapshot.boss
         }
         self.state = snapshot.state
+        self.currentTaskMode = snapshot.taskMode ?? .focusStrictFixed
         self.elapsedBeforeCurrentSession = snapshot.elapsedBeforeLastSave
         self.startTime = snapshot.state == .fighting || snapshot.state == .resting ? snapshot.startTime : nil
         self.wastedTime = snapshot.wastedTime
@@ -687,6 +712,7 @@ public class BattleEngine: ObservableObject {
         self.history = snapshot.history ?? []
         self.stamina = snapshot.stamina ?? StaminaSystem()
         self.specimenCollection = snapshot.specimenCollection ?? SpecimenCollection()
+        self.observationCueBaseline = 0
         
         print("[Engine] State Restored. History Count: \(history.count)")
         
@@ -741,5 +767,11 @@ public class BattleEngine: ObservableObject {
                 manager.endAllActivities()
             }
         }
+    }
+
+    public func resetObservationCueBaseline(at time: Date = Date()) {
+        let elapsed = currentSessionElapsed(at: time) ?? currentSessionElapsed()
+        observationCueBaseline = elapsed
+        shouldShow50MinCue = false
     }
 }

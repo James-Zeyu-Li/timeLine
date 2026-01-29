@@ -159,6 +159,12 @@ struct RootView: View {
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
+        .overlay {
+            if coordinator.isRestBreakActive {
+                RestBreakView()
+                    .transition(.opacity)
+            }
+        }
         .sheet(isPresented: $showSettings) {
             SettingsView()
         }

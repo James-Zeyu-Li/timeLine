@@ -154,6 +154,9 @@ struct AdventurerRangeChart: View {
         case .month:
             formatter.dateFormat = "d"
             return formatter.string(from: date)
+        case .year:
+            formatter.dateFormat = "MMM"
+            return String(formatter.string(from: date).prefix(3))
         }
     }
     
@@ -168,6 +171,8 @@ struct AdventurerRangeChart: View {
             return calendar.isDate(date, inSameDayAs: today)
         case .month:
             return calendar.isDate(date, inSameDayAs: today)
+        case .year:
+            return calendar.isDate(date, equalTo: today, toGranularity: .month)
         }
     }
 }
@@ -310,6 +315,78 @@ struct AdventurerMonthHeatmap: View {
         case 3: return PixelTheme.success.opacity(0.7)
         case 4: return PixelTheme.success
         default: return PixelTheme.success
+        }
+    }
+}
+
+struct AdventurerDayLineChart: View {
+    @ObservedObject var viewModel: StatsViewModel
+    
+    var body: some View {
+        GeometryReader { geo in
+            ZStack {
+                // Background Grid
+                VStack {
+                    Divider()
+                    Spacer()
+                    Divider()
+                    Spacer()
+                    Divider()
+                }
+                
+                // The Line
+                Path { path in
+                    let width = geo.size.width
+                    let height = geo.size.height
+                    let data = viewModel.dayHourlyDistribution
+                    let step = width / CGFloat(max(1, data.count - 1))
+                    
+                    let maxValue = data.max() ?? 60.0
+                    let scale = maxValue > 0 ? height / maxValue : 1.0
+                    
+                    if data.count > 1 {
+                        path.move(to: CGPoint(x: 0, y: height - (data[0] * scale)))
+                        
+                        for index in 1..<data.count {
+                            let x = CGFloat(index) * step
+                            let y = height - (data[index] * scale)
+                            path.addLine(to: CGPoint(x: x, y: y))
+                        }
+                    }
+                }
+                .stroke(PixelTheme.primary, style: StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
+                .shadow(color: PixelTheme.primary.opacity(0.3), radius: 4, x: 0, y: 2)
+                
+                // Gradient Fill
+                Path { path in
+                    let width = geo.size.width
+                    let height = geo.size.height
+                    let data = viewModel.dayHourlyDistribution
+                    let step = width / CGFloat(max(1, data.count - 1))
+                    
+                    let maxValue = data.max() ?? 60.0
+                    let scale = maxValue > 0 ? height / maxValue : 1.0
+                    
+                    if data.count > 1 {
+                        path.move(to: CGPoint(x: 0, y: height))
+                        path.addLine(to: CGPoint(x: 0, y: height - (data[0] * scale)))
+                        
+                        for index in 1..<data.count {
+                            let x = CGFloat(index) * step
+                            let y = height - (data[index] * scale)
+                            path.addLine(to: CGPoint(x: x, y: y))
+                        }
+                        
+                        path.addLine(to: CGPoint(x: width, y: height))
+                        path.closeSubpath()
+                    }
+                }
+                .fill(LinearGradient(
+                    colors: [PixelTheme.primary.opacity(0.2), PixelTheme.primary.opacity(0.0)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                ))
+            }
         }
     }
 }

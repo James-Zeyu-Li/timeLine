@@ -10,6 +10,7 @@ struct SettingsView: View {
     @AppStorage("hapticsEnabled") private var hapticsEnabled = true
     @AppStorage("use24HourClock") private var use24HourClock = true
     @AppStorage("usePixelTheme") private var usePixelTheme = true
+    @AppStorage("appearanceMode") private var appearanceMode = "system"
     @State private var showResetConfirmation = false
     
     var body: some View {
@@ -36,6 +37,28 @@ struct SettingsView: View {
                         Spacer()
                         
                         Toggle("", isOn: $strictMode)
+                    }
+                    .padding(.vertical, 4)
+                }
+                
+                Section(header: Text("Appearance")) {
+                    HStack {
+                        Image(systemName: appearanceMode == "dark" ? "moon.fill" : (appearanceMode == "light" ? "sun.max.fill" : "circle.lefthalf.filled"))
+                            .foregroundColor(.orange)
+                            .frame(width: 24)
+                        
+                        Text("Theme")
+                            .font(.headline)
+                        
+                        Spacer()
+                        
+                        Picker("", selection: $appearanceMode) {
+                            Text("Light").tag("light")
+                            Text("Dark").tag("dark")
+                            Text("System").tag("system")
+                        }
+                        .pickerStyle(.segmented)
+                        .frame(width: 200)
                     }
                     .padding(.vertical, 4)
                 }
@@ -176,7 +199,9 @@ struct SettingsView: View {
                 Text("This will delete all tasks, history, and templates. This action cannot be undone.")
             }
         }
-        .preferredColorScheme(.dark)
+        .preferredColorScheme(
+            appearanceMode == "system" ? nil : (appearanceMode == "dark" ? .dark : .light)
+        )
     }
 }
 

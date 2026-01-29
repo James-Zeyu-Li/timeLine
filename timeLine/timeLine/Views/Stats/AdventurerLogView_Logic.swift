@@ -77,6 +77,7 @@ extension AdventurerLogView {
         case .day: return "TODAY'S PROGRESS"
         case .week: return "WEEKLY PROGRESS"
         case .month: return "MONTHLY PROGRESS"
+        case .year: return "YEARLY PROGRESS"
         }
     }
     

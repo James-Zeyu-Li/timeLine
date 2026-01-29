@@ -11,8 +11,11 @@ final class FocusGroupSessionCoordinatorTests: XCTestCase {
             startTime: start
         )
         
+        coordinator.recordFocused(seconds: 60)
         XCTAssertTrue(coordinator.switchTo(index: 1, at: start.addingTimeInterval(60)))
+        coordinator.recordFocused(seconds: 60)
         XCTAssertTrue(coordinator.switchTo(index: 0, at: start.addingTimeInterval(120)))
+        coordinator.recordFocused(seconds: 30)
         
         let summary = coordinator.endExploration(at: start.addingTimeInterval(150))
         XCTAssertEqual(summary.allocations[first] ?? 0, 90, accuracy: 0.1)
@@ -36,6 +39,7 @@ final class FocusGroupSessionCoordinatorTests: XCTestCase {
         )
         
         XCTAssertFalse(coordinator.switchTo(index: 2, at: start.addingTimeInterval(10)))
+        coordinator.recordFocused(seconds: 10)
         let summary = coordinator.endExploration(at: start.addingTimeInterval(10))
         XCTAssertEqual(summary.allocations[first] ?? 0, 10, accuracy: 0.1)
     }

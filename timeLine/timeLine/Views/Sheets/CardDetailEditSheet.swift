@@ -21,7 +21,7 @@ struct CardDetailEditSheet: View {
         ("45m", 2700),
         ("1h", 3600), ("90m", 5400), ("2h", 7200)
     ]
-    let deadlineOptions: [Int?] = [nil, 1, 3, 5, 7]
+    let deadlineOptions: [Int?] = [nil, 1, 3, 10, 30]
     let taskModeOptions: [TaskMode] = [.focusStrictFixed, .focusGroupFlexible, .reminderOnly]
 
     var body: some View {

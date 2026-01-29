@@ -45,6 +45,7 @@ struct TimeLineApp: App {
     
     // First-launch detection
     @AppStorage("hasSeenOnboarding") private var hasSeenOnboarding = false
+    @AppStorage("appearanceMode") private var appearanceMode = "system"
     
     init() {
         let env = ProcessInfo.processInfo.environment
@@ -116,6 +117,9 @@ struct TimeLineApp: App {
                     .environmentObject(stateManager)
                     .environmentObject(coordinator)
                     .environmentObject(masterClock)
+                    .preferredColorScheme(
+                        appearanceMode == "system" ? nil : (appearanceMode == "dark" ? .dark : .light)
+                    )
                     .onAppear {
                         // Start Master Clock
                         masterClock.resume()
@@ -136,6 +140,9 @@ struct TimeLineApp: App {
                     hasSeenOnboarding = true
                 })
                 .onAppear { print("Debug: Showing Onboarding View. hasSeen=\(hasSeenOnboarding)") }
+                .preferredColorScheme(
+                    appearanceMode == "system" ? nil : (appearanceMode == "dark" ? .dark : .light)
+                )
             }
         }
         .onChange(of: scenePhase) { oldValue, newPhase in

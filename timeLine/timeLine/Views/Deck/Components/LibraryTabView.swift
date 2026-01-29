@@ -25,15 +25,25 @@ struct LibraryTabView: View {
     var body: some View {
         let buckets = libraryStore.bucketedEntries(using: cardStore)
         let reminders = rows(for: buckets.reminders)
-        let today = rows(for: buckets.today)
-        let shortTerm = rows(for: buckets.shortTerm)
-        let longTerm = rows(for: buckets.longTerm)
+        let deadline1 = rows(for: buckets.deadline1)
+        let deadline3 = rows(for: buckets.deadline3)
+        let deadline10 = rows(for: buckets.deadline10)
+        let deadline30 = rows(for: buckets.deadline30)
+        let noDeadline = rows(for: buckets.noDeadline)
         let frozen = rows(for: buckets.frozen)
+        let expired = rows(for: buckets.expired)
         
         VStack(spacing: 12) {
             header
             
-            if reminders.isEmpty && today.isEmpty && shortTerm.isEmpty && longTerm.isEmpty && frozen.isEmpty {
+            if reminders.isEmpty
+                && deadline1.isEmpty
+                && deadline3.isEmpty
+                && deadline10.isEmpty
+                && deadline30.isEmpty
+                && noDeadline.isEmpty
+                && frozen.isEmpty
+                && expired.isEmpty {
                 emptyState
             } else {
                 ScrollViewReader { proxy in
@@ -42,17 +52,26 @@ struct LibraryTabView: View {
                             if !reminders.isEmpty {
                                 section(title: "Reminders", rows: reminders)
                             }
-                            if !today.isEmpty {
-                                section(title: "Today & Urgent", rows: today)
+                            if !deadline1.isEmpty {
+                                section(title: "1 Day", rows: deadline1)
                             }
-                            if !shortTerm.isEmpty {
-                                section(title: "Upcoming (3-10 days)", rows: shortTerm)
+                            if !deadline3.isEmpty {
+                                section(title: "3 Days", rows: deadline3)
                             }
-                            if !longTerm.isEmpty {
-                                section(title: "Long Term", rows: longTerm)
+                            if !deadline10.isEmpty {
+                                section(title: "10 Days", rows: deadline10)
+                            }
+                            if !deadline30.isEmpty {
+                                section(title: "30 Days+", rows: deadline30)
+                            }
+                            if !noDeadline.isEmpty {
+                                section(title: "No Deadline", rows: noDeadline)
                             }
                             if !frozen.isEmpty {
                                 section(title: "Frozen (Stale)", rows: frozen)
+                            }
+                            if !expired.isEmpty {
+                                expiredSection(rows: expired)
                             }
                         }
                         .padding(.horizontal, 20)
@@ -373,7 +392,10 @@ struct LibraryTabView: View {
            let node = daySession.nodes.first(where: { $0.id == newId }),
            case .battle(let boss) = node.type {
             daySession.setCurrentNode(id: newId)
-            engine.startBattle(boss: boss)
+            let taskMode = node.effectiveTaskMode { id in
+                cardStore.get(id: id)
+            }
+            engine.startBattle(boss: boss, taskMode: taskMode)
             stateManager.requestSave()
         }
         

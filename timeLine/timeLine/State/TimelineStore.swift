@@ -196,6 +196,50 @@ final class TimelineStore: ObservableObject {
         appendNodes([node], engine: engine)
         return node.id
     }
+
+    func appendFocusGroupMembers(
+        memberTemplateIds: [UUID],
+        to nodeId: UUID,
+        using cardStore: CardTemplateStore
+    ) -> Bool {
+        guard let index = daySession.nodes.firstIndex(where: { $0.id == nodeId }) else { return false }
+        guard case .battle(var boss) = daySession.nodes[index].type,
+              var payload = boss.focusGroupPayload else { return false }
+
+        let newTemplates = resolveTemplates(memberTemplateIds, using: cardStore)
+        guard !newTemplates.isEmpty else { return false }
+
+        var mergedIds = payload.memberTemplateIds
+        var seen = Set(mergedIds)
+        for template in newTemplates where !seen.contains(template.id) {
+            mergedIds.append(template.id)
+            seen.insert(template.id)
+        }
+        guard mergedIds != payload.memberTemplateIds else { return false }
+
+        let addedDuration = newTemplates.reduce(0) { $0 + $1.defaultDuration }
+        let elapsed = boss.maxHp - boss.currentHp
+        let updatedMaxHp = max(60, boss.maxHp + addedDuration)
+        boss.maxHp = updatedMaxHp
+        boss.currentHp = updatedMaxHp - elapsed
+
+        let resolvedTemplates = resolveTemplates(mergedIds, using: cardStore)
+        if resolvedTemplates.count > 1 {
+            boss.name = resolvedTemplates.map(\.title).joined(separator: " + ")
+        } else if let first = resolvedTemplates.first {
+            boss.name = first.title
+        }
+        boss.category = resolvedTemplates.first?.category ?? boss.category
+
+        payload.memberTemplateIds = mergedIds
+        if payload.activeIndex >= mergedIds.count {
+            payload.activeIndex = max(0, mergedIds.count - 1)
+        }
+        boss.focusGroupPayload = payload
+        daySession.nodes[index].type = .battle(boss)
+        stateManager.requestSave()
+        return true
+    }
     
     func undoLastBatch(batchId: UUID) {
         guard let insertedNodeIds = batchHistory.removeValue(forKey: batchId) else { return }

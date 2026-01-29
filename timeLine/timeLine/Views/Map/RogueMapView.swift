@@ -59,7 +59,8 @@ struct RogueMapView: View {
                         viewModel: viewModel,
                         onAction: handleAction,
                         nodeFrames: $nodeFrames,
-                        viewportHeight: $viewportHeight
+                        viewportHeight: $viewportHeight,
+                        isEditMode: $isEditMode
                     )
                 }
             }
@@ -169,10 +170,13 @@ struct RogueMapView: View {
         
         switch node.type {
         case .battle(let boss):
+            let taskMode = node.effectiveTaskMode { id in
+                cardStore.get(id: id)
+            }
             if node.id != daySession.currentNode?.id {
                 Haptics.impact(.medium)
                 daySession.setCurrentNode(id: node.id)
-                engine.startBattle(boss: boss)
+                engine.startBattle(boss: boss, taskMode: taskMode)
                 if let tid = boss.templateId {
                     cardStore.markUsed(id: tid)
                 }
@@ -182,7 +186,7 @@ struct RogueMapView: View {
                     engine.resumeFromFreeze()
                     stateManager.requestSave()
                 } else if engine.state != .fighting {
-                    engine.startBattle(boss: boss)
+                    engine.startBattle(boss: boss, taskMode: taskMode)
                 } else {
                     Haptics.impact(.light)
                 }

@@ -92,6 +92,7 @@ public struct BattleSnapshot: Codable {
     public let startTime: Date
     public let elapsedBeforeLastSave: TimeInterval
     public let wastedTime: TimeInterval
+    public let taskMode: TaskMode?
     public let isImmune: Bool
     public let immunityCount: Int
     public let distractionStartTime: Date?
@@ -109,6 +110,7 @@ public struct BattleSnapshot: Codable {
         case startTime
         case elapsedBeforeLastSave
         case wastedTime
+        case taskMode
         case isImmune
         case immunityCount
         case distractionStartTime
@@ -127,6 +129,7 @@ public struct BattleSnapshot: Codable {
         startTime: Date,
         elapsedBeforeLastSave: TimeInterval,
         wastedTime: TimeInterval,
+        taskMode: TaskMode? = nil,
         isImmune: Bool,
         immunityCount: Int,
         distractionStartTime: Date?,
@@ -143,6 +146,7 @@ public struct BattleSnapshot: Codable {
         self.startTime = startTime
         self.elapsedBeforeLastSave = elapsedBeforeLastSave
         self.wastedTime = wastedTime
+        self.taskMode = taskMode
         self.isImmune = isImmune
         self.immunityCount = immunityCount
         self.distractionStartTime = distractionStartTime
@@ -162,6 +166,7 @@ public struct BattleSnapshot: Codable {
         self.startTime = try container.decode(Date.self, forKey: .startTime)
         self.elapsedBeforeLastSave = try container.decode(TimeInterval.self, forKey: .elapsedBeforeLastSave)
         self.wastedTime = try container.decode(TimeInterval.self, forKey: .wastedTime)
+        self.taskMode = try container.decodeIfPresent(TaskMode.self, forKey: .taskMode)
         self.isImmune = try container.decode(Bool.self, forKey: .isImmune)
         self.immunityCount = try container.decode(Int.self, forKey: .immunityCount)
         self.distractionStartTime = try container.decodeIfPresent(Date.self, forKey: .distractionStartTime)
@@ -181,6 +186,7 @@ public struct BattleSnapshot: Codable {
         try container.encode(startTime, forKey: .startTime)
         try container.encode(elapsedBeforeLastSave, forKey: .elapsedBeforeLastSave)
         try container.encode(wastedTime, forKey: .wastedTime)
+        try container.encodeIfPresent(taskMode, forKey: .taskMode)
         try container.encode(isImmune, forKey: .isImmune)
         try container.encode(immunityCount, forKey: .immunityCount)
         try container.encodeIfPresent(distractionStartTime, forKey: .distractionStartTime)

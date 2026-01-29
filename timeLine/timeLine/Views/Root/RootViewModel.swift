@@ -43,18 +43,29 @@ class RootViewModel: ObservableObject {
     func handleDrop() {
         guard let dragCoordinator, let appMode else { return }
         
+        let hoveringInside = dragCoordinator.hoveringInside
         let action = dragCoordinator.drop()
         let success: Bool
         
         switch action {
         case .placeCard(let cardTemplateId, let anchorNodeId, let placement):
-            success = handlePlaceCard(cardTemplateId: cardTemplateId, anchorNodeId: anchorNodeId, placement: placement)
+            success = handlePlaceCard(
+                cardTemplateId: cardTemplateId,
+                anchorNodeId: anchorNodeId,
+                placement: placement,
+                hoveringInside: hoveringInside
+            )
             
         case .placeDeck(let deckId, let anchorNodeId, let placement):
             success = handlePlaceDeck(deckId: deckId, anchorNodeId: anchorNodeId, placement: placement)
             
         case .placeFocusGroup(let memberTemplateIds, let anchorNodeId, let placement):
-            success = handlePlaceFocusGroup(memberTemplateIds: memberTemplateIds, anchorNodeId: anchorNodeId, placement: placement)
+            success = handlePlaceFocusGroup(
+                memberTemplateIds: memberTemplateIds,
+                anchorNodeId: anchorNodeId,
+                placement: placement,
+                hoveringInside: hoveringInside
+            )
 
         case .moveNode(let nodeId, let anchorNodeId, let placement):
             success = handleMoveNode(nodeId: nodeId, anchorNodeId: anchorNodeId, placement: placement)
@@ -71,10 +82,24 @@ class RootViewModel: ObservableObject {
         dragCoordinator.reset()
     }
     
-    private func handlePlaceCard(cardTemplateId: UUID, anchorNodeId: UUID, placement: DropPlacement) -> Bool {
+    private func handlePlaceCard(
+        cardTemplateId: UUID,
+        anchorNodeId: UUID,
+        placement: DropPlacement,
+        hoveringInside: Bool
+    ) -> Bool {
         guard let daySession, let stateManager, let cardStore, let engine else { return false }
         
         let timelineStore = TimelineStore(daySession: daySession, stateManager: stateManager)
+        if hoveringInside,
+           timelineStore.appendFocusGroupMembers(
+               memberTemplateIds: [cardTemplateId],
+               to: anchorNodeId,
+               using: cardStore
+           ) {
+            Haptics.impact(.heavy)
+            return true
+        }
         if let card = cardStore.get(id: cardTemplateId),
            let remindAt = card.remindAt {
             _ = timelineStore.placeCardOccurrenceByTime(
@@ -123,9 +148,23 @@ class RootViewModel: ObservableObject {
         }
     }
     
-    private func handlePlaceFocusGroup(memberTemplateIds: [UUID], anchorNodeId: UUID, placement: DropPlacement) -> Bool {
+    private func handlePlaceFocusGroup(
+        memberTemplateIds: [UUID],
+        anchorNodeId: UUID,
+        placement: DropPlacement,
+        hoveringInside: Bool
+    ) -> Bool {
         guard let daySession, let stateManager, let cardStore else { return false }
         let timelineStore = TimelineStore(daySession: daySession, stateManager: stateManager)
+        if hoveringInside,
+           timelineStore.appendFocusGroupMembers(
+               memberTemplateIds: memberTemplateIds,
+               to: anchorNodeId,
+               using: cardStore
+           ) {
+            Haptics.impact(.heavy)
+            return true
+        }
         if timelineStore.placeFocusGroupOccurrence(
             memberTemplateIds: memberTemplateIds,
             anchorNodeId: anchorNodeId,

@@ -40,6 +40,7 @@ final class DragDropCoordinator: ObservableObject {
     @Published var hoveringNodeId: UUID?
     @Published var activeDeckSummary: DeckDragSummary?
     @Published var hoveringPlacement: DropPlacement = .after
+    @Published var hoveringInside: Bool = false
     @Published var initialDragLocation: CGPoint? // Captured when drag mode starts
     @Published var isDragEnded = false // Signal to RootView that drag gesture ended
     
@@ -77,6 +78,7 @@ final class DragDropCoordinator: ObservableObject {
         activeDeckSummary = nil
         hoveringNodeId = nil
         hoveringPlacement = .after
+        hoveringInside = false
         isDragEnded = false
     }
     
@@ -85,6 +87,7 @@ final class DragDropCoordinator: ObservableObject {
         activeDeckSummary = summary
         hoveringNodeId = nil
         hoveringPlacement = .after
+        hoveringInside = false
         isDragEnded = false
     }
     
@@ -102,6 +105,7 @@ final class DragDropCoordinator: ObservableObject {
         guard !candidates.isEmpty else {
             hoveringNodeId = nil
             hoveringPlacement = .after
+            hoveringInside = false
             return
         }
         
@@ -128,10 +132,12 @@ final class DragDropCoordinator: ObservableObject {
         guard let finalSelection = selected else {
             hoveringNodeId = nil
             hoveringPlacement = .after
+            hoveringInside = false
             return
         }
         
         hoveringNodeId = finalSelection.0
+        hoveringInside = insideCandidate?.0 == finalSelection.0
         let isAboveCenter = location.y < finalSelection.1.midY
         switch axisDirection {
         case .topToBottom:
@@ -169,6 +175,7 @@ final class DragDropCoordinator: ObservableObject {
         activeDeckSummary = nil
         hoveringNodeId = nil
         hoveringPlacement = .after
+        hoveringInside = false
         // dragLocation = .zero // 坐标系漂移修复 (Solution A): Lock-in final position. Do not reset to zero to prevent "fly to origin" animation artifact.
         dragOffset = .zero
         initialDragLocation = nil

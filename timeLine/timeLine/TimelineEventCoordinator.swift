@@ -27,9 +27,9 @@ final class TimelineEventCoordinator: ObservableObject {
     @Published private(set) var lastExplorationReport: FocusGroupFinishedReport?
     @Published private(set) var pendingRestSuggestion: RestSuggestionEvent?
     @Published private(set) var pendingReminder: ReminderEvent?
+    @Published private(set) var isRestBreakActive: Bool = false
     private var focusGroupSession: FocusGroupSessionCoordinator?
     private var focusGroupNodeId: UUID?
-    private var pendingRestAfterSession = false
     
     // MARK: - Init
     init(engine: BattleEngine, daySession: DaySession, stateManager: StateSaver) {
@@ -134,15 +134,13 @@ final class TimelineEventCoordinator: ObservableObject {
             clearFocusGroupSession()
         }
 
-        if pendingRestAfterSession {
-            pendingRestAfterSession = false
-            startSuggestedRest(duration: 600)
-        }
-        
         stateManager.requestSave()
     }
 
     func recordFocusProgress(seconds: TimeInterval) {
+        if let session = focusGroupSession {
+            session.recordFocused(seconds: seconds)
+        }
         guard pendingRestSuggestion == nil, pendingReminder == nil else { return }
         if let event = restPromptService.recordFocus(seconds: seconds) {
             pendingRestSuggestion = event
@@ -227,12 +225,13 @@ final class TimelineEventCoordinator: ObservableObject {
         guard case .battle(let boss) = node.type,
               let payload = boss.focusGroupPayload else { return nil }
         if focusGroupNodeId != node.id {
-            let elapsed = engine.currentSessionElapsed() ?? 0
-            let startTime = Date().addingTimeInterval(-elapsed)
+            let focusedSeconds = max(0, boss.maxHp - boss.currentHp)
+            let startTime = Date().addingTimeInterval(-focusedSeconds)
             let session = FocusGroupSessionCoordinator(
                 memberTemplateIds: payload.memberTemplateIds,
                 startTime: startTime,
-                activeIndex: payload.activeIndex
+                activeIndex: payload.activeIndex,
+                focusedSeconds: focusedSeconds
             )
             focusGroupSession = session
             focusGroupNodeId = node.id
@@ -288,21 +287,32 @@ final class TimelineEventCoordinator: ObservableObject {
         guard pendingRestSuggestion != nil else { return }
         pendingRestSuggestion = nil
         restPromptService.resetAfterRest()
-        pendingRestAfterSession = true
-        if let node = daySession.currentNode,
-           case .battle(let boss) = node.type,
-           boss.focusGroupPayload != nil {
-            let summary = endFocusGroupSession(at: Date())
-            engine.endExploration(summary: summary, at: Date())
-        } else {
-            engine.retreat()
-        }
+        startRestBreak(duration: duration)
     }
 
     func declineRestSuggestion() {
         guard pendingRestSuggestion != nil else { return }
         pendingRestSuggestion = nil
-        restPromptService.resetAfterContinue()
+    }
+
+    func completeRestBreak() {
+        guard isRestBreakActive else { return }
+        isRestBreakActive = false
+        if engine.state == .paused {
+            engine.resume(at: Date())
+        }
+        engine.resetObservationCueBaseline(at: Date())
+        stateManager.requestSave()
+    }
+
+    private func startRestBreak(duration: TimeInterval) {
+        guard engine.state == .fighting || engine.state == .paused else { return }
+        if engine.state == .fighting {
+            engine.pause(at: Date())
+        }
+        engine.resetObservationCueBaseline(at: Date())
+        isRestBreakActive = true
+        stateManager.requestSave()
     }
 
     private func startSuggestedRest(duration: TimeInterval) {

@@ -22,23 +22,37 @@ public final class FocusGroupSessionCoordinator {
     public private(set) var activeIndex: Int
     
     private var allocations: [UUID: TimeInterval]
-    private var lastSwitchAt: Date
     private let startTime: Date
+    private var focusedCursor: TimeInterval
+    private var lastSwitchAtFocused: TimeInterval
     private var isEnded = false
     private var segments: [FocusGroupSegment]
     
     public init(
         memberTemplateIds: [UUID],
         startTime: Date = Date(),
-        activeIndex: Int = 0
+        activeIndex: Int = 0,
+        focusedSeconds: TimeInterval = 0
     ) {
         self.memberTemplateIds = FocusGroupSessionCoordinator.uniqueIds(from: memberTemplateIds)
         let clampedIndex = min(max(0, activeIndex), max(self.memberTemplateIds.count - 1, 0))
         self.activeIndex = clampedIndex
         self.allocations = [:]
-        self.lastSwitchAt = startTime
         self.startTime = startTime
+        self.focusedCursor = max(0, focusedSeconds)
+        self.lastSwitchAtFocused = self.focusedCursor
         self.segments = []
+
+        if self.focusedCursor > 0, let activeId = activeTemplateId {
+            allocations[activeId, default: 0] += self.focusedCursor
+            segments.append(
+                FocusGroupSegment(
+                    templateId: activeId,
+                    startedAt: startTime,
+                    endedAt: startTime.addingTimeInterval(self.focusedCursor)
+                )
+            )
+        }
     }
     
     @discardableResult
@@ -47,15 +61,23 @@ public final class FocusGroupSessionCoordinator {
         guard index >= 0, index < memberTemplateIds.count else { return false }
         guard index != activeIndex else { return false }
         
-        accumulateTime(until: time)
+        closeSegment()
         activeIndex = index
-        lastSwitchAt = time
+        lastSwitchAtFocused = focusedCursor
         return true
+    }
+
+    public func recordFocused(seconds: TimeInterval) {
+        guard !isEnded else { return }
+        let delta = max(0, seconds)
+        guard delta > 0, let activeId = activeTemplateId else { return }
+        focusedCursor += delta
+        allocations[activeId, default: 0] += delta
     }
     
     public func endExploration(at time: Date = Date()) -> FocusGroupSessionSummary {
         if !isEnded {
-            accumulateTime(until: time)
+            closeSegment()
             isEnded = true
         }
         let total = allocations.values.reduce(0, +)
@@ -67,19 +89,19 @@ public final class FocusGroupSessionCoordinator {
         )
     }
     
-    private func accumulateTime(until time: Date) {
+    private func closeSegment() {
         guard let activeId = activeTemplateId else { return }
-        let delta = max(0, time.timeIntervalSince(lastSwitchAt))
-        if delta > 0 {
-            segments.append(
-                FocusGroupSegment(
-                    templateId: activeId,
-                    startedAt: lastSwitchAt,
-                    endedAt: time
-                )
+        let delta = max(0, focusedCursor - lastSwitchAtFocused)
+        guard delta > 0 else { return }
+        let startedAt = startTime.addingTimeInterval(lastSwitchAtFocused)
+        let endedAt = startTime.addingTimeInterval(focusedCursor)
+        segments.append(
+            FocusGroupSegment(
+                templateId: activeId,
+                startedAt: startedAt,
+                endedAt: endedAt
             )
-        }
-        allocations[activeId, default: 0] += delta
+        )
     }
     
     private var activeTemplateId: UUID? {

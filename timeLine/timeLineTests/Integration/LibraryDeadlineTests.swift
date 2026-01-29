@@ -29,21 +29,21 @@ final class LibraryDeadlineTests: XCTestCase {
 
             let one = makeTemplate(windowDays: 1)
             let three = makeTemplate(windowDays: 3)
-            let five = makeTemplate(windowDays: 5)
-            let seven = makeTemplate(windowDays: 7)
+            let ten = makeTemplate(windowDays: 10)
+            let thirty = makeTemplate(windowDays: 30)
 
-            [one, three, five, seven].forEach { cardStore.add($0) }
+            [one, three, ten, thirty].forEach { cardStore.add($0) }
             libraryStore.add(templateId: one.id, addedAt: now)
             libraryStore.add(templateId: three.id, addedAt: now)
-            libraryStore.add(templateId: five.id, addedAt: now)
-            libraryStore.add(templateId: seven.id, addedAt: now)
+            libraryStore.add(templateId: ten.id, addedAt: now)
+            libraryStore.add(templateId: thirty.id, addedAt: now)
 
             let buckets = libraryStore.bucketedEntries(using: cardStore, now: now, calendar: calendar)
 
             XCTAssertEqual(buckets.deadline1.map(\.templateId), [one.id])
             XCTAssertEqual(buckets.deadline3.map(\.templateId), [three.id])
-            XCTAssertEqual(buckets.deadline5.map(\.templateId), [five.id])
-            XCTAssertEqual(buckets.deadline7.map(\.templateId), [seven.id])
+            XCTAssertEqual(buckets.deadline10.map(\.templateId), [ten.id])
+            XCTAssertEqual(buckets.deadline30.map(\.templateId), [thirty.id])
         }
 
     }

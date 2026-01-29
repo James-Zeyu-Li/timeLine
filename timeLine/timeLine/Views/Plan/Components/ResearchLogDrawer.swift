@@ -6,7 +6,7 @@ struct ResearchLogDrawer: View {
     @EnvironmentObject var libraryStore: LibraryStore
     
     // Accordion State
-    @State private var expandedTier: LibraryStore.LibraryTier = .today
+    @State private var expandedTier: LibraryStore.LibraryTier = .deadline1
     
     // Theme
     private let drawerBackground = Color.black.opacity(0.3)
@@ -14,48 +14,72 @@ struct ResearchLogDrawer: View {
     
     /* 
      Icon mapping for LibraryStore.LibraryTier:
-     .today      -> "sun.max.fill"
-     .shortTerm  -> "calendar"
-     .longTerm   -> "archivebox.fill"
+     .deadline1  -> "sun.max.fill"
+     .deadline3  -> "calendar"
+     .deadline10 -> "clock"
+     .deadline30 -> "archivebox.fill"
+     .noDeadline -> "tray.full"
      .frozen     -> "snowflake"
     */
     
     var body: some View {
         VStack(spacing: 0) {
-            // Tier 1: Today
-            TierHeader(tier: .today, title: "Today's Observation", icon: "sun.max.fill", isExpanded: expandedTier == .today) {
-                withAnimation { expandedTier = .today }
+            // Tier 1: 1 Day
+            TierHeader(tier: .deadline1, title: "1 Day Window", icon: "sun.max.fill", isExpanded: expandedTier == .deadline1) {
+                withAnimation { expandedTier = .deadline1 }
             }
-            if expandedTier == .today {
-                TierContent(tier: .today, cardStore: cardStore, libraryStore: libraryStore)
+            if expandedTier == .deadline1 {
+                TierContent(tier: .deadline1, cardStore: cardStore, libraryStore: libraryStore)
                     .transition(.move(edge: .top).combined(with: .opacity))
             }
             
             Divider().overlay(dividerColor)
             
-            // Tier 2: Short-term (3-10 days)
-            TierHeader(tier: .shortTerm, title: "Short-term Survey", icon: "calendar", isExpanded: expandedTier == .shortTerm) {
-                withAnimation { expandedTier = .shortTerm }
+            // Tier 2: 3 Days
+            TierHeader(tier: .deadline3, title: "3 Day Window", icon: "calendar", isExpanded: expandedTier == .deadline3) {
+                withAnimation { expandedTier = .deadline3 }
             }
-            if expandedTier == .shortTerm {
-                TierContent(tier: .shortTerm, cardStore: cardStore, libraryStore: libraryStore)
+            if expandedTier == .deadline3 {
+                TierContent(tier: .deadline3, cardStore: cardStore, libraryStore: libraryStore)
                     .transition(.move(edge: .top).combined(with: .opacity))
             }
             
             Divider().overlay(dividerColor)
             
-            // Tier 3: Long-term (30+ days)
-            TierHeader(tier: .longTerm, title: "Deep Research", icon: "archivebox.fill", isExpanded: expandedTier == .longTerm) {
-                withAnimation { expandedTier = .longTerm }
+            // Tier 3: 10 Days
+            TierHeader(tier: .deadline10, title: "10 Day Window", icon: "clock", isExpanded: expandedTier == .deadline10) {
+                withAnimation { expandedTier = .deadline10 }
             }
-            if expandedTier == .longTerm {
-                TierContent(tier: .longTerm, cardStore: cardStore, libraryStore: libraryStore)
+            if expandedTier == .deadline10 {
+                TierContent(tier: .deadline10, cardStore: cardStore, libraryStore: libraryStore)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            }
+
+            Divider().overlay(dividerColor)
+
+            // Tier 4: 30 Days+
+            TierHeader(tier: .deadline30, title: "30 Day Window", icon: "archivebox.fill", isExpanded: expandedTier == .deadline30) {
+                withAnimation { expandedTier = .deadline30 }
+            }
+            if expandedTier == .deadline30 {
+                TierContent(tier: .deadline30, cardStore: cardStore, libraryStore: libraryStore)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            }
+
+            Divider().overlay(dividerColor)
+
+            // Tier 5: No Deadline
+            TierHeader(tier: .noDeadline, title: "No Deadline", icon: "tray.full", isExpanded: expandedTier == .noDeadline) {
+                withAnimation { expandedTier = .noDeadline }
+            }
+            if expandedTier == .noDeadline {
+                TierContent(tier: .noDeadline, cardStore: cardStore, libraryStore: libraryStore)
                     .transition(.move(edge: .top).combined(with: .opacity))
             }
             
             Divider().overlay(dividerColor)
             
-            // Tier 4: Frozen (Stale)
+            // Tier 6: Frozen (Stale)
             TierHeader(tier: .frozen, title: "Cryogenic Storage", icon: "snowflake", isExpanded: expandedTier == .frozen) {
                 withAnimation { expandedTier = .frozen }
             }
@@ -145,12 +169,16 @@ private struct TierContent: View {
         let entries: [LibraryEntry]
         
         switch tier {
-        case .today:
-            entries = buckets.today
-        case .shortTerm:
-            entries = buckets.shortTerm
-        case .longTerm:
-            entries = buckets.longTerm
+        case .deadline1:
+            entries = buckets.deadline1
+        case .deadline3:
+            entries = buckets.deadline3
+        case .deadline10:
+            entries = buckets.deadline10
+        case .deadline30:
+            entries = buckets.deadline30
+        case .noDeadline:
+            entries = buckets.noDeadline
         case .frozen:
             entries = buckets.frozen
         }

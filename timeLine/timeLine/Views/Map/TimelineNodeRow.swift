@@ -135,6 +135,24 @@ struct TimelineNodeRow: View {
                     }
                 }
             )
+            .overlay(
+                GeometryReader { geo in
+                    if isCurrent, menuButtonFrame != .zero {
+                        let localFrame = CGRect(
+                            x: menuButtonFrame.minX - geo.frame(in: .global).minX,
+                            y: menuButtonFrame.minY - geo.frame(in: .global).minY,
+                            width: menuButtonFrame.width,
+                            height: menuButtonFrame.height
+                        )
+                        Button(action: onEdit) {
+                            Color.clear
+                        }
+                        .frame(width: localFrame.width, height: localFrame.height)
+                        .position(x: localFrame.midX, y: localFrame.midY)
+                        .contentShape(Rectangle())
+                    }
+                }
+            )
             // 3. Floating Play Button (Z-Index Fix)
             // Sits ON TOP of the LongPressDraggable overlay
             .overlay(
