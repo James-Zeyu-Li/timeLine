@@ -94,9 +94,19 @@ struct TimelineNodeRow: View {
                 }
             }
             .contentShape(Rectangle())
-            .onTapGesture {
-                onTap()
-            }
+            .simultaneousGesture(
+                DragGesture(minimumDistance: 0, coordinateSpace: .global)
+                    .onEnded { value in
+                        guard !appMode.isDragging else { return }
+                        let isTap = abs(value.translation.width) < 10 && abs(value.translation.height) < 10
+                        guard isTap else { return }
+                        if isCurrent, menuButtonFrame != .zero {
+                            let hitBox = menuButtonFrame.insetBy(dx: -12, dy: -12)
+                            if hitBox.contains(value.location) { return }
+                        }
+                        onTap()
+                    }
+            )
             .scaleEffect(isPressing ? 0.97 : 1.0)
             .animation(.easeInOut(duration: 0.2), value: isPressing)
             .animation(.spring(response: 0.3, dampingFraction: 0.7), value: dragCoordinator.hoveringNodeId)
@@ -237,16 +247,15 @@ struct TimelineNodeRow: View {
                         dragCoordinator.reset()
                     }
                 }
-            } else {
-                 Task { @MainActor in
-                     dragCoordinator.dragLocation = location
-                 }
             }
             
         case .changed:
             if appMode.isDragging {
-                Task { @MainActor in
-                    dragCoordinator.dragLocation = location
+                // GlobalDragTracker will drive movement once active; avoid double-updates.
+                if dragCoordinator.initialDragLocation == nil {
+                    Task { @MainActor in
+                        dragCoordinator.dragLocation = location
+                    }
                 }
             }
             

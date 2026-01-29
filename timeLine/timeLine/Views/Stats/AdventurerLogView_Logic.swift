@@ -76,7 +76,7 @@ extension AdventurerLogView {
         switch viewModel.selectedRange {
         case .day: return "TODAY'S PROGRESS"
         case .week: return "WEEKLY PROGRESS"
-        case .year: return "YEARLY PROGRESS"
+        case .month: return "MONTHLY PROGRESS"
         }
     }
     

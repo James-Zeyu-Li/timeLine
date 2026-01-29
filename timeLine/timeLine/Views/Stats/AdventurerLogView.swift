@@ -25,9 +25,6 @@ struct AdventurerLogView: View {
                     level: calculateLevel(xp: Int(viewModel.totalFocusedAllTime / 60) * 10)
                 )
                 
-                // Ranges
-                rangePicker
-                
                 // Stats Grid
                 AdventurerStatGrid(
                     dungeons: viewModel.totalSessionsAllTime,
@@ -35,6 +32,9 @@ struct AdventurerLogView: View {
                     quests: viewModel.totalQuests,
                     streak: viewModel.currentStreak
                 )
+
+                // Ranges
+                rangePicker
                 
                 // Weekly Progress
                 VStack(alignment: .leading, spacing: 16) {
@@ -65,8 +65,13 @@ struct AdventurerLogView: View {
                             .foregroundColor(PixelTheme.textSecondary.opacity(0.3))
                     }
                     
-                    AdventurerRangeChart(bars: viewModel.rangeBars, range: viewModel.selectedRange)
-                        .frame(height: 180)
+                    if viewModel.selectedRange == .month {
+                        AdventurerMonthHeatmap(viewModel: viewModel)
+                            .frame(height: 180)
+                    } else {
+                        AdventurerRangeChart(bars: viewModel.rangeBars, range: viewModel.selectedRange)
+                            .frame(height: 180)
+                    }
                 }
                 .padding(24)
                 .background(Color.white)

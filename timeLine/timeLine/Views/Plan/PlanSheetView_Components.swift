@@ -189,4 +189,3 @@ struct FinishByPickerSheet: View {
         }
     }
 }
-struct ScaleButtonStyle: ButtonStyle {

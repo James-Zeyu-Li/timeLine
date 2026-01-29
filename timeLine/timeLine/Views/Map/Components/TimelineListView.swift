@@ -319,12 +319,10 @@ struct TimelineListView: View {
             anchor = explicit
             print("⚓️ [Timeline] Scrolling to Explicit Anchor: \(String(format: "%.2f", explicit.y))")
         } else {
-            // Default behavior: 0.75 Visual Position
-            // Inverted View: Physical Y = 1.0 - Visual Y
-            // mapAnchorY returns the Visual Y (e.g., 0.75) from the Top.
+            // Default behavior: keep current at the visual anchor (e.g., 0.75 from top).
+            // ScrollView is inverted; use the same visual anchor to avoid flipping again.
             let anchorY = viewModel.mapAnchorY(viewportHeight: viewportHeight)
-            let physicalY = 1.0 - anchorY
-            anchor = UnitPoint(x: 0.5, y: physicalY)
+            anchor = UnitPoint(x: 0.5, y: anchorY)
         }
 
         withAnimation(.easeOut(duration: 0.2)) {

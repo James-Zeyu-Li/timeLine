@@ -5,7 +5,7 @@ import TimeLineCore
 public enum StatsTimeRange: String, CaseIterable, Identifiable {
     case day = "Day"
     case week = "Week"
-    case year = "Year"
+    case month = "Month"
     public var id: String { rawValue }
 }
 
@@ -125,8 +125,8 @@ public class StatsViewModel: ObservableObject {
             updateDayStats(today: today, entriesByDate: entriesByDate, calendar: calendar)
         case .week:
             updateWeekStats(today: today, entriesByDate: entriesByDate, calendar: calendar)
-        case .year:
-            updateYearStats(today: today, entriesByDate: entriesByDate, calendar: calendar)
+        case .month:
+            updateMonthStats(today: today, entriesByDate: entriesByDate, calendar: calendar)
         }
     }
     
@@ -212,58 +212,53 @@ public class StatsViewModel: ObservableObject {
         }
     }
     
-    private func updateYearStats(today: Date, entriesByDate: [Date: DailyFunctionality], calendar: Calendar) {
-        // Get start and end of current year
-        let year = calendar.component(.year, from: today)
-        rangeStart = calendar.date(from: DateComponents(year: year, month: 1, day: 1)) ?? today
-        rangeEnd = calendar.date(from: DateComponents(year: year, month: 12, day: 31)) ?? today
+    private func updateMonthStats(today: Date, entriesByDate: [Date: DailyFunctionality], calendar: Calendar) {
+        // Get start and end of current month
+        let interval = calendar.dateInterval(of: .month, for: today)!
+        rangeStart = interval.start
+        rangeEnd = calendar.date(byAdding: .day, value: -1, to: calendar.date(byAdding: .month, value: 1, to: interval.start)!)!
         
-        // Filter history for current year
-        let yearHistory = cachedHistory.filter {
-            calendar.component(.year, from: $0.date) == year
+        // Filter history for current month
+        let currentMonth = calendar.component(.month, from: today)
+        let currentYear = calendar.component(.year, from: today)
+        
+        let monthHistory = cachedHistory.filter {
+            let date = $0.date
+            return calendar.component(.month, from: date) == currentMonth &&
+                   calendar.component(.year, from: date) == currentYear
         }
         
-        let totalFocused = yearHistory.reduce(0) { $0 + $1.totalFocusedTime }
-        let totalWasted = yearHistory.reduce(0) { $0 + $1.totalWastedTime }
-        let totalSessions = yearHistory.reduce(0) { $0 + $1.sessionsCount }
+        let totalFocused = monthHistory.reduce(0) { $0 + $1.totalFocusedTime }
+        let totalWasted = monthHistory.reduce(0) { $0 + $1.totalWastedTime }
+        let totalSessions = monthHistory.reduce(0) { $0 + $1.sessionsCount }
         
         rangeFocusedText = TimeFormatter.formatStats(totalFocused)
         rangeWastedText = TimeFormatter.formatStats(totalWasted)
         rangeSessionsText = "\(totalSessions)"
         
-        // Create monthly bars for the year
-        var monthlyBars: [WeekBar] = []
-        for month in 1...12 {
-            guard let monthStart = calendar.date(from: DateComponents(year: year, month: month, day: 1)) else { continue }
+        // Clear bars (heatmap uses grid)
+        rangeBars = []
+        
+        // Calculate monthly growth (vs previous month)
+        if let prevMonthDate = calendar.date(byAdding: .month, value: -1, to: today) {
+            let prevMonth = calendar.component(.month, from: prevMonthDate)
+            let prevYear = calendar.component(.year, from: prevMonthDate)
             
-            let monthHistory = yearHistory.filter {
-                calendar.component(.month, from: $0.date) == month
+            let prevMonthHistory = cachedHistory.filter {
+                let date = $0.date
+                return calendar.component(.month, from: date) == prevMonth &&
+                       calendar.component(.year, from: date) == prevYear
             }
             
-            let monthFocused = monthHistory.reduce(0) { $0 + $1.totalFocusedTime }
-            let monthWasted = monthHistory.reduce(0) { $0 + $1.totalWastedTime }
-            let monthSessions = monthHistory.reduce(0) { $0 + $1.sessionsCount }
+            let prevMonthFocused = prevMonthHistory.reduce(0) { $0 + $1.totalFocusedTime }
             
-            monthlyBars.append(WeekBar(
-                date: monthStart,
-                focused: monthFocused,
-                wasted: monthWasted,
-                sessions: monthSessions
-            ))
+            rangeGrowthPercent = StatsAggregator.calculateWeeklyGrowth(
+                currentWeekFocused: totalFocused,
+                previousWeekFocused: prevMonthFocused
+            )
+        } else {
+            rangeGrowthPercent = 0
         }
-        rangeBars = monthlyBars
-        
-        // Calculate yearly growth (vs previous year)
-        let prevYear = year - 1
-        let prevYearHistory = cachedHistory.filter {
-            calendar.component(.year, from: $0.date) == prevYear
-        }
-        let prevYearFocused = prevYearHistory.reduce(0) { $0 + $1.totalFocusedTime }
-        
-        rangeGrowthPercent = StatsAggregator.calculateWeeklyGrowth(
-            currentWeekFocused: totalFocused,
-            previousWeekFocused: prevYearFocused
-        )
     }
 
     public func setWeekStart(_ date: Date?) {

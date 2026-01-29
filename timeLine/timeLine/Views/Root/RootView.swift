@@ -14,7 +14,6 @@ struct RootView: View {
     @StateObject private var dragCoordinator = DragDropCoordinator()
     @StateObject internal var viewModel = RootViewModel()
     
-    @State private var nodeFrames: [UUID: CGRect] = [:]
     @State private var showSettings = false
     @State private var showPlanSheet = false
     @State private var showFieldJournal = false
@@ -58,9 +57,6 @@ struct RootView: View {
             )
             .allowsHitTesting(false)
         )
-        .onPreferenceChange(NodeFrameKey.self) { frames in
-            nodeFrames = frames
-        }
         // 移除全局 DragGesture(minimumDistance: 0)，解决 Timeline Scroll 被阻断的问题。
         .onChange(of: dragCoordinator.dragLocation) { _, newLocation in
             guard appMode.isDragging else { return }
@@ -77,15 +73,6 @@ struct RootView: View {
                     height: newLocation.y - start.y
                 )
             }
-            
-            // 更新逻辑位置 (Hovering/Insertion Index)
-            // 拖拽 node 时排除自身，避免用自己当 anchor
-            let allowed = dragCoordinator.draggedNodeId.map { droppableNodeIds.subtracting([$0]) } ?? droppableNodeIds
-            dragCoordinator.updatePosition(
-                newLocation,
-                nodeFrames: nodeFrames,
-                allowedNodeIds: allowed
-            )
         }
         // 监听拖拽结束信号，触发 drop 逻辑
         .onChange(of: dragCoordinator.isDragEnded) { _, ended in

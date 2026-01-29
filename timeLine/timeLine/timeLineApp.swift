@@ -142,11 +142,14 @@ struct TimeLineApp: App {
             switch newPhase {
             case .background:
                 engine.handleBackgrounding()
+                engine.syncLiveActivity()
                 stateManager.saveNow()
             case .active:
                 checkForNewDay()
                 engine.handleForegrounding()
+                engine.syncLiveActivity()
             case .inactive:
+                engine.syncLiveActivity()
                 stateManager.saveNow()
             default:
                 break

@@ -13,6 +13,7 @@ public class LiveActivityManager {
     
     public func startActivity(boss: Boss, at time: Date) {
 #if os(iOS)
+        endAllActivities()
         let attributes = FocusSessionAttributes(
             title: boss.name,
             modeName: boss.style == .focus ? "Observing" : "Expedition"
@@ -37,10 +38,24 @@ public class LiveActivityManager {
         }
 #endif
     }
+
+    public func ensureActivity(boss: Boss, at time: Date) {
+#if os(iOS)
+        if currentActivity != nil { return }
+        if let existing = Activity<FocusSessionAttributes>.activities.first {
+            currentActivity = existing
+            return
+        }
+        startActivity(boss: boss, at: time)
+#endif
+    }
     
     public func endActivity() {
 #if os(iOS)
-        guard let activity = currentActivity else { return }
+        guard let activity = currentActivity else {
+            endAllActivities()
+            return
+        }
         
         let finalContentState = FocusSessionAttributes.ContentState(
             startTime: Date(), // Placeholder, won't show
@@ -54,6 +69,29 @@ public class LiveActivityManager {
                 dismissalPolicy: .immediate
             )
             print("[LiveActivityManager] Ended Activity")
+        }
+        self.currentActivity = nil
+#endif
+    }
+
+    public func endAllActivities() {
+#if os(iOS)
+        let activities = Activity<FocusSessionAttributes>.activities
+        guard !activities.isEmpty else { return }
+        
+        Task {
+            let finalContentState = FocusSessionAttributes.ContentState(
+                startTime: Date(),
+                endTime: nil,
+                isPaused: false
+            )
+            for activity in activities {
+                await activity.end(
+                    ActivityContent(state: finalContentState, staleDate: nil),
+                    dismissalPolicy: .immediate
+                )
+            }
+            print("[LiveActivityManager] Ended All Activities")
         }
         self.currentActivity = nil
 #endif

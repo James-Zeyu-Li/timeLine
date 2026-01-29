@@ -151,9 +151,9 @@ struct AdventurerRangeChart: View {
         case .week:
             formatter.dateFormat = "E"
             return String(formatter.string(from: date).prefix(1))
-        case .year:
-            formatter.dateFormat = "MMM"
-            return String(formatter.string(from: date).prefix(3))
+        case .month:
+            formatter.dateFormat = "d"
+            return formatter.string(from: date)
         }
     }
     
@@ -166,8 +166,8 @@ struct AdventurerRangeChart: View {
             return calendar.isDate(date, inSameDayAs: today)
         case .week:
             return calendar.isDate(date, inSameDayAs: today)
-        case .year:
-            return calendar.isDate(date, equalTo: today, toGranularity: .month)
+        case .month:
+            return calendar.isDate(date, inSameDayAs: today)
         }
     }
 }
@@ -252,5 +252,64 @@ struct FeatRow: View {
         .background(Color.white)
         .cornerRadius(20)
         .shadow(color: PixelTheme.cardShadow, radius: 4, x: 0, y: 2)
+    }
+}
+
+struct AdventurerMonthHeatmap: View {
+    @ObservedObject var viewModel: StatsViewModel
+    
+    var body: some View {
+        let calendar = Calendar.current
+        let range = calendar.dateInterval(of: .month, for: viewModel.rangeStart) ?? DateInterval(start: Date(), duration: 0)
+        let monthDays = daysInMonth(range: range)
+        
+        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 7), spacing: 4) {
+             ForEach(0..<monthDays.count, id: \.self) { index in
+                if let date = monthDays[index] {
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(color(for: date))
+                        .aspectRatio(1, contentMode: .fit)
+                } else {
+                    Color.clear
+                        .aspectRatio(1, contentMode: .fit)
+                }
+            }
+        }
+    }
+    
+    private func daysInMonth(range: DateInterval) -> [Date?] {
+        var calendar = Calendar.current
+        calendar.firstWeekday = 2 // Monday start matching StatsViewModel
+        
+        let start = range.start
+        let weekday = calendar.component(.weekday, from: start)
+        // weekday: 1=Sun, 2=Mon... 7=Sat
+        // We want Mon=0, Tue=1... Sun=6
+        // If firstWeekday=2, then:
+        // Mon(2) -> 0 => (2 - 2 + 7) % 7 = 0
+        // Sun(1) -> 6 => (1 - 2 + 7) % 7 = 6
+        let offset = (weekday - calendar.firstWeekday + 7) % 7
+        
+        var dates: [Date?] = Array(repeating: nil, count: offset)
+        
+        var currentDate = start
+        while currentDate < range.end {
+            dates.append(currentDate)
+            currentDate = calendar.date(byAdding: .day, value: 1, to: currentDate)!
+        }
+        return dates
+    }
+    
+    func color(for date: Date) -> Color {
+        let day = Calendar.current.startOfDay(for: date)
+        let level = viewModel.heatmapData[day] ?? 0
+        switch level {
+        case 0: return PixelTheme.woodLight.opacity(0.15)
+        case 1: return PixelTheme.success.opacity(0.3)
+        case 2: return PixelTheme.success.opacity(0.5)
+        case 3: return PixelTheme.success.opacity(0.7)
+        case 4: return PixelTheme.success
+        default: return PixelTheme.success
+        }
     }
 }

@@ -10,7 +10,7 @@ struct TimelineActiveCard: View {
     var nodeId: UUID
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 0) {
             // IN PROGRESS Label
             HStack {
                 Image(systemName: "play.fill")
@@ -29,7 +29,7 @@ struct TimelineActiveCard: View {
                         .font(.system(size: 14, weight: .bold))
                         .foregroundColor(PixelTheme.textSecondary)
                 }
-                .frame(width: 44, height: 44)
+                .frame(width: 32, height: 32)
                 .contentShape(Rectangle())
                 .background(
                     GeometryReader { proxy in
@@ -45,24 +45,27 @@ struct TimelineActiveCard: View {
             
             // Task Title
             Text(presenter.nodeTitle)
-                .font(.system(.title3, design: .rounded))
+                .font(.system(size: 22, weight: .bold, design: .rounded))
                 .fontWeight(.bold)
                 .foregroundColor(PixelTheme.textPrimary)
                 .lineLimit(2)
+                .padding(.top, 6)
             
             // Task Description
             Text(presenter.taskDescription)
                 .font(.system(.subheadline, design: .rounded))
                 .foregroundColor(PixelTheme.textSecondary)
+                .lineSpacing(2)
                 .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, 12)
             
             // Time and Action Section
             HStack(alignment: .center, spacing: 16) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("TIME REMAINING")
-                        .font(.system(size: 10, weight: .bold, design: .rounded))
+                        .font(.system(size: 11, weight: .bold, design: .rounded))
                         .foregroundColor(PixelTheme.textSecondary)
-                        .tracking(0.5)
+                        .tracking(0.6)
                     
                     Text(presenter.timeRemaining)
                         .font(.system(.title2, design: .rounded))
@@ -88,16 +91,18 @@ struct TimelineActiveCard: View {
                 // Gesture removed/ignored here as it is blocked.
                 // It serves as the layout anchor.
             }
+            .padding(.top, 18)
         }
-        .padding(.horizontal, 16)
-        .padding(.top, 14)
-        .padding(.bottom, 16)
+        .padding(.horizontal, 20)
+        .padding(.top, 16)
+        .padding(.bottom, 20)
+        .frame(minHeight: 220, alignment: .topLeading)
         .background(
             RoundedRectangle(cornerRadius: 16)
                 .fill(PixelTheme.cardBackground)
                 .stroke(PixelTheme.primary, lineWidth: 2)
         )
-        // Reduced horizontal padding to 16 only
+        // Outer padding keeps the card aligned with the list column
         .padding(.horizontal, 16)
         // Applied negative top padding to raise the card closer to the next task
         .padding(.top, 0)

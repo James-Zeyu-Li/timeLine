@@ -689,6 +689,8 @@ public class BattleEngine: ObservableObject {
         self.specimenCollection = snapshot.specimenCollection ?? SpecimenCollection()
         
         print("[Engine] State Restored. History Count: \(history.count)")
+        
+        syncLiveActivity()
     }
     
     public func reconcile(lastSeenAt: Date, now: Date = Date()) {
@@ -721,4 +723,23 @@ public class BattleEngine: ObservableObject {
 
     
     // Live Activity helper methods removed (moved to LiveActivityManager)
+    public func syncLiveActivity() {
+        if #available(iOS 26.0, *) {
+            if liveActivityManager == nil {
+                liveActivityManager = LiveActivityManager()
+            }
+            guard let manager = liveActivityManager as? LiveActivityManager else { return }
+            
+            switch state {
+            case .fighting, .paused, .frozen:
+                if let boss = currentBoss {
+                    manager.ensureActivity(boss: boss, at: startTime ?? Date())
+                } else {
+                    manager.endAllActivities()
+                }
+            default:
+                manager.endAllActivities()
+            }
+        }
+    }
 }
