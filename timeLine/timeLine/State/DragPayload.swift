@@ -5,6 +5,7 @@ enum DragType: Equatable {
     case deck(UUID)
     case focusGroup([UUID])
     case node(UUID)
+    case nodeCopy(UUID)
 }
 
 struct DragPayload: Equatable {

@@ -35,7 +35,7 @@ struct PlanSheetView: View {
                 if !isKeyboardVisible {
                     // Header
                     HStack {
-                        Text("Expedition Log")
+                        Text("Field Log")
                             .font(.title2)
                             .fontWeight(.bold)
                             .fontDesign(.rounded)
@@ -94,7 +94,7 @@ struct PlanSheetView: View {
                             
                             // Inbox List (Direct from TimelineStore)
                             if timelineStore.inbox.isEmpty {
-                                Text("No pending quests.")
+                                Text("No pending entries.")
                                     .font(.caption)
                                     .foregroundStyle(secondaryText)
                                     .frame(maxWidth: .infinity, alignment: .center)
@@ -122,7 +122,7 @@ struct PlanSheetView: View {
                 }
                 .scrollDismissesKeyboard(.interactively)
                 
-                // Commit Action (Launch Expedition)
+                // Commit Action (Start Session)
                 if !timelineStore.inbox.isEmpty {
                     VStack {
                         Divider().overlay(Color.white.opacity(0.1))
@@ -134,8 +134,8 @@ struct PlanSheetView: View {
                             }
                         }) {
                             HStack {
-                                Image(systemName: "safari.fill") // Compass/Safari icon
-                                Text("Launch Expedition (\(timelineStore.inbox.count) Specimens)")
+                                Image(systemName: "leaf.fill")
+                                Text("Start Session (\(timelineStore.inbox.count) Entries)")
                                     .fontWeight(.bold)
                             }
                             .frame(maxWidth: .infinity)
@@ -145,7 +145,7 @@ struct PlanSheetView: View {
                             .cornerRadius(16)
                             .padding()
                         }
-                        .alert("Expedition Launched", isPresented: $showCommitSuccess) {
+                        .alert("Session Started", isPresented: $showCommitSuccess) {
                             Button("OK") { dismiss() }
                         } message: {
                             Text(commitMessage)
@@ -156,7 +156,7 @@ struct PlanSheetView: View {
                             }
                             Button("Cancel", role: .cancel) { }
                         } message: {
-                             Text("An expedition is already in progress. Add these tasks to the end of the queue?")
+                             Text("A session is already in progress. Add these tasks to the end of the queue?")
                         }
                     }
                     .background(.ultraThinMaterial)

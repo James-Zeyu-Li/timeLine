@@ -109,15 +109,16 @@ final class TimelineStore: ObservableObject {
         guard let card = cardStore.get(id: cardTemplateId) else { return nil }
         var node = makeNode(from: card)
         
-        // Insert at current position (queue jump)
-        let insertIndex = min(daySession.currentIndex, daySession.nodes.count)
-        node.isLocked = false // Immediately available for execution
+        let isIdle = engine.state == .idle || engine.state == .victory || engine.state == .retreat
+        let baseIndex = min(daySession.currentIndex, daySession.nodes.count)
+        let insertIndex = isIdle ? baseIndex : min(baseIndex + 1, daySession.nodes.count)
+        
+        node.isLocked = isIdle
         node.isCompleted = false
         
         daySession.nodes.insert(node, at: insertIndex)
         
-        // Update current index if we're in idle state to point to the new node
-        if engine.state == .idle || engine.state == .victory || engine.state == .retreat {
+        if isIdle {
             daySession.currentIndex = insertIndex
         }
         
@@ -249,6 +250,22 @@ final class TimelineStore: ObservableObject {
         stateManager.requestSave()
     }
 
+    func copyNodeOccurrence(
+        nodeId: UUID,
+        anchorNodeId: UUID,
+        placement: DropPlacement
+    ) -> UUID? {
+        guard let sourceNode = daySession.nodes.first(where: { $0.id == nodeId }) else { return nil }
+        guard let anchorIndex = daySession.nodes.firstIndex(where: { $0.id == anchorNodeId }) else { return nil }
+
+        let newNode = cloneNode(from: sourceNode)
+        let insertIndex = placement == .after ? anchorIndex + 1 : anchorIndex
+        daySession.nodes.insert(newNode, at: insertIndex)
+        daySession.refreshLockStates()
+        stateManager.requestSave()
+        return newNode.id
+    }
+
     func updateNodeByTime(id: UUID, payload: CardTemplate, engine: BattleEngine) {
         // Optimize: Do not save in updateNode internal call, wait for final save
         daySession.updateNode(id: id, payload: payload)
@@ -344,6 +361,50 @@ final class TimelineStore: ObservableObject {
             leadTimeMinutes: card.leadTimeMinutes
         )
         return TimelineNode(type: .battle(boss), isLocked: true)
+    }
+
+    private func cloneNode(from source: TimelineNode) -> TimelineNode {
+        switch source.type {
+        case .battle(let boss):
+            let clonedBoss = Boss(
+                id: UUID(),
+                name: boss.name,
+                maxHp: boss.maxHp,
+                style: boss.style,
+                category: boss.category,
+                templateId: boss.templateId,
+                recommendedStart: boss.recommendedStart,
+                focusGroupPayload: boss.focusGroupPayload,
+                remindAt: boss.remindAt,
+                leadTimeMinutes: boss.leadTimeMinutes
+            )
+            return TimelineNode(
+                type: .battle(clonedBoss),
+                isCompleted: false,
+                isLocked: true,
+                taskModeOverride: source.taskModeOverride,
+                isUnscheduled: source.isUnscheduled,
+                completedAt: nil
+            )
+        case .bonfire(let duration):
+            return TimelineNode(
+                type: .bonfire(duration),
+                isCompleted: false,
+                isLocked: true,
+                taskModeOverride: source.taskModeOverride,
+                isUnscheduled: source.isUnscheduled,
+                completedAt: nil
+            )
+        case .treasure:
+            return TimelineNode(
+                type: .treasure,
+                isCompleted: false,
+                isLocked: true,
+                taskModeOverride: source.taskModeOverride,
+                isUnscheduled: source.isUnscheduled,
+                completedAt: nil
+            )
+        }
     }
 
     private func reminderInsertIndex(remindAt: Date, engine: BattleEngine, excluding excludedId: UUID?) -> Int {

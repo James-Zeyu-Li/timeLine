@@ -22,22 +22,22 @@ struct CardDetailEditSheet: View {
         ("1h", 3600), ("90m", 5400), ("2h", 7200)
     ]
     let deadlineOptions: [Int?] = [nil, 1, 3, 5, 7]
-    let taskModeOptions: [TaskMode] = [.focusStrictFixed, .focusGroupFlexible, .reminderOnly, .dungeonRaid(enemies: [])]
+    let taskModeOptions: [TaskMode] = [.focusStrictFixed, .focusGroupFlexible, .reminderOnly]
 
     var body: some View {
         NavigationStack {
             ZStack {
                 // Background
-                Color.black.ignoresSafeArea()
+                PixelTheme.cream.ignoresSafeArea()
                 
                 if cardMissing {
                     VStack(spacing: 12) {
                         Image(systemName: "exclamationmark.triangle")
                             .font(.system(size: 28, weight: .bold))
-                            .foregroundColor(.gray)
+                            .foregroundColor(PixelTheme.textSecondary)
                         Text("Card not found")
                             .font(.system(.headline, design: .rounded))
-                            .foregroundColor(.white)
+                            .foregroundColor(PixelTheme.textPrimary)
                     }
                 } else {
                     ScrollView {
@@ -48,21 +48,21 @@ struct CardDetailEditSheet: View {
                                     Text("Task Name")
                                         .font(.system(.headline, design: .rounded))
                                         .fontWeight(.semibold)
-                                        .foregroundColor(.white)
+                                        .foregroundColor(PixelTheme.textPrimary)
                                     
                                     TextField("What needs to be done?", text: $draft.title)
                                         .font(.system(.title3, design: .rounded))
                                         .padding(16)
-                                        .background(Color(white: 0.1))
+                                        .background(PixelTheme.cardBackground)
                                         .cornerRadius(12)
-                                        .foregroundColor(.white)
+                                        .foregroundColor(PixelTheme.textPrimary)
                                 }
                                 
                                 VStack(alignment: .leading, spacing: 12) {
                                     Text("Category")
                                         .font(.system(.headline, design: .rounded))
                                         .fontWeight(.semibold)
-                                        .foregroundColor(.white)
+                                        .foregroundColor(PixelTheme.textPrimary)
                                     
                                     LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 3), spacing: 12) {
                                         ForEach(TaskCategory.allCases, id: \.self) { category in
@@ -81,7 +81,7 @@ struct CardDetailEditSheet: View {
                                 Text("Task Mode")
                                     .font(.system(.headline, design: .rounded))
                                     .fontWeight(.semibold)
-                                    .foregroundColor(.white)
+                                    .foregroundColor(PixelTheme.textPrimary)
                                 
                                 LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 3), spacing: 12) {
                                     ForEach(taskModeOptions, id: \.self) { mode in
@@ -95,9 +95,9 @@ struct CardDetailEditSheet: View {
                                     }
                                 }
                                 if isTaskModeLocked {
-                                    Text("Locked during active battle.")
+                                    Text("Locked during active session.")
                                         .font(.system(.caption2, design: .rounded))
-                                        .foregroundColor(.white.opacity(0.6))
+                                        .foregroundColor(PixelTheme.textSecondary)
                                 }
                             }
                             
@@ -120,7 +120,7 @@ struct CardDetailEditSheet: View {
                                 Text("Save to Backlog")
                                     .font(.system(.headline, design: .rounded))
                                     .fontWeight(.semibold)
-                                    .foregroundColor(.white)
+                                    .foregroundColor(PixelTheme.textPrimary)
                                 Spacer()
                                 Toggle("", isOn: libraryBinding)
                                     .labelsHidden()
@@ -140,7 +140,7 @@ struct CardDetailEditSheet: View {
                     Button("Cancel") {
                         appMode.exitCardEdit()
                     }
-                    .foregroundColor(.gray)
+                    .foregroundColor(PixelTheme.textSecondary)
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
@@ -148,7 +148,7 @@ struct CardDetailEditSheet: View {
                         appMode.exitCardEdit()
                     }
                     .fontWeight(.semibold)
-                    .foregroundColor(draft.title.isEmpty ? .gray : .cyan)
+                    .foregroundColor(draft.title.isEmpty ? PixelTheme.textSecondary : PixelTheme.primary)
                     .disabled(draft.title.isEmpty)
                 }
             }

@@ -178,13 +178,6 @@ class PlanViewModel: ObservableObject {
 
 // StagedTask moved to TimeLineCore
 
-struct TaskGroup: Identifiable {
-    let id = UUID()
-    let title: String
-    let tasks: [StagedTask]
-    let sortOrder: Int
-}
-
 // FinishBySelection and GroupKey moved to TimeLineCore
 
 // Local Extension for Mocking

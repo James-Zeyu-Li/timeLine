@@ -390,8 +390,6 @@ struct QuickBuilderSheet: View {
             return "Focus Flex"
         case .reminderOnly:
             return "Reminder"
-        case .dungeonRaid:
-            return "Dungeon Raid"
         }
     }
     

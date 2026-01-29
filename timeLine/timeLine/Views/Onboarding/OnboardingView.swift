@@ -2,7 +2,7 @@ import SwiftUI
 import Combine
 
 // MARK: - Onboarding View
-/// First-launch tutorial that explains the roguelike focus metaphor.
+/// First-launch tutorial that explains the focus flow metaphor.
 /// Shows once, controlled by @AppStorage("hasSeenOnboarding").
 struct OnboardingView: View {
     var onComplete: () -> Void
@@ -15,19 +15,19 @@ struct OnboardingView: View {
             Color.black.ignoresSafeArea()
             
             TabView(selection: $currentPage) {
-                // Page 1: Journey
+                // Page 1: Overview
                 OnboardingPage(
                     icon: "map.fill",
-                    title: "Your Day is a Journey",
-                    subtitle: "Each day is a fresh dungeon run.\nComplete tasks to progress through your timeline.",
+                    title: "Your Day, Clearly Mapped",
+                    subtitle: "Each day is a clean slate.\nAdd tasks to shape your timeline.",
                     color: .cyan
                 ).tag(0)
                 
-                // Page 2: Boss Battles
+                // Page 2: Focus Sessions
                 OnboardingPage(
                     icon: "flame.fill",
-                    title: "Tasks are Bosses",
-                    subtitle: "Focus time deals damage.\nDefeat bosses by staying focused.",
+                    title: "Tasks Become Focus Sessions",
+                    subtitle: "Focused time moves you forward.\nComplete tasks by staying present.",
                     color: .orange
                 ).tag(1)
                 
@@ -43,7 +43,7 @@ struct OnboardingView: View {
                 OnboardingPage(
                     icon: "bolt.fill",
                     title: "Ready to Begin?",
-                    subtitle: "Your first journey awaits.\nAdd tasks and start focusing.",
+                    subtitle: "Your first plan awaits.\nAdd tasks and start focusing.",
                     color: .green,
                     showStartButton: true,
                     onStart: onComplete
@@ -106,7 +106,7 @@ struct OnboardingPage: View {
             // Start button (only on last page)
             if showStartButton {
                 Button(action: { onStart?() }) {
-                    Text("Start Journey")
+                    Text("Start Day")
                         .font(.system(size: 17, weight: .semibold))
                         .foregroundColor(.black)
                         .padding(.horizontal, 40)

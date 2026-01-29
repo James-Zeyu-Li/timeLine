@@ -1,24 +1,9 @@
 import Foundation
 
-public struct EnemyNode: Identifiable, Codable, Equatable, Hashable {
-    public let id: UUID
-    public var title: String
-    public var isDefeated: Bool
-    public var estimatedHP: TimeInterval // Estimated duration
-    
-    public init(id: UUID = UUID(), title: String, isDefeated: Bool = false, estimatedHP: TimeInterval) {
-        self.id = id
-        self.title = title
-        self.isDefeated = isDefeated
-        self.estimatedHP = estimatedHP
-    }
-}
-
 public enum TaskMode: Codable, Equatable, Hashable {
     case focusStrictFixed
     case focusGroupFlexible
     case reminderOnly
-    case dungeonRaid(enemies: [EnemyNode])
     
     // MARK: - Compatibility ID
     public var id: String {
@@ -26,7 +11,6 @@ public enum TaskMode: Codable, Equatable, Hashable {
         case .focusStrictFixed: return "focusStrictFixed"
         case .focusGroupFlexible: return "focusGroupFlexible"
         case .reminderOnly: return "reminderOnly"
-        case .dungeonRaid: return "dungeonRaid"
         }
     }
     
@@ -34,7 +18,6 @@ public enum TaskMode: Codable, Equatable, Hashable {
     
     private enum CodingKeys: String, CodingKey {
         case type
-        case enemies
     }
     
     private enum LegacyValues: String, Codable {
@@ -53,6 +36,7 @@ public enum TaskMode: Codable, Equatable, Hashable {
             case "focusStrictFixed": self = .focusStrictFixed
             case "focusGroupFlexible": self = .focusGroupFlexible
             case "reminderOnly": self = .reminderOnly
+            case "dungeonRaid": self = .focusGroupFlexible
             // Fallback for unknown legacy strings?
             default: self = .focusStrictFixed 
             }
@@ -65,8 +49,7 @@ public enum TaskMode: Codable, Equatable, Hashable {
         
         switch type {
         case "dungeonRaid":
-            let enemies = try container.decode([EnemyNode].self, forKey: .enemies)
-            self = .dungeonRaid(enemies: enemies)
+            self = .focusGroupFlexible
         // Handle future complex types or complex versions of existing types
         case "focusStrictFixed": self = .focusStrictFixed
         case "focusGroupFlexible": self = .focusGroupFlexible
@@ -81,11 +64,6 @@ public enum TaskMode: Codable, Equatable, Hashable {
         case .focusStrictFixed, .focusGroupFlexible, .reminderOnly:
             var container = encoder.singleValueContainer()
             try container.encode(self.id)
-            
-        case .dungeonRaid(let enemies):
-            var container = encoder.container(keyedBy: CodingKeys.self)
-            try container.encode("dungeonRaid", forKey: .type)
-            try container.encode(enemies, forKey: .enemies)
         }
     }
 }

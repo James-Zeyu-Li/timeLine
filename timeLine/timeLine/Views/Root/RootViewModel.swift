@@ -59,6 +59,9 @@ class RootViewModel: ObservableObject {
         case .moveNode(let nodeId, let anchorNodeId, let placement):
             success = handleMoveNode(nodeId: nodeId, anchorNodeId: anchorNodeId, placement: placement)
 
+        case .copyNode(let nodeId, let anchorNodeId, let placement):
+            success = handleCopyNode(nodeId: nodeId, anchorNodeId: anchorNodeId, placement: placement)
+
         case .cancel:
             success = handleEmptyDropFallback()
         }
@@ -169,6 +172,17 @@ class RootViewModel: ObservableObject {
             return false
         }
     }
+
+    private func handleCopyNode(nodeId: UUID, anchorNodeId: UUID, placement: DropPlacement) -> Bool {
+        guard let daySession, let stateManager else { return false }
+        let timelineStore = TimelineStore(daySession: daySession, stateManager: stateManager)
+        if timelineStore.copyNodeOccurrence(nodeId: nodeId, anchorNodeId: anchorNodeId, placement: placement) != nil {
+            Haptics.impact(.medium)
+            return true
+        }
+        Haptics.impact(.light)
+        return false
+    }
     
     private func handleEmptyDropFallback() -> Bool {
         guard let daySession, let dragCoordinator, let stateManager, let cardStore, let deckStore, let engine else {
@@ -220,7 +234,7 @@ class RootViewModel: ObservableObject {
                 Haptics.impact(.heavy)
                 return true
             }
-        case .node:
+        case .node, .nodeCopy:
             break
         }
         

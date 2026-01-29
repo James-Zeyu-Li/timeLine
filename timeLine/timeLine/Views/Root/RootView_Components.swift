@@ -37,9 +37,10 @@ extension RootView {
                 .transition(.opacity) // Overlay manages its own card transition, but this handles the container
         case .dragging(let payload):
             // Keep deck visible but dimmed during drag (only for card/deck drags, not node reordering)
-            if case .node = payload.type {
+            switch payload.type {
+            case .node, .nodeCopy:
                 EmptyView()
-            } else {
+            default:
                 StrictSheet(tab: payload.source, isDimmed: true)
                     .allowsHitTesting(false)
             }
@@ -63,6 +64,9 @@ extension RootView {
                 DraggingGroupView(memberTemplateIds: memberTemplateIds)
                     .zIndex(1)
             case .node(let nodeId):
+                DraggingNodeView(nodeId: nodeId)
+                    .zIndex(1)
+            case .nodeCopy(let nodeId):
                 DraggingNodeView(nodeId: nodeId)
                     .zIndex(1)
             }

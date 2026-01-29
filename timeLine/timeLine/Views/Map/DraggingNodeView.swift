@@ -72,8 +72,8 @@ private struct SimulatedCompactCard: View {
     private var title: String {
         switch node.type {
         case .battle(let boss): return boss.name
-        case .bonfire: return "Rest Point"
-        case .treasure: return "Treasure Chest"
+        case .bonfire: return "Break"
+        case .treasure: return "Field Note"
         }
     }
     
@@ -81,7 +81,7 @@ private struct SimulatedCompactCard: View {
         switch node.type {
         case .battle(let boss): return "\(Int(boss.maxHp / 60))m"
         case .bonfire(let duration): return "\(Int(duration / 60))m"
-        case .treasure: return "Bonus"
+        case .treasure: return "Note"
         }
     }
 }

@@ -31,7 +31,7 @@ struct BonfireView: View {
                 isAnimating = true
             }
             
-            Text("Rest & Recover")
+            Text("Take a Break")
                 .font(.title)
                 .bold()
                 .foregroundColor(.white)
@@ -45,7 +45,7 @@ struct BonfireView: View {
             Button(action: {
                 coordinator.completeBonfire()
             }) {
-                Text("Resume Journey")
+                Text("Resume Session")
                     .font(.headline)
                     .foregroundColor(.white)
                     .padding()

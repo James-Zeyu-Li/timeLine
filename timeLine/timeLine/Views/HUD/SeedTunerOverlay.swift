@@ -214,8 +214,10 @@ struct SeedTunerOverlay: View {
             // Let's stick to "Plant as Current" and user taps Play, OR if the button says START, maybe it should start.
             // Since safety is key, let's Plant it as Current. The user will see the Big Card immediately.
             
-            if let index = daySession.nodes.firstIndex(where: { $0.id == nodeId }) {
-                daySession.currentIndex = index
+            if engine.state == .idle || engine.state == .victory || engine.state == .retreat {
+                if let index = daySession.nodes.firstIndex(where: { $0.id == nodeId }) {
+                    daySession.currentIndex = index
+                }
             }
             
             appMode.exitToHome() // Dismiss tuner

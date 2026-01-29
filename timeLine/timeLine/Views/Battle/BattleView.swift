@@ -250,7 +250,7 @@ struct BattleView: View {
                                             .foregroundColor(.gray)
                                     }
                                     
-                                    Text("RETREAT")
+                                    Text("END")
                                         .font(.system(size: 10, weight: .bold))
                                         .tracking(1)
                                         .foregroundColor(.gray)

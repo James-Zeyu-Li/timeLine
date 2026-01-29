@@ -10,7 +10,7 @@ struct TimelineActiveCard: View {
     var nodeId: UUID
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 12) {
             // IN PROGRESS Label
             HStack {
                 Image(systemName: "play.fill")
@@ -29,10 +29,12 @@ struct TimelineActiveCard: View {
                         .font(.system(size: 14, weight: .bold))
                         .foregroundColor(PixelTheme.textSecondary)
                 }
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
                 .background(
                     GeometryReader { proxy in
                         Color.clear
-                            .onAppear { onMenuFrameChange(proxy.frame(in: .global)) }
+                        .onAppear { onMenuFrameChange(proxy.frame(in: .global)) }
                             .onChange(of: proxy.frame(in: .global)) { _, newFrame in
                                 onMenuFrameChange(newFrame)
                             }
@@ -52,7 +54,7 @@ struct TimelineActiveCard: View {
             Text(presenter.taskDescription)
                 .font(.system(.subheadline, design: .rounded))
                 .foregroundColor(PixelTheme.textSecondary)
-                .lineLimit(3)
+                .fixedSize(horizontal: false, vertical: true)
             
             // Time and Action Section
             HStack(alignment: .center, spacing: 16) {
@@ -87,7 +89,9 @@ struct TimelineActiveCard: View {
                 // It serves as the layout anchor.
             }
         }
-        .padding(20)
+        .padding(.horizontal, 16)
+        .padding(.top, 14)
+        .padding(.bottom, 16)
         .background(
             RoundedRectangle(cornerRadius: 16)
                 .fill(PixelTheme.cardBackground)

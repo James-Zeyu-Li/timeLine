@@ -128,6 +128,11 @@ public class DaySession: ObservableObject, Codable {
         }
         updateLockStates()
     }
+
+    /// Recompute lock states without changing currentIndex.
+    public func refreshLockStates() {
+        updateLockStates()
+    }
     
     /// Sets the current node by ID, unlocking it if necessary.
     public func setCurrentNode(id: UUID) {

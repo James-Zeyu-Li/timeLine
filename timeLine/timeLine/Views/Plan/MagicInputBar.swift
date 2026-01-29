@@ -25,7 +25,7 @@ struct MagicInputBar: View {
                 .foregroundStyle(Color.blue.opacity(0.8)) // Brighter Blue for Dark Mode
             
             // Input TextField
-            TextField("What's your quest? e.g. 'Code 45m'", text: $text)
+            TextField("What are you focusing on? e.g. 'Write 45m'", text: $text)
                 .font(.system(size: 18, weight: .medium, design: .rounded))
                 .submitLabel(.done)
                 .foregroundColor(.white) // White text

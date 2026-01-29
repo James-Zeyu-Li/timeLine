@@ -17,6 +17,7 @@ struct RogueMapView: View {
     @AppStorage("use24HourClock") private var use24HourClock = true
     
     @State private var showStats = false
+    @State private var statsInitialRange: StatsTimeRange?
     @State private var nodeAnchors: [UUID: CGFloat] = [:]
     @State private var nodeFrames: [UUID: CGRect] = [:]
     @State private var viewportHeight: CGFloat = 0
@@ -49,7 +50,8 @@ struct RogueMapView: View {
                         totalFocusedTime: engine.totalFocusedToday,
                         completionProgress: daySession.completionProgress,
                         isEditMode: $isEditMode,
-                        showStats: $showStats
+                        showStats: $showStats,
+                        statsInitialRange: $statsInitialRange
                     )
                     
                     // Timeline scroll view
@@ -81,8 +83,8 @@ struct RogueMapView: View {
                 // Update viewModel preferences when clock format changes
                 viewModel.updatePreferences(use24HourClock: newValue)
             }
-            .sheet(isPresented: $showStats) {
-                AdventurerLogView()
+            .sheet(isPresented: $showStats, onDismiss: { statsInitialRange = nil }) {
+                AdventurerLogView(initialRange: statsInitialRange)
             }
             .confirmationDialog(
                 actionMenuNode.map { nodeTitle(for: $0) } ?? "Task",
@@ -110,9 +112,9 @@ struct RogueMapView: View {
         case .battle(let boss):
             return boss.name
         case .bonfire:
-            return "Rest Point"
+            return "Break"
         case .treasure:
-            return "Treasure"
+            return "Field Note"
         }
     }
     

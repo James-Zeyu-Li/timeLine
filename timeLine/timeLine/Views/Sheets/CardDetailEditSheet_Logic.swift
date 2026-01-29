@@ -28,7 +28,6 @@ extension CardDetailEditSheet {
         case .focusStrictFixed: return "Focus Fixed"
         case .focusGroupFlexible: return "Focus Flex"
         case .reminderOnly: return "Reminder"
-        case .dungeonRaid: return "Dungeon Raid"
         }
     }
     
@@ -37,7 +36,6 @@ extension CardDetailEditSheet {
         case .focusStrictFixed: return .cyan
         case .focusGroupFlexible: return .mint
         case .reminderOnly: return .orange
-        case .dungeonRaid: return .red
         }
     }
 

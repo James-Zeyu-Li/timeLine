@@ -14,9 +14,9 @@ struct TimelineNodePresenter {
         case .battle(let boss):
             return boss.name
         case .bonfire:
-            return "Rest Point"
+            return "Break"
         case .treasure:
-            return "Treasure Chest"
+            return "Field Note"
         }
     }
     
@@ -24,15 +24,15 @@ struct TimelineNodePresenter {
         switch node.type {
         case .battle(let boss):
             if node.isCompleted {
-                return "Completed +15 XP"
+                return "Completed +15 pts"
             } else {
                 let minutes = Int(boss.maxHp / 60)
-                return "Future Quest • \(minutes)m"
+                return "Upcoming Task • \(minutes)m"
             }
         case .bonfire(let duration):
-            return "Rest Point (+10 HP) • \(Int(duration/60))m"
+            return "Break (+10 Energy) • \(Int(duration/60))m"
         case .treasure:
-            return "Bonus Loot"
+            return "Bonus Note"
         }
     }
     
@@ -63,9 +63,9 @@ struct TimelineNodePresenter {
                 return "Ready to start your first focus session today"
             }
         case .bonfire:
-            return "Take a well-deserved break. Recharge for the next challenge."
+            return "Take a short break. Recharge for the next task."
         case .treasure:
-            return "Open to claim your rewards and continue your journey."
+            return "Open to review your notes and continue."
         }
     }
     
@@ -83,7 +83,7 @@ struct TimelineNodePresenter {
     }
     
     var currentTaskStatusText: String {
-        return "CURRENT QUEST"
+        return "CURRENT TASK"
     }
     
     // MARK: - Icon & Color Properties

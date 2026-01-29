@@ -25,7 +25,7 @@ extension BattleView {
     /// Whether this is a flexible mode (stopwatch) or strict mode (countdown)
     var isFlexibleMode: Bool {
         switch currentTaskMode {
-        case .focusGroupFlexible, .dungeonRaid:
+        case .focusGroupFlexible:
             return true
         case .focusStrictFixed, .reminderOnly:
             return false
@@ -94,7 +94,7 @@ extension BattleView {
     
     var exitDialogTitle: String {
         switch currentTaskMode {
-        case .focusGroupFlexible, .dungeonRaid:
+        case .focusGroupFlexible:
             return "End exploring?"
         case .focusStrictFixed, .reminderOnly:
             return "Exit session?"
@@ -103,7 +103,7 @@ extension BattleView {
     
     var exitDialogMessage: String {
         switch currentTaskMode {
-        case .focusGroupFlexible, .dungeonRaid:
+        case .focusGroupFlexible:
             return "End exploring will record this session."
         case .focusStrictFixed:
             return "Undo Start is only available within 60 seconds. Otherwise, exit will be recorded as incomplete."
@@ -114,7 +114,7 @@ extension BattleView {
     
     var endAndRecordLabel: String {
         switch currentTaskMode {
-        case .focusGroupFlexible, .dungeonRaid:
+        case .focusGroupFlexible:
             return "End Exploring"
         case .focusStrictFixed, .reminderOnly:
             return "End & Record"
@@ -123,7 +123,7 @@ extension BattleView {
 
     func handleRetreatTap() {
         switch currentTaskMode {
-        case .focusGroupFlexible, .focusStrictFixed, .dungeonRaid:
+        case .focusGroupFlexible, .focusStrictFixed:
             showExitOptions = true
         case .reminderOnly:
             engine.retreat()

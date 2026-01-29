@@ -31,7 +31,7 @@ struct AdventurerProfileCard: View {
             
             // Info
             VStack(alignment: .leading, spacing: 8) {
-                Text("Focus Master") // Title
+                Text("Focus Profile") // Title
                     .font(.system(.title3, design: .serif))
                     .fontWeight(.bold)
                     .foregroundColor(PixelTheme.textPrimary)
@@ -49,9 +49,9 @@ struct AdventurerProfileCard: View {
                     .frame(height: 8)
                     
                     HStack {
-                        Text("\(totalXP) XP")
+                        Text("\(totalXP) pts")
                         Spacer()
-                        Text("\((level + 1) * 1000) XP")
+                        Text("\((level + 1) * 1000) pts")
                     }
                     .font(.system(size: 10, weight: .medium))
                     .foregroundColor(PixelTheme.textSecondary)
@@ -77,7 +77,7 @@ struct AdventurerStatGrid: View {
         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
             InfoTile(icon: "timer", label: "SESSIONS", value: "\(dungeons)", color: PixelTheme.secondary)
             InfoTile(icon: "clock.fill", label: "MINUTES", value: "\(gold)", color: PixelTheme.primary)
-            InfoTile(icon: "checkmark.circle.fill", label: "QUESTS", value: "\(quests)", color: PixelTheme.success)
+            InfoTile(icon: "checkmark.circle.fill", label: "TASKS", value: "\(quests)", color: PixelTheme.success)
             InfoTile(icon: "flame.fill", label: "STREAK", value: "\(streak)", color: PixelTheme.warning)
         }
     }

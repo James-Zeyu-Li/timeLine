@@ -2,11 +2,16 @@ import SwiftUI
 import TimeLineCore
 
 struct AdventurerLogView: View {
+    let initialRange: StatsTimeRange?
     @StateObject var viewModel = StatsViewModel()
     @EnvironmentObject var engine: BattleEngine
     @Environment(\.presentationMode) var presentationMode
     
     @State var showSettings = false
+
+    init(initialRange: StatsTimeRange? = nil) {
+        self.initialRange = initialRange
+    }
     
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
@@ -68,7 +73,7 @@ struct AdventurerLogView: View {
                 .cornerRadius(24)
                 .shadow(color: PixelTheme.cardShadow, radius: 12, x: 0, y: 4)
                 
-                // Quest Map
+                // Activity Map
                 VStack(alignment: .leading, spacing: 16) {
                     HStack {
                         headerText("ACTIVITY HEATMAP")
@@ -99,6 +104,9 @@ struct AdventurerLogView: View {
         }
         .background(PixelTheme.background.ignoresSafeArea())
         .onAppear {
+            if let initialRange {
+                viewModel.selectedRange = initialRange
+            }
             viewModel.processHistory(
                 engine.history,
                 specimens: engine.specimenCollection

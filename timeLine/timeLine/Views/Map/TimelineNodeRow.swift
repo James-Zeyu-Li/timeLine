@@ -81,7 +81,7 @@ struct TimelineNodeRow: View {
                         onTap: onTap,
                         onEdit: onEdit,
                         onMenuFrameChange: { frame in
-                            menuButtonFrame = frame
+                            menuButtonFrame = frame.insetBy(dx: -6, dy: -6)
                         },
                         namespace: ns,
                         nodeId: node.id
@@ -220,7 +220,12 @@ struct TimelineNodeRow: View {
                 let start = location
                 let offset = CGSize(width: center.x - start.x, height: center.y - start.y)
                 
-                let payload = DragPayload(type: .node(node.id), source: .library, initialOffset: offset)
+                let payload: DragPayload
+                if node.isCompleted {
+                    payload = DragPayload(type: .nodeCopy(node.id), source: .library, initialOffset: offset)
+                } else {
+                    payload = DragPayload(type: .node(node.id), source: .library, initialOffset: offset)
+                }
                 
                 // Defer state update to avoid publishing during view update
                 Task { @MainActor in

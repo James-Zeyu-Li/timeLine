@@ -30,81 +30,93 @@ struct TimelineListView: View {
     // Auto-Restore Scroll State
     @State private var restoreScrollTrigger: Int = 0
     @State private var isUserScrolling: Bool = false
+    @State private var scrollViewFrame: CGRect = .zero
 
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                // Inverted Timeline: Stack 0..N, then flio Y axis
-                LazyVStack(spacing: 0) {
-                    // PADDING SHIM:
-                    // In inverted view, this "Top" item sits at the Visual Bottom.
-                    // We want the first real item (Index 0) to sit at mapAnchorY (e.g. 0.7).
-                    // So we need padding of (1.0 - 0.7 = 0.3) height.
-                    let anchorY = viewModel.mapAnchorY(viewportHeight: viewportHeight)
-                    let paddingHeight = max(0, viewportHeight * (1.0 - anchorY))
-                    
-                    Color.clear
-                        .frame(height: paddingHeight)
-                        .scaleEffect(x: 1, y: -1) // Flip it back so it takes space normally? 
-                        // Actually, plain frame takes space regardless of scale.
-                        // But if we want to be safe...
-                    let dropIndex = dragCoordinator.isDragging ? dragCoordinator.destinationIndex(in: daySession.nodes) : nil
-                    // let draggedIndex = daySession.nodes.firstIndex(where: { $0.id == dragCoordinator.draggedNodeId })
-                    // Removed unused draggedIndex as we use helper isDeadZone now.
-                    
-                    ForEach(Array(daySession.nodes.enumerated()), id: \.element.id) { index, node in
-                        VStack(spacing: 0) {
-                            // Drop Zone logic:
-                            // Show if this is the target drop index AND it's not a "dead zone" (same position)
-                            DragTargetRow(isActive: (dropIndex == index) && !isDeadZone(index, dragCoordinator.draggedNodeId))
-                            
-                            TimelineNodeRow(
-                                node: node,
-                                index: index,
-                                isSelected: false,
-                                isCurrent: viewModel.shouldShowAsCurrentTask(node: node),
-                                isEditMode: false,
-                                onTap: { onAction(.tap(node)) },
-                                onEdit: { onAction(.edit(node)) },
-                                onDuplicate: { onAction(.duplicate(node)) },
-                                onDelete: { onAction(.delete(node)) },
-                                onMoveUp: { onAction(.moveUp(node)) },
-                                onMoveDown: { onAction(.moveDown(node)) },
-                                onDrop: { _ in }, 
-                                totalNodesCount: daySession.nodes.count,
-                                contentOffset: 0,
-                                estimatedTimeLabel: viewModel.estimatedStartTime(for: node, upcomingNodes: viewModel.upcomingNodes)?.absolute
-                            )
-                            // Flip each row back to upright
-                            .scaleEffect(x: 1, y: -1)
-                            // Disable animation during drag to preventing view sliding away from finger
-                            .animation(nil, value: dragCoordinator.hoveringNodeId)
-                            // ✅ Layout Shift Compensation:
-                            // If a Ghost Node (height 92) appears "below" us in the stack (at a lower or equal index),
-                            // we get pushed Up (+Y). We must offset Down (-Y) to stay under the finger.
-                            .offset(y: {
-                                guard dragCoordinator.draggedNodeId == node.id,
-                                      let dropIndex,
-                                      dropIndex <= index,
-                                      !isDeadZone(dropIndex, dragCoordinator.draggedNodeId)
-                                else { return 0 }
-                                return -92
-                            }())
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 3)
-                            .id(node.id)
-                            // Disable interaction with other rows during drag to prevent gesture stealing
-                            .allowsHitTesting(!dragCoordinator.isDragging || dragCoordinator.draggedNodeId == node.id)
+                    // Inverted Timeline: Stack 0..N, then flio Y axis
+                    LazyVStack(spacing: 0) {
+                        // PADDING SHIM:
+                        // In inverted view, this "Top" item sits at the Visual Bottom.
+                        // We want the first real item (Index 0) to sit at mapAnchorY (e.g. 0.7).
+                        // So we need padding of (1.0 - 0.7 = 0.3) height.
+                        let anchorY = viewModel.mapAnchorY(viewportHeight: viewportHeight)
+                        let paddingHeight = max(0, viewportHeight * (1.0 - anchorY))
+                        
+                        Color.clear
+                            .frame(height: paddingHeight)
+                            .scaleEffect(x: 1, y: -1) // Flip it back so it takes space normally? 
+                            // Actually, plain frame takes space regardless of scale.
+                            // But if we want to be safe...
+                        let dropIndex = dragCoordinator.isDragging ? dragCoordinator.destinationIndex(in: daySession.nodes) : nil
+                        // let draggedIndex = daySession.nodes.firstIndex(where: { $0.id == dragCoordinator.draggedNodeId })
+                        // Removed unused draggedIndex as we use helper isDeadZone now.
+                        
+                        ForEach(Array(daySession.nodes.enumerated()), id: \.element.id) { index, node in
+                            VStack(spacing: 0) {
+                                // Drop Zone logic:
+                                // Show if this is the target drop index AND it's not a "dead zone" (same position)
+                                DragTargetRow(isActive: (dropIndex == index) && !isDeadZone(index, dragCoordinator.draggedNodeId))
+                                
+                                TimelineNodeRow(
+                                    node: node,
+                                    index: index,
+                                    isSelected: false,
+                                    isCurrent: viewModel.shouldShowAsCurrentTask(node: node),
+                                    isEditMode: false,
+                                    onTap: { onAction(.tap(node)) },
+                                    onEdit: { onAction(.edit(node)) },
+                                    onDuplicate: { onAction(.duplicate(node)) },
+                                    onDelete: { onAction(.delete(node)) },
+                                    onMoveUp: { onAction(.moveUp(node)) },
+                                    onMoveDown: { onAction(.moveDown(node)) },
+                                    onDrop: { _ in }, 
+                                    totalNodesCount: daySession.nodes.count,
+                                    contentOffset: 0,
+                                    estimatedTimeLabel: viewModel.estimatedStartTime(for: node, upcomingNodes: viewModel.upcomingNodes)?.absolute
+                                )
+                                // Flip each row back to upright
+                                .scaleEffect(x: 1, y: -1)
+                                // Disable animation during drag to preventing view sliding away from finger
+                                .animation(nil, value: dragCoordinator.hoveringNodeId)
+                                // ✅ Layout Shift Compensation:
+                                // If a Ghost Node (height 92) appears "below" us in the stack (at a lower or equal index),
+                                // we get pushed Up (+Y). We must offset Down (-Y) to stay under the finger.
+                                .offset(y: {
+                                    guard dragCoordinator.draggedNodeId == node.id,
+                                          let dropIndex,
+                                          dropIndex <= index,
+                                          !isDeadZone(dropIndex, dragCoordinator.draggedNodeId)
+                                    else { return 0 }
+                                    return -92
+                                }())
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 3)
+                                .id(node.id)
+                                // Disable interaction with other rows during drag to prevent gesture stealing
+                                .allowsHitTesting(!dragCoordinator.isDragging || dragCoordinator.draggedNodeId == node.id)
+                            }
                         }
+                        
+                        // Final Drop Zone (Append to end)
+                        DragTargetRow(isActive: (dropIndex == daySession.nodes.count) && !isDeadZone(daySession.nodes.count, dragCoordinator.draggedNodeId))
+                            .scaleEffect(x: 1, y: -1) // Flip this too? Yes.
                     }
-                    
-                    // Final Drop Zone (Append to end)
-                    DragTargetRow(isActive: (dropIndex == daySession.nodes.count) && !isDeadZone(daySession.nodes.count, dragCoordinator.draggedNodeId))
-                        .scaleEffect(x: 1, y: -1) // Flip this too? Yes.
-                }
-                .frame(maxWidth: .infinity)
+                    .frame(maxWidth: .infinity)
             }
             .scaleEffect(x: 1, y: -1) // Flip the ScrollView (Key Fix: Anchor moves to Bottom)
+            .background(
+                GeometryReader { geo in
+                    Color.clear
+                        .onAppear {
+                            scrollViewFrame = geo.frame(in: .global)
+                        }
+                        .onChange(of: geo.frame(in: .global)) { _, newFrame in
+                            scrollViewFrame = newFrame
+                        }
+                }
+            )
             .scrollDisabled(appMode.isDragging)
             .contentShape(Rectangle())
             .onChange(of: appMode.isDragging) { _, isDragging in
@@ -127,6 +139,7 @@ struct TimelineListView: View {
             }
             .onChange(of: dragCoordinator.isDragging) { _, isDragging in
                 if isDragging {
+                    stopRestoreTimer()
                     // Snap to start position when dragging a task out
                     // Defer to avoid "Publishing changes from within view updates"
                     DispatchQueue.main.async {
@@ -140,6 +153,7 @@ struct TimelineListView: View {
                 DragGesture(minimumDistance: 10, coordinateSpace: .local)
                     .onChanged { _ in
                         isUserScrolling = true
+                        stopRestoreTimer()
                     }
                     .onEnded { _ in
                         isUserScrolling = false
@@ -197,9 +211,22 @@ struct TimelineListView: View {
             let pendingNodes = daySession.nodes.filter { !$0.isCompleted }.map { $0.id }
             let allowed = Set(pendingNodes)
             let currentFrames = self.nodeFrames
-            
-            DispatchQueue.main.async { [weak dragCoordinator] in
-                 dragCoordinator?.updatePosition(newLocation, nodeFrames: currentFrames, allowedNodeIds: allowed)
+            let topDropThreshold = (scrollViewFrame == .zero)
+                ? AutoScrollConfig.topDropZoneTrigger
+                : scrollViewFrame.minY + AutoScrollConfig.topDropZoneTrigger
+
+            if newLocation.y < topDropThreshold {
+                if let lastAllowedId = daySession.nodes.last(where: { allowed.contains($0.id) })?.id {
+                    dragCoordinator.hoveringNodeId = lastAllowedId
+                    dragCoordinator.hoveringPlacement = .after
+                } else {
+                    dragCoordinator.hoveringNodeId = nil
+                    dragCoordinator.hoveringPlacement = .after
+                }
+            } else {
+                DispatchQueue.main.async { [weak dragCoordinator] in
+                     dragCoordinator?.updatePosition(newLocation, nodeFrames: currentFrames, allowedNodeIds: allowed)
+                }
             }
         }
         
@@ -209,10 +236,16 @@ struct TimelineListView: View {
             return
         }
         
-        let edgeZone = AutoScrollConfig.edgeZone
-        if newLocation.y < edgeZone {
+        let topTrigger = (scrollViewFrame == .zero)
+            ? AutoScrollConfig.edgeZoneTop
+            : scrollViewFrame.minY + AutoScrollConfig.edgeZoneTop
+        let bottomTrigger = (scrollViewFrame == .zero)
+            ? (viewportHeight - AutoScrollConfig.edgeZoneBottom)
+            : (scrollViewFrame.maxY - AutoScrollConfig.edgeZoneBottom)
+
+        if newLocation.y < topTrigger {
             startAutoScroll(direction: .towardsEnd, proxy: proxy) 
-        } else if newLocation.y > (viewportHeight - edgeZone) {
+        } else if newLocation.y > bottomTrigger {
             startAutoScroll(direction: .towardsStart, proxy: proxy)
         } else {
             stopAutoScroll()
@@ -315,7 +348,9 @@ private enum AutoScrollDirection {
 }
 
 private enum AutoScrollConfig {
-    static let edgeZone: CGFloat = 90
-    static let interval: TimeInterval = 0.22
-    static let animationDuration: TimeInterval = 0.18
+    static let edgeZoneTop: CGFloat = 12
+    static let edgeZoneBottom: CGFloat = 90
+    static let interval: TimeInterval = 0.44
+    static let animationDuration: TimeInterval = 0.36
+    static let topDropZoneTrigger: CGFloat = 28
 }

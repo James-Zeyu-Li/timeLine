@@ -13,7 +13,6 @@ class MapViewModel: ObservableObject {
     private var use24HourClock: Bool
     
     // Published State for UI
-    @Published var banner: BannerData?
     @Published var pulseNextNodeId: UUID?
     @Published var magicInputText: String = ""
     
@@ -290,33 +289,19 @@ class MapViewModel: ObservableObject {
         switch event {
         case .victory(_, _):
             pulseNext(nodeId: resolved.nodeId)
-        case .retreat(_, let wastedMinutes):
-            banner = BannerData(kind: .distraction(wastedMinutes: wastedMinutes), upNextTitle: resolved.title)
+        case .retreat(_, _):
             pulseNextNodeId = resolved.nodeId
             schedulePulseClear()
-        case .incompleteExit(_, let focusedSeconds, let remainingSeconds):
-            banner = BannerData(
-                kind: .incompleteExit(
-                    focusedSeconds: focusedSeconds,
-                    remainingSeconds: remainingSeconds
-                ),
-                upNextTitle: resolved.title
-            )
+        case .incompleteExit(_, _, _):
             pulseNextNodeId = resolved.nodeId
             schedulePulseClear()
-        case .completedExploration(_, let focusedSeconds, _):
-            banner = BannerData(
-                kind: .explorationComplete(focusedSeconds: focusedSeconds),
-                upNextTitle: resolved.title
-            )
+        case .completedExploration(_, _, _):
             pulseNextNodeId = resolved.nodeId
             schedulePulseClear()
         case .bonfireComplete:
-            banner = BannerData(kind: .restComplete, upNextTitle: resolved.title)
             pulseNextNodeId = resolved.nodeId
             schedulePulseClear()
-        case .bonfireSuggested(let reason, let bonfireId):
-            banner = BannerData(kind: .bonfireSuggested(reason: reason), upNextTitle: nil)
+        case .bonfireSuggested(_, let bonfireId):
             pulseNextNodeId = bonfireId
             schedulePulseClear()
         case .showSettlement:
@@ -397,7 +382,7 @@ class MapViewModel: ObservableObject {
         let formatter = DateFormatter()
         formatter.dateFormat = "EEEE"
         let dayName = formatter.string(from: Date())
-        return "The \(dayName) Dungeon"
+        return "The \(dayName) Timeline"
     }
     
     var isSessionActive: Bool {
@@ -415,12 +400,7 @@ class MapViewModel: ObservableObject {
     }
     
     func mapAnchorY(viewportHeight: CGFloat, bottomFocusPadding: CGFloat = 140, bottomSheetInset: CGFloat = 96) -> CGFloat {
-        if !isSessionActive {
-            return 0.75
-        }
-        guard viewportHeight > 0 else { return 0.75 }
-        let anchor = 1 - (bottomFocusPadding / viewportHeight) - (bottomSheetInset / viewportHeight)
-        return min(0.9, max(0.5, anchor))
+        0.75
     }
 }
 
