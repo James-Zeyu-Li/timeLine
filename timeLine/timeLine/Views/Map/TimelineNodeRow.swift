@@ -94,19 +94,6 @@ struct TimelineNodeRow: View {
                 }
             }
             .contentShape(Rectangle())
-            .simultaneousGesture(
-                DragGesture(minimumDistance: 0, coordinateSpace: .global)
-                    .onEnded { value in
-                        guard !appMode.isDragging else { return }
-                        let isTap = abs(value.translation.width) < 10 && abs(value.translation.height) < 10
-                        guard isTap else { return }
-                        if isCurrent, menuButtonFrame != .zero {
-                            let hitBox = menuButtonFrame.insetBy(dx: -12, dy: -12)
-                            if hitBox.contains(value.location) { return }
-                        }
-                        onTap()
-                    }
-            )
             .scaleEffect(isPressing ? 0.97 : 1.0)
             .animation(.easeInOut(duration: 0.2), value: isPressing)
             .animation(.spring(response: 0.3, dampingFraction: 0.7), value: dragCoordinator.hoveringNodeId)
@@ -119,6 +106,16 @@ struct TimelineNodeRow: View {
                             minimumDuration: 0.4,
                             movementThreshold: 10,
                             exclusionRect: (isCurrent && menuButtonFrame != .zero) ? menuButtonFrame : nil,
+                            onTap: { location in
+                                guard !appMode.isDragging else { return }
+                                // For current task, require the play button to start.
+                                if isCurrent { return }
+                                if isCurrent, menuButtonFrame != .zero {
+                                    let hitBox = menuButtonFrame.insetBy(dx: -12, dy: -12)
+                                    if hitBox.contains(location) { return }
+                                }
+                                onTap()
+                            },
                             onLongPress: { state, location in
                                 // print("🛠 [UIKit] Overlay LongPress: \(state.rawValue)")
                                 handleLongPress(state: state, location: location)
@@ -132,24 +129,6 @@ struct TimelineNodeRow: View {
                         .frame(width: geo.size.width, height: geo.size.height)
                     } else {
                         Color.clear
-                    }
-                }
-            )
-            .overlay(
-                GeometryReader { geo in
-                    if isCurrent, menuButtonFrame != .zero {
-                        let localFrame = CGRect(
-                            x: menuButtonFrame.minX - geo.frame(in: .global).minX,
-                            y: menuButtonFrame.minY - geo.frame(in: .global).minY,
-                            width: menuButtonFrame.width,
-                            height: menuButtonFrame.height
-                        )
-                        Button(action: onEdit) {
-                            Color.clear
-                        }
-                        .frame(width: localFrame.width, height: localFrame.height)
-                        .position(x: localFrame.midX, y: localFrame.midY)
-                        .contentShape(Rectangle())
                     }
                 }
             )

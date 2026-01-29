@@ -11,6 +11,7 @@ struct SettingsView: View {
     @AppStorage("use24HourClock") private var use24HourClock = true
     @AppStorage("usePixelTheme") private var usePixelTheme = true
     @AppStorage("appearanceMode") private var appearanceMode = "system"
+    @AppStorage("useTimelineV2") private var useTimelineV2 = false
     @State private var showResetConfirmation = false
     
     var body: some View {
@@ -174,6 +175,26 @@ struct SettingsView: View {
                             
                             Spacer()
                         }
+                    }
+                    .padding(.vertical, 4)
+                }
+                Section(header: Text("Beta Features")) {
+                    HStack {
+                        Image(systemName: "flask.fill")
+                            .foregroundColor(.purple)
+                            .frame(width: 24)
+                        
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Try Timeline V2")
+                                .font(.headline)
+                            Text("New layout with vertical/horizontal scroll modes")
+                                .font(.caption)
+                                .foregroundColor(.gray)
+                        }
+                        
+                        Spacer()
+                        
+                        Toggle("", isOn: $useTimelineV2)
                     }
                     .padding(.vertical, 4)
                 }

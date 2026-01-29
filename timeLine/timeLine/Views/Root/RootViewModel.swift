@@ -180,7 +180,7 @@ class RootViewModel: ObservableObject {
     }
     
     private func handleMoveNode(nodeId: UUID, anchorNodeId: UUID, placement: DropPlacement) -> Bool {
-        guard let daySession, let stateManager else { return false }
+        guard let daySession, let stateManager, let engine else { return false }
         let timelineStore = TimelineStore(daySession: daySession, stateManager: stateManager)
         
         guard let currentIndex = daySession.nodes.firstIndex(where: { $0.id == nodeId }),
@@ -204,6 +204,8 @@ class RootViewModel: ObservableObject {
         if wouldActuallyMove {
             let sourceIndexSet = IndexSet(integer: currentIndex)
             timelineStore.moveNode(from: sourceIndexSet, to: destinationIndex)
+            let isActive = engine.state == .fighting || engine.state == .paused || engine.state == .frozen || engine.state == .resting
+            timelineStore.finalizeReorder(isSessionActive: isActive, activeNodeId: daySession.currentNode?.id)
             Haptics.impact(.medium)
             return true
         } else {

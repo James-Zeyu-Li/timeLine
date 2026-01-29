@@ -25,9 +25,18 @@ struct TimelineActiveCard: View {
                 Spacer()
                 
                 Button(action: onEdit) {
-                    Image(systemName: "ellipsis")
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundColor(PixelTheme.textSecondary)
+                    ZStack {
+                        Circle()
+                            .fill(PixelTheme.secondary.opacity(0.12))
+                            .frame(width: 28, height: 28)
+                            .overlay(
+                                Circle()
+                                    .stroke(PixelTheme.secondary.opacity(0.35), lineWidth: 1)
+                            )
+                        Image(systemName: "ellipsis")
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundColor(PixelTheme.secondary)
+                    }
                 }
                 .frame(width: 32, height: 32)
                 .contentShape(Rectangle())

@@ -8,8 +8,15 @@ extension RootView {
     var baseLayer: some View {
         switch engine.state {
         case .idle, .victory, .retreat, .frozen:
-            RogueMapView()
+            if useTimelineV2 {
+                TimelineContainerView(onOpenSettings: {
+                    showSettings = true
+                })
                 .transition(.opacity)
+            } else {
+                RogueMapView(showJumpButton: $showJumpButton, scrollToNowTrigger: $scrollToNowTrigger)
+                    .transition(.opacity)
+            }
             
         case .fighting, .paused:
             if shouldShowGroupFocus {

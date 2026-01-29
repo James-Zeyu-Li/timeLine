@@ -5,6 +5,7 @@ struct LongPressDraggable: UIViewRepresentable {
     let minimumDuration: TimeInterval
     let movementThreshold: CGFloat
     let exclusionRect: CGRect?
+    let onTap: ((CGPoint) -> Void)?
     let onLongPress: (UIGestureRecognizer.State, CGPoint) -> Void
     let onPressing: (Bool) -> Void
     
@@ -31,6 +32,16 @@ struct LongPressDraggable: UIViewRepresentable {
         longPress.delaysTouchesBegan = false
         longPress.delegate = context.coordinator
         view.addGestureRecognizer(longPress)
+
+        let tapGesture = UITapGestureRecognizer(
+            target: context.coordinator,
+            action: #selector(Coordinator.handleTap(_:))
+        )
+        tapGesture.cancelsTouchesInView = false
+        tapGesture.delaysTouchesBegan = false
+        tapGesture.delegate = context.coordinator
+        tapGesture.require(toFail: longPress)
+        view.addGestureRecognizer(tapGesture)
         
         context.coordinator.gestureView = view
         
@@ -40,12 +51,14 @@ struct LongPressDraggable: UIViewRepresentable {
     func updateUIView(_ uiView: JsonPassthroughView, context: Context) {
         context.coordinator.onLongPress = onLongPress
         context.coordinator.onPressing = onPressing
+        context.coordinator.onTap = onTap
         uiView.exclusionRectGlobal = exclusionRect
     }
     
     func makeCoordinator() -> Coordinator {
         Coordinator(
             minimumDuration: minimumDuration,
+            onTap: onTap,
             onLongPress: onLongPress,
             onPressing: onPressing
         )
@@ -53,6 +66,7 @@ struct LongPressDraggable: UIViewRepresentable {
     
     // MARK: - Coordinator
     class Coordinator: NSObject, UIGestureRecognizerDelegate {
+        var onTap: ((CGPoint) -> Void)?
         var onLongPress: (UIGestureRecognizer.State, CGPoint) -> Void
         var onPressing: (Bool) -> Void
         weak var gestureView: UIView?
@@ -64,10 +78,12 @@ struct LongPressDraggable: UIViewRepresentable {
         
         init(
             minimumDuration: TimeInterval,
+            onTap: ((CGPoint) -> Void)?,
             onLongPress: @escaping (UIGestureRecognizer.State, CGPoint) -> Void,
             onPressing: @escaping (Bool) -> Void
         ) {
             self.minimumDuration = minimumDuration
+            self.onTap = onTap
             self.onLongPress = onLongPress
             self.onPressing = onPressing
         }
@@ -108,6 +124,11 @@ struct LongPressDraggable: UIViewRepresentable {
             default:
                 break
             }
+        }
+
+        @objc func handleTap(_ gesture: UITapGestureRecognizer) {
+            let location = gesture.location(in: gesture.view?.window)
+            onTap?(location)
         }
         
         func handleTouchMoved(location: CGPoint) {

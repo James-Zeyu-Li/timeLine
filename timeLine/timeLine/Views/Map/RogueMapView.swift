@@ -27,6 +27,9 @@ struct RogueMapView: View {
     @State private var actionMenuNode: TimelineNode?
     @State private var isEditMode = false
     
+    @Binding var showJumpButton: Bool
+    @Binding var scrollToNowTrigger: Int
+    
     var body: some View {
         GeometryReader { proxy in
             ZStack {
@@ -60,7 +63,9 @@ struct RogueMapView: View {
                         onAction: handleAction,
                         nodeFrames: $nodeFrames,
                         viewportHeight: $viewportHeight,
-                        isEditMode: $isEditMode
+                        isEditMode: $isEditMode,
+                        showJumpButton: $showJumpButton,
+                        scrollToNowTrigger: $scrollToNowTrigger
                     )
                 }
             }

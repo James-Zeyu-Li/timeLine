@@ -14,12 +14,19 @@ struct RootView: View {
     @StateObject private var dragCoordinator = DragDropCoordinator()
     @StateObject internal var viewModel = RootViewModel()
     
-    @State private var showSettings = false
+    @State internal var showSettings = false
     @State private var showPlanSheet = false
     @State private var showFieldJournal = false
     @State private var showQuickBuilder = false
     @State private var showSettlement = false
     @State private var reminderTimer = Timer.publish(every: 30, on: .main, in: .common).autoconnect()
+    
+    // Dock & Scroll State
+    @State internal var showJumpButton = false
+    @State internal var scrollToNowTrigger = 0
+    
+    // Feature Flags
+    @AppStorage("useTimelineV2") internal var useTimelineV2 = false
     
     var body: some View {
         ZStack {
@@ -143,19 +150,24 @@ struct RootView: View {
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
-        .overlay(alignment: .bottomTrailing) {
+        .overlay(alignment: .bottom) {
             if showsFloatingControls {
-                GeometryReader { proxy in
-                    HUDControlsView(
+                VStack(spacing: 16) {
+                    if showJumpButton {
+                        JumpToNowButton(action: {
+                            Haptics.impact(.medium)
+                            scrollToNowTrigger += 1
+                        })
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                    }
+                    
+                    UnifiedBottomDock(
                         onZap: handleZapTap,
                         onPlan: { showPlanSheet = true },
-                        onBackpack: { showFieldJournal = true } // Temporarily map Backpack to Field Journal
+                        onBackpack: { showFieldJournal = true }
                     )
-                    .padding(.trailing, 16)
-                    .padding(.bottom, proxy.safeAreaInsets.bottom + 16)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
                 }
-                .ignoresSafeArea()
+                .padding(.bottom, 32)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }

@@ -5,6 +5,7 @@ import TimeLineCore
 
 @MainActor
 class MapViewModel: ObservableObject {
+    static let anchorRatio: CGFloat = 0.65
     // Dependencies
     private var engine: BattleEngine?
     private var daySession: DaySession?
@@ -190,6 +191,10 @@ class MapViewModel: ObservableObject {
         guard let daySession, let stateManager else { return }
         let timelineStore = TimelineStore(daySession: daySession, stateManager: stateManager)
         timelineStore.moveNode(from: source, to: destination)
+        if let engine {
+            let isActive = engine.state == .fighting || engine.state == .paused || engine.state == .frozen || engine.state == .resting
+            timelineStore.finalizeReorder(isSessionActive: isActive, activeNodeId: daySession.currentNode?.id)
+        }
     }
     
     // MARK: - Time Calculations
@@ -400,7 +405,7 @@ class MapViewModel: ObservableObject {
     }
     
     func mapAnchorY(viewportHeight: CGFloat, bottomFocusPadding: CGFloat = 140, bottomSheetInset: CGFloat = 96) -> CGFloat {
-        0.75
+        Self.anchorRatio
     }
 }
 
